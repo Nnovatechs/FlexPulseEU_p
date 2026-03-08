@@ -1,25 +1,34 @@
 # FlexPulseEU
 
-FlexPulseEU is a private foundation repository for a future Horizon-oriented project focused on population surveys, semantic mapping, and related research workflows.
+**License:** Apache-2.0
 
-This first phase establishes a professional, evaluation-ready baseline:
+FlexPulseEU is a repository for the development of the FlexPulseEU project, part of the O-CEI Open Call programme.
+
+The repository currently establishes the technical foundations and development environment for the project. At this stage, the goal is to provide a clean and maintainable baseline that supports future implementation while remaining easy to review and extend.
+
+## Current state
+
+This first phase focuses on setting up the core development structure, including:
 
 - `Next.js` + `TypeScript` application scaffold
-- Apache-2.0 licensing
+- project structure and development conventions
 - repository governance and contribution guidance
-- CI for linting, type checking, tests, and production build
-- secure defaults for environment handling and future integrations
+- CI pipeline for linting, type checking, testing, and production builds
+- secure defaults for environment configuration and future integrations
 
 ## Current scope
 
-This repository currently provides project foundations only. It does not yet implement:
+The repository currently contains **project foundations only**.
+Application features and domain-specific functionality will be introduced progressively as development advances.
+
+At this stage, the repository does not yet implement:
 
 - authentication
 - Supabase integration
-- domain models for surveys
-- semantic mapping or ontology features
+- survey domain models
+- semantic mapping or ontology-related features
 
-Those areas are intentionally deferred to later phases so the base remains clean, reviewable, and secure.
+These areas are intentionally deferred to later phases so the base architecture remains stable and easy to evolve.
 
 ## Stack
 

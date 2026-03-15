@@ -24,7 +24,7 @@ export default async function SurveyAnalyticsPage({
       <PageHeader
         eyebrow="Survey analytics"
         title={`${survey.title} dashboard`}
-        description="A future data-processing cockpit for response quality, participation, and concept-level interpretation."
+        description="Survey analytics shell using the live survey record from Supabase."
         actions={
           <Link href={appRoutes.surveyFill(survey.id)} className="button button--secondary">
             Preview respondent flow
@@ -35,43 +35,47 @@ export default async function SurveyAnalyticsPage({
       <MetricGrid
         metrics={[
           {
-            label: "Responses collected",
-            value: String(survey.responsesCount),
-            hint: "Current mock participation volume",
+            label: "Questions",
+            value: String(survey.questionCount),
+            hint: "Current survey structure",
           },
           {
-            label: "Completion rate",
-            value: "84%",
-            hint: "Illustrative metric for future analytics",
+            label: "Mappings",
+            value: String(survey.mappingCount),
+            hint: "Semantic mapping entries",
           },
           {
-            label: "Average duration",
-            value: "6m 20s",
-            hint: "Expected respondent effort",
+            label: "Status",
+            value: survey.status,
+            hint: "Current lifecycle state",
           },
           {
             label: "Languages active",
-            value: String(survey.targetLanguages.length),
-            hint: "Published language versions",
+            value: String(survey.supportedLanguages.length),
+            hint: "Configured survey languages",
           },
         ]}
       />
 
       <section className="content-grid">
         <article className="surface-card">
-          <h2>Processing insights</h2>
+          <h2>Current readiness</h2>
           <div className="stack-list">
             <div className="analytics-row">
-              <strong>Trusting Automation</strong>
-              <span>Strong positive signal in early mock data</span>
+              <strong>Responses pipeline</strong>
+              <span>Not connected yet</span>
             </div>
             <div className="analytics-row">
-              <strong>Thermal Comfort Zones</strong>
-              <span>Comfort sensitivity remains the key barrier</span>
+              <strong>Publication state</strong>
+              <span>
+                {survey.publishedAt
+                  ? `Published on ${new Date(survey.publishedAt).toLocaleDateString("en-GB")}`
+                  : "Still in pre-publication state"}
+              </span>
             </div>
             <div className="analytics-row">
-              <strong>Flexibility Necessities</strong>
-              <span>Convenience framing likely increases engagement</span>
+              <strong>Last update</strong>
+              <span>{new Date(survey.updatedAt).toLocaleDateString("en-GB")}</span>
             </div>
           </div>
         </article>

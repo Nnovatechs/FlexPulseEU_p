@@ -22,9 +22,9 @@ export default async function SurveyDetailPage({
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Survey visualization"
+        eyebrow="Survey detail"
         title={survey.title}
-        description="A clean read-only view of the generated survey before editing, validation, publication, or analytics review."
+        description="Live survey record loaded from Supabase."
         actions={
           <div className="button-row">
             <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
@@ -42,39 +42,68 @@ export default async function SurveyDetailPage({
           <h2>Survey setup</h2>
           <div className="info-grid">
             <div>
-              <span>Stakeholder</span>
-              <strong>{survey.stakeholderType}</strong>
+              <span>Internal name</span>
+              <strong>{survey.internalName}</strong>
             </div>
             <div>
-              <span>Source language</span>
-              <strong>{survey.sourceLanguage}</strong>
+              <span>Default language</span>
+              <strong>{survey.defaultLanguage}</strong>
             </div>
             <div>
-              <span>Target languages</span>
-              <strong>{survey.targetLanguages.join(", ")}</strong>
+              <span>Supported languages</span>
+              <strong>{survey.supportedLanguages.join(", ")}</strong>
             </div>
             <div>
               <span>Status</span>
               <strong>{survey.status}</strong>
             </div>
+            <div>
+              <span>Questions</span>
+              <strong>{survey.questionCount}</strong>
+            </div>
+            <div>
+              <span>Mapping entries</span>
+              <strong>{survey.mappingCount}</strong>
+            </div>
           </div>
         </article>
 
         <article className="surface-card">
-          <h2>Ontology concepts</h2>
-          <div className="chip-grid">
-            {survey.ontologyConcepts.map((concept) => (
-              <span key={concept} className="tag">
-                {concept}
+          <h2>Lifecycle</h2>
+          <div className="stack-list">
+            <div className="analytics-row">
+              <strong>Created</strong>
+              <span>{new Date(survey.createdAt).toLocaleString("en-GB")}</span>
+            </div>
+            <div className="analytics-row">
+              <strong>Last updated</strong>
+              <span>{new Date(survey.updatedAt).toLocaleString("en-GB")}</span>
+            </div>
+            <div className="analytics-row">
+              <strong>Published</strong>
+              <span>
+                {survey.publishedAt
+                  ? new Date(survey.publishedAt).toLocaleString("en-GB")
+                  : "Not published yet"}
               </span>
-            ))}
+            </div>
           </div>
         </article>
       </section>
 
       <section className="surface-card">
-        <h2>Generated questions</h2>
-        <QuestionList questions={survey.questions} />
+        <h2>Questions</h2>
+        {survey.questions.length > 0 ? (
+          <QuestionList questions={survey.questions} />
+        ) : (
+          <div className="empty-state empty-state--inline">
+            <h3>No questions yet</h3>
+            <p>
+              The draft exists in the database, but the question builder has not
+              been connected yet.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -1,44 +1,48 @@
 import Link from "next/link";
+import { createSurveyDraftAction } from "@/features/surveys/actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { appRoutes } from "@/lib/config/routes";
 
-const conceptOptions = [
-  "Trusting Automation",
-  "Thermal Comfort Zones",
-  "Flexibility Necessities",
-  "Heat Pump Adoption",
-  "EV Charging Behaviour",
-];
-
 const languageOptions = ["English", "Croatian", "French", "Spanish", "Italian"];
 
-export default function NewSurveyPage() {
+type NewSurveyPageProps = {
+  searchParams?: Promise<{ error?: string }>;
+};
+
+export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps) {
+  const params = (await searchParams) ?? {};
+  const hasError = params.error === "missing-fields";
+
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Generation flow"
+        eyebrow="Survey setup"
         title="Create a new survey"
-        description="This mockup models the first structured step: choose stakeholder, define source and respondent languages, and select ontology concepts."
+        description="Create a real draft in Supabase. This step only captures the survey shell so you can start editing immediately."
       />
 
       <section className="content-grid content-grid--form">
         <article className="surface-card">
-          <h2>Survey generation inputs</h2>
-          <div className="stack-form">
+          <h2>Draft definition</h2>
+          {hasError ? (
+            <p className="notice notice--error">
+              Survey name and default language are required.
+            </p>
+          ) : null}
+
+          <form action={createSurveyDraftAction} className="stack-form">
             <label className="field">
-              <span>Stakeholder type</span>
-              <select defaultValue="Household">
-                <option>Household</option>
-                <option>Prosumer</option>
-                <option>Retailer</option>
-                <option>DSO</option>
-                <option>Policy maker</option>
-              </select>
+              <span>Survey name</span>
+              <input
+                name="name"
+                placeholder="e.g. Household flexibility baseline"
+                required
+              />
             </label>
 
             <label className="field">
-              <span>Source language</span>
-              <select defaultValue="English">
+              <span>Default language</span>
+              <select name="defaultLanguage" defaultValue="English" required>
                 {languageOptions.map((language) => (
                   <option key={language}>{language}</option>
                 ))}
@@ -46,52 +50,47 @@ export default function NewSurveyPage() {
             </label>
 
             <div className="field">
-              <span>Respondent languages</span>
+              <span>Supported languages</span>
               <div className="chip-grid">
                 {languageOptions.map((language) => (
                   <label key={language} className="choice-chip">
-                    <input type="checkbox" defaultChecked={language !== "Italian"} />
+                    <input
+                      type="checkbox"
+                      name="supportedLanguages"
+                      value={language}
+                      defaultChecked={language === "English" || language === "Spanish"}
+                    />
                     <span>{language}</span>
                   </label>
                 ))}
               </div>
             </div>
-          </div>
+
+            <div className="button-row">
+              <button type="submit" className="button button--primary">
+                Create draft in database
+              </button>
+              <Link href={appRoutes.surveys} className="button button--ghost">
+                Cancel
+              </Link>
+            </div>
+          </form>
         </article>
 
         <article className="surface-card">
-          <h2>Ontology concepts</h2>
+          <h2>What happens next</h2>
           <p>
-            These cards represent the future ontology-backed concept picker that
-            will drive automatic question suggestion.
+            When you submit this form, the application creates a real row in the
+            `surveys` table and redirects you to the edit page for that draft.
           </p>
-          <div className="chip-grid">
-            {conceptOptions.map((concept) => (
-              <label key={concept} className="choice-chip choice-chip--selected">
-                <input type="checkbox" defaultChecked />
-                <span>{concept}</span>
-              </label>
-            ))}
-          </div>
 
           <div className="callout-box">
-            <strong>Generated outcome</strong>
+            <strong>Current scope</strong>
             <p>
-              The next backend-powered step will transform these inputs into a
-              draft survey structure ready for editing and validation.
+              Questions, ontology concepts, and advanced validation will come in
+              the next phase. Right now we are creating the real persistent
+              survey shell and removing the old placeholders.
             </p>
-          </div>
-
-          <div className="button-row">
-            <Link
-              href={appRoutes.surveyEdit("survey-thermal-comfort-003")}
-              className="button button--primary"
-            >
-              Generate draft mockup
-            </Link>
-            <Link href={appRoutes.surveys} className="button button--ghost">
-              Cancel
-            </Link>
           </div>
         </article>
       </section>

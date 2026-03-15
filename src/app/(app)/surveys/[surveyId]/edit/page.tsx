@@ -19,9 +19,9 @@ export default async function SurveyEditPage({ params }: SurveyEditPageProps) {
   return (
     <div className="page-stack">
       <PageHeader
-        eyebrow="Editing flow"
+        eyebrow="Draft editing"
         title={`Edit ${survey.title}`}
-        description="This mockup represents the step where generated questions can be refined, extended, and validated before publication."
+        description="This draft is now loaded from Supabase. Question editing will be connected in the next step."
         actions={
           <div className="button-row">
             <Link href={appRoutes.surveyDetail(survey.id)} className="button button--ghost">
@@ -37,31 +37,48 @@ export default async function SurveyEditPage({ params }: SurveyEditPageProps) {
         }
       />
 
-      <section className="stack-list">
-        {survey.questions.map((question, index) => (
-          <article key={question.id} className="surface-card">
-            <div className="editable-question__header">
-              <div>
-                <p className="section-header__eyebrow">Question {index + 1}</p>
-                <h2>{question.title}</h2>
+      {survey.questions.length > 0 ? (
+        <section className="stack-list">
+          {survey.questions.map((question, index) => (
+            <article key={question.id} className="surface-card">
+              <div className="editable-question__header">
+                <div>
+                  <p className="section-header__eyebrow">Question {index + 1}</p>
+                  <h2>{question.title}</h2>
+                </div>
+                <span className="meta-pill">{question.type}</span>
               </div>
-              <span className="meta-pill">{question.type}</span>
-            </div>
 
-            <div className="stack-form">
-              <label className="field">
-                <span>Question title</span>
-                <input defaultValue={question.title} />
-              </label>
+              <div className="stack-form">
+                <label className="field">
+                  <span>Question key</span>
+                  <input defaultValue={question.key} readOnly />
+                </label>
 
-              <label className="field">
-                <span>Description</span>
-                <textarea defaultValue={question.description} rows={4} />
-              </label>
-            </div>
-          </article>
-        ))}
-      </section>
+                <label className="field">
+                  <span>Question title</span>
+                  <input defaultValue={question.title} readOnly />
+                </label>
+
+                <label className="field">
+                  <span>Description</span>
+                  <textarea defaultValue={question.description} rows={4} readOnly />
+                </label>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <section className="surface-card">
+          <div className="empty-state empty-state--inline">
+            <h3>Draft created successfully</h3>
+            <p>
+              This survey already exists in the database. The next implementation
+              step is to connect the generator/editor so questions can be added here.
+            </p>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -1,36 +1,26 @@
-export type StakeholderType =
-  | "Household"
-  | "DSO"
-  | "Retailer"
-  | "Prosumer"
-  | "Policy maker";
-
-export type SurveyStatus = "Draft" | "Validated" | "Published";
-
-export type SurveyConcept =
-  | "Trusting Automation"
-  | "Thermal Comfort Zones"
-  | "Flexibility Necessities"
-  | "Heat Pump Adoption"
-  | "EV Charging Behaviour";
-
 export type SurveyQuestion = {
   id: string;
+  key: string;
   title: string;
   description: string;
-  type: "single-choice" | "multi-choice" | "scale" | "open-text";
+  type: string;
   required: boolean;
 };
+
+export type SurveyStatus = "Draft" | "Published" | "Archived";
 
 export type Survey = {
   id: string;
   title: string;
-  stakeholderType: StakeholderType;
-  sourceLanguage: string;
-  targetLanguages: string[];
-  ontologyConcepts: SurveyConcept[];
+  internalName: string;
+  defaultLanguage: string;
+  supportedLanguages: string[];
   status: SurveyStatus;
+  createdAt: string;
   updatedAt: string;
+  publishedAt: string | null;
   responsesCount: number;
+  questionCount: number;
+  mappingCount: number;
   questions: SurveyQuestion[];
 };

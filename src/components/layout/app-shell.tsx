@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ReactNode } from "react";
+import { signOutAction } from "@/lib/auth/actions";
 import { appRoutes } from "@/lib/config/routes";
 
 type NavItem = {
@@ -24,11 +25,11 @@ const navItems: NavItem[] = [
 
 type AppShellProps = {
   userName: string;
-  userRole: string;
+  userEmail: string;
   children: ReactNode;
 };
 
-export function AppShell({ userName, userRole, children }: AppShellProps) {
+export function AppShell({ userName, userEmail, children }: AppShellProps) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -55,12 +56,20 @@ export function AppShell({ userName, userRole, children }: AppShellProps) {
             <p className="topbar__eyebrow">Workspace</p>
             <h2>Survey management</h2>
           </div>
-          <div className="user-chip">
-            <div className="user-chip__avatar">{userName.slice(0, 1)}</div>
-            <div>
-              <strong>{userName}</strong>
-              <p>{userRole}</p>
+          <div className="topbar__controls">
+            <div className="user-chip">
+              <div className="user-chip__avatar">{userName.slice(0, 1)}</div>
+              <div>
+                <strong>{userName}</strong>
+                <p>{userEmail}</p>
+              </div>
             </div>
+
+            <form action={signOutAction}>
+              <button type="submit" className="button button--ghost button--compact">
+                Sign out
+              </button>
+            </form>
           </div>
         </header>
 

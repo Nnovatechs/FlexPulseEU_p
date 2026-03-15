@@ -1,16 +1,16 @@
 import { ReactNode } from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { getMockSession } from "@/lib/auth/session";
+import { requireCurrentSession } from "@/lib/auth/session";
 
 type AppLayoutProps = {
   children: ReactNode;
 };
 
 export default async function ProtectedAppLayout({ children }: AppLayoutProps) {
-  const session = await getMockSession();
+  const session = await requireCurrentSession();
 
   return (
-    <AppShell userName={session.name} userRole={session.role}>
+    <AppShell userName={session.name} userEmail={session.email}>
       {children}
     </AppShell>
   );

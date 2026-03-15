@@ -1,77 +1,114 @@
-import Link from "next/link";
+import {
+  signInWithPasswordAction,
+  signUpWithPasswordAction,
+} from "@/lib/auth/actions";
 import { appRoutes } from "@/lib/config/routes";
 
-const providerOptions = ["Continue with Google", "Continue with LinkedIn"];
+type LoginPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+    message?: string;
+    mode?: string;
+    next?: string;
+  }>;
+};
 
-export default function LoginPage() {
+const errorMessages: Record<string, string> = {
+  "missing-credentials": "Enter a valid email and password to continue.",
+  "invalid-credentials": "The credentials provided were not accepted.",
+  "missing-signup-fields": "Complete all fields to create a new account.",
+  "password-mismatch": "The password confirmation does not match.",
+  "signup-failed": "The account could not be created with the provided details.",
+};
+
+const infoMessages: Record<string, string> = {
+  "check-email":
+    "Your account was created. Confirm your email if Supabase email confirmation is enabled.",
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const errorKey = resolvedSearchParams.error;
+  const messageKey = resolvedSearchParams.message;
+  const mode = resolvedSearchParams.mode === "signup" ? "signup" : "signin";
+  const nextPath = resolvedSearchParams.next ?? appRoutes.dashboard;
+  const isSignUpMode = mode === "signup";
+
   return (
     <main className="login-shell">
-      <section className="login-panel login-panel--hero">
-        <p className="section-header__eyebrow">FlexPulseEU access</p>
-        <h1>Survey operations for multilingual research.</h1>
-        <p>
-          A restrained, professional workspace for generating, refining,
-          publishing, and reviewing survey instruments.
-        </p>
-
-        <div className="feature-list">
-          <article className="feature-item">
-            <strong>Survey generation</strong>
-            <span>Define stakeholder, language scope, and ontology concepts.</span>
-          </article>
-          <article className="feature-item">
-            <strong>Editing and validation</strong>
-            <span>Review and adjust generated content before publication.</span>
-          </article>
-          <article className="feature-item">
-            <strong>Filling and analytics</strong>
-            <span>Move from respondent experience to interpretable results.</span>
-          </article>
-        </div>
-      </section>
-
-      <section className="login-panel">
+      <section className="login-panel login-panel--auth">
         <div className="login-card">
+          <div className="auth-mode-switch" role="tablist" aria-label="Authentication mode">
+            <a
+              href={appRoutes.login}
+              className={`auth-mode-switch__item${!isSignUpMode ? " auth-mode-switch__item--active" : ""}`}
+            >
+              Sign in
+            </a>
+            <a
+              href={`${appRoutes.login}?mode=signup`}
+              className={`auth-mode-switch__item${isSignUpMode ? " auth-mode-switch__item--active" : ""}`}
+            >
+              Create account
+            </a>
+          </div>
+
           <div className="login-card__header">
-            <p className="section-header__eyebrow">Sign in</p>
-            <h2>Welcome back</h2>
+            <p className="section-header__eyebrow">FlexPulseEU</p>
+            <h1>{isSignUpMode ? "Create account" : "Sign in"}</h1>
             <p>
-              This is a frontend-only mockup. The visual flow is already shaped
-              for a later integration with real authentication and middleware.
+              {isSignUpMode
+                ? "Create an account to access the protected workspace."
+                : "Access the protected workspace with your account."}
             </p>
           </div>
 
-          <form className="stack-form">
+          {messageKey ? (
+            <div className="notice notice--info" role="status">
+              {infoMessages[messageKey] ?? "Action completed successfully."}
+            </div>
+          ) : null}
+
+          {errorKey ? (
+            <div className="notice notice--error" role="alert">
+              {errorMessages[errorKey] ?? "Authentication could not be completed."}
+            </div>
+          ) : null}
+
+          <form
+            className="stack-form"
+            action={isSignUpMode ? signUpWithPasswordAction : signInWithPasswordAction}
+          >
+            <input type="hidden" name="next" value={nextPath} />
             <label className="field">
               <span>Email</span>
-              <input type="email" placeholder="name@institution.eu" />
+              <input type="email" name="email" placeholder="name@institution.eu" />
             </label>
 
             <label className="field">
               <span>Password</span>
-              <input type="password" placeholder="••••••••••••" />
+              <input
+                type="password"
+                name="password"
+                placeholder="••••••••••••"
+              />
             </label>
 
-            <Link href={appRoutes.dashboard} className="button button--primary">
-              Continue with email
-            </Link>
+            {isSignUpMode ? (
+              <label className="field">
+                <span>Confirm password</span>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  placeholder="••••••••••••"
+                />
+              </label>
+            ) : null}
+
+            <button type="submit" className="button button--primary button--full">
+              {isSignUpMode ? "Create account" : "Sign in"}
+            </button>
           </form>
-
-          <div className="divider">
-            <span>or</span>
-          </div>
-
-          <div className="stack-list">
-            {providerOptions.map((provider) => (
-              <Link
-                key={provider}
-                href={appRoutes.dashboard}
-                className="button button--secondary button--full"
-              >
-                {provider}
-              </Link>
-            ))}
-          </div>
         </div>
       </section>
     </main>

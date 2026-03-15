@@ -23,7 +23,7 @@ const errorMessages: Record<string, string> = {
 
 const infoMessages: Record<string, string> = {
   "check-email":
-    "Your account was created. Confirm your email if Supabase email confirmation is enabled.",
+    "Your account was created. Confirm your email if email confirmation is enabled.",
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {

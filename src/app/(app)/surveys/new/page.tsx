@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { createSurveyDraftAction } from "@/features/surveys/actions";
+import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { PageHeader } from "@/components/layout/page-header";
 import { appRoutes } from "@/lib/config/routes";
-
-const languageOptions = ["English", "Croatian", "French", "Spanish", "Italian"];
 
 type NewSurveyPageProps = {
   searchParams?: Promise<{ error?: string }>;
@@ -18,7 +17,7 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
       <PageHeader
         eyebrow="Survey setup"
         title="Create a new survey"
-        description="Create a real draft in Supabase. This step only captures the survey shell so you can start editing immediately."
+        description="Start with the survey name and languages, then continue in the editor."
       />
 
       <section className="content-grid content-grid--form">
@@ -43,7 +42,7 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
             <label className="field">
               <span>Default language</span>
               <select name="defaultLanguage" defaultValue="English" required>
-                {languageOptions.map((language) => (
+                {surveyLanguageOptions.map((language) => (
                   <option key={language}>{language}</option>
                 ))}
               </select>
@@ -52,7 +51,7 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
             <div className="field">
               <span>Supported languages</span>
               <div className="chip-grid">
-                {languageOptions.map((language) => (
+                {surveyLanguageOptions.map((language) => (
                   <label key={language} className="choice-chip">
                     <input
                       type="checkbox"
@@ -68,7 +67,7 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
 
             <div className="button-row">
               <button type="submit" className="button button--primary">
-                Create draft in database
+                Create survey
               </button>
               <Link href={appRoutes.surveys} className="button button--ghost">
                 Cancel
@@ -78,18 +77,17 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
         </article>
 
         <article className="surface-card">
-          <h2>What happens next</h2>
+          <h2>Next step</h2>
           <p>
-            When you submit this form, the application creates a real row in the
-            `surveys` table and redirects you to the edit page for that draft.
+            After this step, you will land in the survey editor to refine the
+            title, description, languages, and survey structure.
           </p>
 
           <div className="callout-box">
-            <strong>Current scope</strong>
+            <strong>Initial setup</strong>
             <p>
-              Questions, ontology concepts, and advanced validation will come in
-              the next phase. Right now we are creating the real persistent
-              survey shell and removing the old placeholders.
+              This first screen only sets the survey shell. The editor is where
+              the working survey will take shape.
             </p>
           </div>
         </article>

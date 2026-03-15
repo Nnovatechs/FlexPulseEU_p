@@ -24,7 +24,7 @@ export default async function SurveyDetailPage({
       <PageHeader
         eyebrow="Survey detail"
         title={survey.title}
-        description="Live survey record loaded from Supabase."
+        description="Overview of the survey configuration, lifecycle, and question set."
         actions={
           <div className="button-row">
             <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
@@ -99,8 +99,8 @@ export default async function SurveyDetailPage({
           <div className="empty-state empty-state--inline">
             <h3>No questions yet</h3>
             <p>
-              The draft exists in the database, but the question builder has not
-              been connected yet.
+              This survey has not been structured yet. The next step is defining
+              the question set inside the editor.
             </p>
           </div>
         )}

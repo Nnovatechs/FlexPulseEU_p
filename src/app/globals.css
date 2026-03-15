@@ -484,6 +484,10 @@ textarea {
   grid-template-columns: 1.1fr 1fr;
 }
 
+.content-grid--editor {
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
 .surface-card {
   padding: 1.25rem;
   box-shadow: 0 8px 18px rgba(20, 39, 77, 0.035);
@@ -787,6 +791,19 @@ textarea {
 
 .empty-state p {
   margin: 0;
+  color: var(--muted);
+}
+
+.editor-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.editor-section__header p {
+  margin: 0.35rem 0 0;
   color: var(--muted);
 }
 

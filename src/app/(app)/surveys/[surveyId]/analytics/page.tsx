@@ -24,7 +24,7 @@ export default async function SurveyAnalyticsPage({
       <PageHeader
         eyebrow="Survey analytics"
         title={`${survey.title} dashboard`}
-        description="Survey analytics shell using the live survey record from Supabase."
+        description="Review the current readiness of the survey and the areas still pending."
         actions={
           <Link href={appRoutes.surveyFill(survey.id)} className="button button--secondary">
             Preview respondent flow

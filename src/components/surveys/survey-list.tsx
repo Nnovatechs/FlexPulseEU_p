@@ -21,7 +21,7 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
 
         <div className="empty-state">
           <h3>No surveys yet</h3>
-          <p>Create the first draft to start building the survey workspace in Supabase.</p>
+          <p>Create the first survey to start shaping the workspace.</p>
           <Link href={appRoutes.surveyNew} className="button button--primary">
             Create new survey
           </Link>

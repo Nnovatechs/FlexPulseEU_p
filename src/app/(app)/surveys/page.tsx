@@ -11,7 +11,7 @@ export default async function SurveysPage() {
     <div className="page-stack">
       <PageHeader
         title="Survey library"
-        description="Draft, published, and archived surveys loaded from the live Supabase workspace."
+        description="Draft, published, and archived surveys in one place."
         actions={
           <Link href={appRoutes.surveyNew} className="button button--primary">
             Create new survey

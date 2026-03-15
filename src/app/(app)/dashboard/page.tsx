@@ -15,7 +15,7 @@ export default async function DashboardPage() {
     <div className="page-stack">
       <PageHeader
         title="Surveys"
-        description="Created surveys, lifecycle status, and draft inventory from the live workspace."
+        description="Created surveys, lifecycle status, and current draft inventory."
         actions={
           <Link href={appRoutes.surveyNew} className="button button--primary">
             Create new survey
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
       <section className="workspace-strip">
         <div className="workspace-strip__copy">
           <h2>Survey workspace</h2>
-          <p>Create a new draft or continue from an existing survey stored in Supabase.</p>
+          <p>Create a new survey or continue refining an existing one.</p>
         </div>
         <div className="workspace-strip__actions">
           <Link href={appRoutes.surveyNew} className="button button--primary">

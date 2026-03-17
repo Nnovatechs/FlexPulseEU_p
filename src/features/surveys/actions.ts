@@ -8,10 +8,6 @@ import { createSurveyDraft, getOwnedSurveyById, updateSurveyDraft } from "./gene
 export async function createSurveyDraftAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const defaultLanguage = String(formData.get("defaultLanguage") ?? "").trim();
-  const supportedLanguages = formData
-    .getAll("supportedLanguages")
-    .map((value) => String(value).trim())
-    .filter(Boolean);
 
   if (!name || !defaultLanguage) {
     redirect(`${appRoutes.surveyNew}?error=missing-fields`);
@@ -20,7 +16,7 @@ export async function createSurveyDraftAction(formData: FormData) {
   const survey = await createSurveyDraft({
     name,
     default_language: defaultLanguage,
-    supported_languages: supportedLanguages,
+    supported_languages: [defaultLanguage],
   });
 
   revalidatePath(appRoutes.dashboard);
@@ -31,11 +27,15 @@ export async function createSurveyDraftAction(formData: FormData) {
 export async function updateSurveySettingsAction(formData: FormData) {
   const surveyId = String(formData.get("surveyId") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
-  const surveyTitle = String(formData.get("surveyTitle") ?? "").trim();
   const surveyDescription = String(formData.get("surveyDescription") ?? "").trim();
   const defaultLanguage = String(formData.get("defaultLanguage") ?? "").trim();
+  const intent = String(formData.get("intent") ?? "save").trim();
   const supportedLanguages = formData
     .getAll("supportedLanguages")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  const ontologyTargets = formData
+    .getAll("ontologyTargets")
     .map((value) => String(value).trim())
     .filter(Boolean);
 
@@ -49,12 +49,13 @@ export async function updateSurveySettingsAction(formData: FormData) {
     new Set([defaultLanguage, ...supportedLanguages]),
   );
 
+  nextDefinition.survey_meta.ontology_targets = ontologyTargets;
+
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
     survey_description: "",
     questions: {},
   };
-  nextDefinition.translations[defaultLanguage].survey_title = surveyTitle;
   nextDefinition.translations[defaultLanguage].survey_description = surveyDescription;
 
   await updateSurveyDraft({
@@ -71,5 +72,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
   revalidatePath(appRoutes.surveyDetail(surveyId));
   revalidatePath(appRoutes.surveyEdit(surveyId));
   revalidatePath(appRoutes.surveyAnalytics(surveyId));
-  redirect(`${appRoutes.surveyEdit(surveyId)}?saved=1`);
+
+  const redirectParam = intent === "generate" ? "generated=1" : "saved=1";
+  redirect(`${appRoutes.surveyEdit(surveyId)}?${redirectParam}`);
 }

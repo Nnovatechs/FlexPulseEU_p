@@ -64,6 +64,7 @@ export type SurveyDefinition = {
     default_language: SurveyLanguageCode;
     supported_languages: SurveyLanguageCode[];
     estimated_completion_minutes?: number;
+    ontology_targets?: string[];
   };
   questions: SurveyQuestionDefinition[];
   translations: Record<SurveyLanguageCode, SurveyLanguageTranslations>;
@@ -155,6 +156,7 @@ export function createInitialSurveyDefinition(
     survey_meta: {
       default_language: defaultLanguage,
       supported_languages: languages,
+      ontology_targets: [],
     },
     questions: [],
     translations: Object.fromEntries(

@@ -1,15 +1,14 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
-import { QuestionList } from "@/components/surveys/question-list";
+import { ConceptPicker } from "@/components/surveys/concept-picker";
+import { FormActions } from "@/components/surveys/form-actions";
 import { updateSurveySettingsAction } from "@/features/surveys/actions";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
-import { appRoutes } from "@/lib/config/routes";
 
 type SurveyEditPageProps = {
   params: Promise<{ surveyId: string }>;
-  searchParams?: Promise<{ created?: string; saved?: string; error?: string }>;
+  searchParams?: Promise<{ created?: string; saved?: string; generated?: string; error?: string }>;
 };
 
 export default async function SurveyEditPage({
@@ -33,183 +32,178 @@ export default async function SurveyEditPage({
 
   const activeTranslations =
     survey.definition_json.translations[survey.default_language] ?? null;
+  const savedTargets = survey.definition_json.survey_meta.ontology_targets ?? [];
+
   const createdMessage = resolvedSearchParams.created === "1";
   const savedMessage = resolvedSearchParams.saved === "1";
+  const generatedMessage = resolvedSearchParams.generated === "1";
   const hasError = resolvedSearchParams.error === "missing-fields";
 
   return (
     <div className="page-stack">
       <PageHeader
         eyebrow="Survey editor"
-        title={activeTranslations?.survey_title?.trim() || survey.name}
-        description="Refine the survey settings here before moving into the question and mapping design."
-        actions={
-          <div className="button-row">
-            <Link href={appRoutes.surveyDetail(survey.id)} className="button button--ghost">
-              Open overview
-            </Link>
-            <Link
-              href={appRoutes.surveyAnalytics(survey.id)}
-              className="button button--primary"
-            >
-              Open review
-            </Link>
-          </div>
-        }
+        title={survey.name}
       />
 
       {createdMessage ? (
         <div className="notice notice--info" role="status">
-          Survey created. Continue with the editor below.
+          Survey created. Configure settings and select concepts to generate questions.
         </div>
       ) : null}
 
       {savedMessage ? (
         <div className="notice notice--info" role="status">
-          Survey settings saved.
+          Changes saved.
+        </div>
+      ) : null}
+
+      {generatedMessage ? (
+        <div className="notice notice--info" role="status">
+          Settings saved. Survey generation is not yet available — questions will be generated in the next development phase.
         </div>
       ) : null}
 
       {hasError ? (
         <div className="notice notice--error" role="alert">
-          Survey name and default language are required.
+          Survey name and primary language are required.
         </div>
       ) : null}
 
-      <section className="content-grid content-grid--editor">
-        <article className="surface-card">
-          <h2>Survey settings</h2>
-          <form action={updateSurveySettingsAction} className="stack-form">
-            <input type="hidden" name="surveyId" value={survey.id} />
+      <div className="overview-band">
+        <div className="overview-band__item">
+          <span className="overview-band__label">Status</span>
+          <span className={`status-pill status-pill--${survey.status}`}>
+            {survey.status}
+          </span>
+        </div>
+        <div className="overview-band__item">
+          <span className="overview-band__label">Languages</span>
+          <span className="overview-band__value">
+            {survey.supported_languages.join(", ")}
+          </span>
+        </div>
+        <div className="overview-band__item">
+          <span className="overview-band__label">Questions</span>
+          <span className="overview-band__value">
+            {survey.definition_json.questions.length}
+          </span>
+        </div>
+        <div className="overview-band__item">
+          <span className="overview-band__label">Mappings</span>
+          <span className="overview-band__value">
+            {survey.mapping_contract_json.mappings.length}
+          </span>
+        </div>
+        <div className="overview-band__item">
+          <span className="overview-band__label">Concepts</span>
+          <span className="overview-band__value">{savedTargets.length}</span>
+        </div>
+      </div>
 
-            <label className="field">
-              <span>Internal name</span>
-              <input name="name" defaultValue={survey.name} required />
-            </label>
+      <form action={updateSurveySettingsAction}>
+        <input type="hidden" name="surveyId" value={survey.id} />
 
-            <label className="field">
-              <span>Survey title</span>
-              <input
-                name="surveyTitle"
-                defaultValue={activeTranslations?.survey_title ?? ""}
-                placeholder="Title shown to respondents"
-              />
-            </label>
+        <div className="editor-sections">
+          <details className="collapsible-section">
+            <summary className="collapsible-section__header">
+              <span className="collapsible-section__title">Survey settings</span>
+              <span className="collapsible-section__chevron" aria-hidden>
+                ›
+              </span>
+            </summary>
 
-            <label className="field">
-              <span>Description</span>
-              <textarea
-                name="surveyDescription"
-                defaultValue={activeTranslations?.survey_description ?? ""}
-                rows={4}
-                placeholder="Short introduction or context for this survey"
-              />
-            </label>
+            <div className="collapsible-section__body">
+              <label className="field">
+                <span>Survey name</span>
+                <input name="name" defaultValue={survey.name} required />
+              </label>
 
-            <label className="field">
-              <span>Default language</span>
-              <select
-                name="defaultLanguage"
-                defaultValue={survey.default_language}
-                required
-              >
-                {surveyLanguageOptions.map((language) => (
-                  <option key={language}>{language}</option>
-                ))}
-              </select>
-            </label>
+              <label className="field">
+                <span>Description</span>
+                <textarea
+                  name="surveyDescription"
+                  defaultValue={activeTranslations?.survey_description ?? ""}
+                  rows={3}
+                  placeholder="Short introduction or context for respondents"
+                />
+              </label>
+            </div>
+          </details>
 
-            <div className="field">
-              <span>Supported languages</span>
-              <div className="chip-grid">
-                {surveyLanguageOptions.map((language) => (
-                  <label key={language} className="choice-chip">
-                    <input
-                      type="checkbox"
-                      name="supportedLanguages"
-                      value={language}
-                      defaultChecked={survey.supported_languages.includes(language)}
-                    />
-                    <span>{language}</span>
-                  </label>
-                ))}
+          <details className="collapsible-section">
+            <summary className="collapsible-section__header">
+              <span className="collapsible-section__title">Survey languages</span>
+              <span className="collapsible-section__chevron" aria-hidden>
+                ›
+              </span>
+            </summary>
+
+            <div className="collapsible-section__body">
+              <label className="field">
+                <span>Primary language</span>
+                <select
+                  name="defaultLanguage"
+                  defaultValue={survey.default_language}
+                  required
+                >
+                  {surveyLanguageOptions.map((language) => (
+                    <option key={language}>{language}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="field">
+                <span>Supported languages</span>
+                <div className="chip-grid">
+                  {surveyLanguageOptions.map((language) => (
+                    <label key={language} className="choice-chip">
+                      <input
+                        type="checkbox"
+                        name="supportedLanguages"
+                        value={language}
+                        defaultChecked={survey.supported_languages.includes(
+                          language,
+                        )}
+                      />
+                      <span>{language}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
+          </details>
 
-            <div className="button-row">
-              <button type="submit" className="button button--primary">
-                Save survey settings
-              </button>
-              <Link href={appRoutes.surveyDetail(survey.id)} className="button button--ghost">
-                Cancel
-              </Link>
-            </div>
-          </form>
-        </article>
+          <details className="collapsible-section">
+            <summary className="collapsible-section__header">
+              <span className="collapsible-section__title">
+                Ontology concepts
+              </span>
+              <span className="collapsible-section__meta">
+                {savedTargets.length > 0 && (
+                  <span className="concept-block__count">
+                    {savedTargets.length} selected
+                  </span>
+                )}
+              </span>
+              <span className="collapsible-section__chevron" aria-hidden>
+                ›
+              </span>
+            </summary>
 
-        <article className="surface-card">
-          <h2>Structure overview</h2>
-          <div className="stack-list">
-            <div className="analytics-row">
-              <strong>Status</strong>
-              <span>{survey.status}</span>
+            <div className="collapsible-section__body">
+              <p className="concept-picker__hint">
+                Select the behavioural concepts this survey should cover. The
+                generator uses these to propose questions and their ontological
+                mappings.
+              </p>
+              <ConceptPicker initialTargets={savedTargets} />
             </div>
-            <div className="analytics-row">
-              <strong>Questions</strong>
-              <span>{survey.definition_json.questions.length}</span>
-            </div>
-            <div className="analytics-row">
-              <strong>Mappings</strong>
-              <span>{survey.mapping_contract_json.mappings.length}</span>
-            </div>
-            <div className="analytics-row">
-              <strong>Languages</strong>
-              <span>{survey.supported_languages.join(", ")}</span>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="surface-card">
-        <div className="editor-section__header">
-          <div>
-            <h2>Questions</h2>
-            <p>
-              This section will become the survey builder. For now, the editor
-              already manages the survey metadata and language setup.
-            </p>
-          </div>
+          </details>
         </div>
 
-        {survey.definition_json.questions.length > 0 ? (
-          <QuestionList
-            questions={survey.definition_json.questions
-              .slice()
-              .sort((left, right) => left.order - right.order)
-              .map((question) => {
-                const questionTranslations =
-                  activeTranslations?.questions[question.question_key];
-
-                return {
-                  id: question.question_key,
-                  key: question.question_key,
-                  title: questionTranslations?.title?.trim() || question.question_key,
-                  description: questionTranslations?.description?.trim() || "",
-                  type: question.type.replaceAll("_", " "),
-                  required: question.required,
-                };
-              })}
-          />
-        ) : (
-          <div className="empty-state empty-state--inline">
-            <h3>No questions yet</h3>
-            <p>
-              The survey shell is ready. The next design step is to define the
-              question model and how questions should be composed inside this editor.
-            </p>
-          </div>
-        )}
-      </section>
+        <FormActions initialHasTargets={savedTargets.length > 0} />
+      </form>
     </div>
   );
 }

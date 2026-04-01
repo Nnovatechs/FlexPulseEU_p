@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   validateSurveyContentAction,
   publishSurveyAction,
@@ -10,6 +10,37 @@ import type {
   SurveyQuestionDefinition,
   SurveyLanguageTranslations,
 } from "@/features/surveys/generator-types";
+
+const VALIDATION_STEPS = [
+  "Scanning questions for personal data...",
+  "Running multilingual PII detection...",
+  "Checking for injection patterns...",
+  "Verifying semantic alignment...",
+  "Cross-referencing ontology targets...",
+];
+
+const VALIDATION_STEP_MS = 6000;
+
+function ValidationOverlay() {
+  const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStepIndex((prev) => (prev + 1) % VALIDATION_STEPS.length);
+    }, VALIDATION_STEP_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="generate-overlay" role="status" aria-live="polite">
+      <div className="generate-overlay__card">
+        <div className="generate-overlay__spinner" aria-hidden="true" />
+        <p className="generate-overlay__title">Validating survey</p>
+        <p className="generate-overlay__step">{VALIDATION_STEPS[stepIndex]}</p>
+      </div>
+    </div>
+  );
+}
 
 type ReviewTabProps = {
   surveyId: string;
@@ -102,6 +133,8 @@ export function ReviewTab({
 
   return (
     <div className="review-tab">
+      {validatePending && <ValidationOverlay />}
+
       {/* ------------------------------------------------------------------ */}
       {/* Step 1 — Content validation                                         */}
       {/* ------------------------------------------------------------------ */}

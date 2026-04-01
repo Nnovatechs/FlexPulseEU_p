@@ -223,7 +223,12 @@ export async function validateSurveyContentAction(
     throw new Error("No questions to validate. Generate the survey first.");
   }
 
-  const result = await runContentValidation(questions, mappings, translations);
+  const result = await runContentValidation(
+    questions,
+    mappings,
+    translations,
+    survey.default_language,
+  );
 
   const nextDefinition = structuredClone(survey.definition_json);
   nextDefinition.survey_meta.validation_result = result;

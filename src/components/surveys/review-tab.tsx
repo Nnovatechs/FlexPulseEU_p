@@ -132,7 +132,11 @@ export function ReviewTab({
             {validationResult.issues.map((issue, i) => (
               <div key={i} className="review-issue">
                 <span className={`review-issue__badge review-issue__badge--${issue.type}`}>
-                  {issue.type === "pii" ? "PII" : "Semantic"}
+                  {issue.type === "pii"
+                    ? "PII"
+                    : issue.type === "prompt_injection"
+                      ? "Injection"
+                      : "Semantic"}
                 </span>
                 <div className="review-issue__body">
                   <span className="review-issue__question">
@@ -158,7 +162,7 @@ export function ReviewTab({
         {/* Passed notice */}
         {statusState === "passed" && (
           <p className="review-notice review-notice--success">
-            All {questions.length} questions passed PII and semantic checks.
+            All {questions.length} questions passed PII, injection and semantic checks.
           </p>
         )}
 

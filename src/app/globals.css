@@ -1695,6 +1695,12 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   border: 1px solid color-mix(in srgb, #ef4444 28%, transparent);
 }
 
+.review-issue__badge--prompt_injection {
+  background: color-mix(in srgb, #7c3aed 14%, transparent);
+  color: #6d28d9;
+  border: 1px solid color-mix(in srgb, #7c3aed 28%, transparent);
+}
+
 .review-issue {
   border-left-color: var(--border);
 }
@@ -1705,6 +1711,10 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 
 .review-issue:has(.review-issue__badge--semantic) {
   border-left-color: #ef4444;
+}
+
+.review-issue:has(.review-issue__badge--prompt_injection) {
+  border-left-color: #7c3aed;
 }
 
 .review-issue__body {

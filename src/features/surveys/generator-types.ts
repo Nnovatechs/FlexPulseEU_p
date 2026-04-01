@@ -50,7 +50,7 @@ export type SurveyLanguageTranslations = {
 
 export type ContentValidationIssue = {
   question_key: string;
-  type: "pii" | "semantic";
+  type: "pii" | "semantic" | "prompt_injection";
   message: string;
 };
 

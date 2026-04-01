@@ -49,4 +49,15 @@ export const validationEvalFixtures: ValidationEvalFixture[] = [
     ontologyTarget: "fp_behaviour_v1.trust_automation.level",
     expectedOverall: "fail",
   },
+  {
+    id: "quality-broken-awareness-en",
+    purpose:
+      "Control negativo de calidad/publicabilidad: una pregunta rota o con restos de edición no debe pasar aunque apunte aproximadamente al concepto.",
+    language: "English",
+    title: "tRY EDIT are you of your household's energy consumption patterns?",
+    description:
+      "Please rate your level of awareness on a scale from 1 (Not aware at all) to 5 (Very aware).",
+    ontologyTarget: "fp_behaviour_v1.awareness.level",
+    expectedOverall: "fail",
+  },
 ];

@@ -196,10 +196,16 @@ const semanticCheckOutputSchema = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["question_key", "passes", "issue"],
+          required: ["question_key", "passes", "issue_type", "issue"],
           properties: {
             question_key: { type: "string" },
             passes: { type: "boolean" },
+            issue_type: {
+              anyOf: [
+                { type: "string", enum: ["semantic", "quality"] },
+                { type: "null" },
+              ],
+            },
             issue: {
               anyOf: [{ type: "string", minLength: 1 }, { type: "null" }],
             },
@@ -341,19 +347,22 @@ async function checkSemanticAlignment(
   const untrustedContentNotice = buildUntrustedSurveyContentNotice();
   const systemPrompt =
     "You are a survey quality auditor for behavioural energy research. " +
-    "Your role is to verify that each survey question genuinely measures its assigned ontological concept. " +
+    "Your role is to verify that each survey question genuinely measures its assigned ontological concept and is written clearly enough to be publishable in a professional survey. " +
     "The survey may be written in any language, and some questions may mix multiple languages. " +
     "Do not assume English. Judge the content semantically regardless of language. " +
+    "A question also FAILS if it is malformed, visibly incomplete, contains editing leftovers, broken wording, inconsistent answer framing, or is too unclear to be safely published as a survey item. " +
     "A question FAILS only when it asks about something clearly unrelated to the concept — for example, " +
     "asking about food preferences when the concept is energy flexibility willingness. " +
-    "Do NOT fail questions for imperfect wording, minor subjectivity, or different phrasing styles. " +
+    "Do NOT fail questions for minor wording imperfections, minor subjectivity, or harmless phrasing differences when the item is still clear and publishable. " +
     "Only flag clear semantic mismatches that would produce data unmappable to the stated concept. " +
     untrustedContentNotice;
 
   const userPrompt =
     `Canonical survey language: ${surveyLanguage}\n` +
     "The content may still contain multiple languages or mixed-language phrasing.\n\n" +
-    "Evaluate whether each of the following survey questions genuinely measures its stated ontological concept.\n\n" +
+    "Evaluate whether each of the following survey questions genuinely measures its stated ontological concept and whether it is clear and publishable.\n\n" +
+    "Use issue_type = semantic when the question does not properly measure the concept.\n" +
+    "Use issue_type = quality when the question is too malformed, broken, incomplete or poorly written to be publishable, even if its intent is approximately related.\n\n" +
     `Questions:\n${JSON.stringify(questionInputs, null, 2)}\n\n` +
     "Return a JSON result for every question.";
 
@@ -384,7 +393,12 @@ async function checkSemanticAlignment(
   }
 
   const parsed = JSON.parse(message.content) as {
-    results: Array<{ question_key: string; passes: boolean; issue: string | null }>;
+    results: Array<{
+      question_key: string;
+      passes: boolean;
+      issue_type: "semantic" | "quality" | null;
+      issue: string | null;
+    }>;
   };
 
   const expectedKeys = new Set(questions.map((q) => q.question_key));
@@ -406,10 +420,12 @@ async function checkSemanticAlignment(
     .filter((r) => !r.passes)
     .map((r) => ({
       question_key: r.question_key,
-      type: "semantic" as const,
+      type: (r.issue_type ?? "semantic") as "semantic" | "quality",
       message:
         r.issue ??
-        "This question does not appear to measure its assigned ontology concept.",
+        (r.issue_type === "quality"
+          ? "This question is too unclear or malformed to be published."
+          : "This question does not appear to measure its assigned ontology concept."),
     }));
 }
 

@@ -144,7 +144,7 @@ export function ReviewTab({
           <div className="review-step__meta">
             <span className="review-step__title">Content validation</span>
             <span className="review-step__desc muted">
-              PII check and semantic alignment against ontology concepts.
+              PII check, publishability review and semantic alignment against ontology concepts.
             </span>
           </div>
           <span
@@ -167,6 +167,8 @@ export function ReviewTab({
                 <span className={`review-issue__badge review-issue__badge--${issue.type}`}>
                   {issue.type === "pii"
                     ? "PII"
+                    : issue.type === "quality"
+                      ? "Quality"
                     : issue.type === "prompt_injection"
                       ? "Injection"
                       : "Semantic"}
@@ -195,7 +197,7 @@ export function ReviewTab({
         {/* Passed notice */}
         {statusState === "passed" && (
           <p className="review-notice review-notice--success">
-            All {questions.length} questions passed PII, injection and semantic checks.
+            All {questions.length} questions passed PII, injection, quality and semantic checks.
           </p>
         )}
 

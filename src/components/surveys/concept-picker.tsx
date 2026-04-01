@@ -88,8 +88,6 @@ export function ConceptPicker({ initialTargets = [] }: ConceptPickerProps) {
     );
   }
 
-  const hasSelection = selected.size > 0;
-
   return (
     <>
       <div className="concept-blocks">

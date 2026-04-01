@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
+import { generateSurveyDraftProposal } from "./generator-executor";
 import { createSurveyDraft, getOwnedSurveyById, updateSurveyDraft } from "./generator-repository";
 
 export async function createSurveyDraftAction(formData: FormData) {
@@ -24,6 +25,10 @@ export async function createSurveyDraftAction(formData: FormData) {
   redirect(`${appRoutes.surveyEdit(survey.id)}?created=1`);
 }
 
+function buildEditErrorRedirect(surveyId: string, error: string) {
+  return `${appRoutes.surveyEdit(surveyId)}?error=${error}`;
+}
+
 export async function updateSurveySettingsAction(formData: FormData) {
   const surveyId = String(formData.get("surveyId") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
@@ -40,7 +45,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .filter(Boolean);
 
   if (!surveyId || !name || !defaultLanguage) {
-    redirect(`${appRoutes.surveyEdit(surveyId)}?error=missing-fields`);
+    redirect(buildEditErrorRedirect(surveyId, "missing-fields"));
   }
 
   const existing = await getOwnedSurveyById(surveyId);
@@ -58,14 +63,46 @@ export async function updateSurveySettingsAction(formData: FormData) {
   };
   nextDefinition.translations[defaultLanguage].survey_description = surveyDescription;
 
-  await updateSurveyDraft({
-    surveyId,
-    name,
-    default_language: defaultLanguage,
-    supported_languages: nextSupportedLanguages,
-    definition_json: nextDefinition,
-    mapping_contract_json: existing.mapping_contract_json,
-  });
+  if (intent === "generate") {
+    if (ontologyTargets.length === 0) {
+      redirect(buildEditErrorRedirect(surveyId, "missing-ontology-targets"));
+    }
+
+    try {
+      const proposal = await generateSurveyDraftProposal({
+        survey: existing,
+        surveyName: name,
+        surveyDescription,
+        defaultLanguage,
+        supportedLanguages: nextSupportedLanguages,
+        ontologyTargets,
+      });
+
+      await updateSurveyDraft({
+        surveyId,
+        name,
+        default_language: defaultLanguage,
+        supported_languages: nextSupportedLanguages,
+        definition_json: proposal.definition,
+        mapping_contract_json: proposal.mappingContract,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? encodeURIComponent(error.message) : "unknown";
+      redirect(
+        `${buildEditErrorRedirect(surveyId, "generation-failed")}&message=${message}`,
+      );
+    }
+  } else {
+    await updateSurveyDraft({
+      surveyId,
+      name,
+      default_language: defaultLanguage,
+      supported_languages: nextSupportedLanguages,
+      definition_json: nextDefinition,
+      mapping_contract_json: existing.mapping_contract_json,
+    });
+  }
 
   revalidatePath(appRoutes.dashboard);
   revalidatePath(appRoutes.surveys);

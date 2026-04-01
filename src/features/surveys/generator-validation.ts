@@ -11,6 +11,10 @@ export type SurveyValidationIssue = {
   message: string;
 };
 
+type SurveyDefinitionValidationOptions = {
+  require_complete_translations?: boolean;
+};
+
 function addIssue(
   issues: SurveyValidationIssue[],
   code: string,
@@ -90,8 +94,11 @@ function validateQuestionDefinition(
 
 export function validateSurveyDefinition(
   definition: SurveyDefinition,
+  options: SurveyDefinitionValidationOptions = {},
 ): SurveyValidationIssue[] {
   const issues: SurveyValidationIssue[] = [];
+  const requireCompleteTranslations =
+    options.require_complete_translations ?? true;
 
   if (definition.schema_version !== 1) {
     addIssue(
@@ -156,7 +163,11 @@ export function validateSurveyDefinition(
     validateQuestionDefinition(question, issues, index);
   });
 
-  for (const language of supportedLanguages) {
+  const languagesToValidate = requireCompleteTranslations
+    ? supportedLanguages
+    : [defaultLanguage];
+
+  for (const language of languagesToValidate) {
     const translationBundle = definition.translations[language];
 
     if (!translationBundle) {
@@ -336,7 +347,9 @@ export function validateSurveyPublication(
   contract: MappingContract,
 ): SurveyValidationIssue[] {
   const issues = [
-    ...validateSurveyDefinition(definition),
+    ...validateSurveyDefinition(definition, {
+      require_complete_translations: true,
+    }),
     ...validateMappingContract(contract, definition),
   ];
 
@@ -355,6 +368,53 @@ export function validateSurveyPublication(
       "missing_mappings",
       "mappings",
       "A survey must define at least one semantic mapping before publication.",
+    );
+  }
+
+  const mappedQuestionKeys = new Set(
+    contract.mappings.map((mapping) => mapping.question_key),
+  );
+
+  for (const question of definition.questions) {
+    if (!mappedQuestionKeys.has(question.question_key)) {
+      addIssue(
+        issues,
+        "question_without_mapping",
+        `questions.${question.question_key}`,
+        `Question "${question.question_key}" does not have a mapping contract entry.`,
+      );
+    }
+  }
+
+  return issues;
+}
+
+export function validateGeneratedSurveyDraft(
+  definition: SurveyDefinition,
+  contract: MappingContract,
+): SurveyValidationIssue[] {
+  const issues = [
+    ...validateSurveyDefinition(definition, {
+      require_complete_translations: false,
+    }),
+    ...validateMappingContract(contract, definition),
+  ];
+
+  if (definition.questions.length === 0) {
+    addIssue(
+      issues,
+      "missing_questions",
+      "questions",
+      "A generated draft must define at least one question.",
+    );
+  }
+
+  if (contract.mappings.length === 0) {
+    addIssue(
+      issues,
+      "missing_mappings",
+      "mappings",
+      "A generated draft must define at least one semantic mapping.",
     );
   }
 

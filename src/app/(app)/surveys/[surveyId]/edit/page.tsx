@@ -165,6 +165,8 @@ export default async function SurveyEditPage({
       questions={survey.definition_json.questions}
       mappings={survey.mapping_contract_json.mappings}
       translations={activeTranslations}
+      surveyId={survey.id}
+      defaultLanguage={survey.default_language}
     />
   );
 

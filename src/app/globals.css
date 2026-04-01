@@ -1232,10 +1232,16 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1.5rem;
   align-items: start;
-  padding: 1.25rem;
+  padding: 1.25rem 1.4rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: var(--surface-solid);
+  box-shadow: 0 1px 4px rgba(20, 39, 77, 0.04);
+  transition: box-shadow 0.15s ease;
+}
+
+.qov-card:hover {
+  box-shadow: 0 3px 10px rgba(20, 39, 77, 0.07);
 }
 
 .qov-card__main {
@@ -1266,13 +1272,14 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .qov-card__type {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 0.2rem 0.55rem;
+  padding: 0.22rem 0.65rem;
   border-radius: 20px;
   background: var(--background-strong);
+  border: 1px solid var(--border);
   color: var(--muted-strong);
   white-space: nowrap;
 }
@@ -1286,17 +1293,19 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .qov-card__options {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.15rem;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
 }
 
 .qov-card__option {
   font-size: 0.8rem;
-  padding: 0.18rem 0.55rem;
-  border: 1px solid var(--border);
+  font-weight: 500;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border-strong);
   border-radius: 20px;
-  background: var(--surface-alt);
+  background: var(--surface-solid);
   color: var(--muted-strong);
+  box-shadow: 0 1px 2px rgba(20, 39, 77, 0.04);
 }
 
 .qov-card__meta {
@@ -1331,6 +1340,107 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   border-radius: var(--radius-sm);
   text-align: right;
   word-break: break-all;
+}
+
+/* Question card edit button */
+
+.qov-card__edit-btn {
+  background: var(--surface-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.28rem 0.8rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  cursor: pointer;
+  min-height: auto;
+  margin-left: auto;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(36, 84, 197, 0.08);
+  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.qov-card__edit-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(36, 84, 197, 0.14);
+  transform: none;
+}
+
+/* Question card edit mode */
+
+.qov-card--editing {
+  border-color: var(--border-strong);
+  background: var(--surface-solid);
+}
+
+.qov-card__edit-form {
+  display: contents;
+}
+
+.qov-card__header--edit {
+  margin-bottom: 0.25rem;
+}
+
+.qov-card__options-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.qov-card__options-edit-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted-strong);
+}
+
+.qov-card__options-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.qov-card__option-key {
+  font-size: 0.72rem;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+}
+
+.qov-card__edit-actions {
+  display: flex;
+  gap: 0.65rem;
+  padding-top: 0.25rem;
+}
+
+.qov-card__error {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--warning);
+}
+
+.qov-card__scale-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.qov-card__scale-indicator-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.qov-card__scale-indicator-value {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--accent-strong);
 }
 
 /* Empty state for questions */

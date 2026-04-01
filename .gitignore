@@ -27,3 +27,6 @@ pnpm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# Internal development notes (never committed)
+docs/internal/

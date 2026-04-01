@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
 import { generateSurveyDraftProposal } from "./generator-executor";
 import { createSurveyDraft, getOwnedSurveyById, updateSurveyDraft } from "./generator-repository";
+import type { SurveyLanguageTranslations } from "./generator-types";
 
 export async function createSurveyDraftAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -112,4 +113,56 @@ export async function updateSurveySettingsAction(formData: FormData) {
 
   const redirectParam = intent === "generate" ? "generated=1" : "saved=1";
   redirect(`${appRoutes.surveyEdit(surveyId)}?${redirectParam}`);
+}
+
+export async function updateQuestionTranslationAction(
+  formData: FormData,
+): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+  const questionKey = String(formData.get("questionKey") ?? "").trim();
+  const defaultLanguage = String(formData.get("defaultLanguage") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+
+  if (!surveyId || !questionKey || !defaultLanguage || !title) {
+    throw new Error("Missing required fields.");
+  }
+
+  const existing = await getOwnedSurveyById(surveyId);
+  const nextDefinition = structuredClone(existing.definition_json);
+
+  nextDefinition.translations[defaultLanguage] ??= {
+    survey_title: "",
+    questions: {},
+  };
+
+  const currentQuestion: SurveyLanguageTranslations["questions"][string] =
+    nextDefinition.translations[defaultLanguage].questions[questionKey] ?? {
+      title: "",
+    };
+
+  const options: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith("option_")) {
+      const optionKey = key.slice(7);
+      const label = String(value).trim();
+      if (label) {
+        options[optionKey] = label;
+      }
+    }
+  }
+
+  nextDefinition.translations[defaultLanguage].questions[questionKey] = {
+    ...currentQuestion,
+    title,
+    ...(description ? { description } : {}),
+    ...(Object.keys(options).length > 0 ? { options } : {}),
+  };
+
+  await updateSurveyDraft({
+    surveyId,
+    definition_json: nextDefinition,
+  });
+
+  revalidatePath(appRoutes.surveyEdit(surveyId));
 }

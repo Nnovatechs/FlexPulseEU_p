@@ -85,7 +85,7 @@ const PII_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\b(passnummer|reisepass|ausweisnummer)\b/i, label: "passport number" },
 ];
 
-function checkStructuredPII(
+export function checkStructuredPII(
   questions: SurveyQuestionDefinition[],
   translations: SurveyLanguageTranslations,
 ): ContentValidationIssue[] {
@@ -121,7 +121,7 @@ function checkStructuredPII(
   return issues;
 }
 
-function checkPromptInjectionHeuristics(
+export function checkPromptInjectionHeuristics(
   questions: SurveyQuestionDefinition[],
   translations: SurveyLanguageTranslations,
 ): ContentValidationIssue[] {

@@ -3,6 +3,9 @@ export type PromptInjectionSignal = {
   pattern: RegExp;
 };
 
+// Reusable heuristics for user-authored text that later gets embedded into LLM
+// prompts. The goal is not to prove that injection exists, but to catch obvious
+// attack-shaped text early and to standardize the wording we use across prompts.
 const DEFAULT_PROMPT_INJECTION_SIGNALS: PromptInjectionSignal[] = [
   { label: "ignore previous instructions", pattern: /\bignore\s+(all\s+)?(previous|prior)\s+instructions\b/i },
   { label: "follow these instructions", pattern: /\bfollow\s+(these|my)\s+instructions\b/i },

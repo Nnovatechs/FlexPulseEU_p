@@ -3,9 +3,33 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
+import { runContentValidation, computeContentHash } from "./content-validator";
 import { generateSurveyDraftProposal } from "./generator-executor";
-import { createSurveyDraft, getOwnedSurveyById, updateSurveyDraft } from "./generator-repository";
-import type { SurveyLanguageTranslations } from "./generator-types";
+import {
+  createSurveyDraft,
+  getOwnedSurveyById,
+  updateSurveyDraft,
+  publishSurvey,
+} from "./generator-repository";
+import type { SurveyDefinition, SurveyLanguageTranslations } from "./generator-types";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function buildEditErrorRedirect(surveyId: string, error: string) {
+  return `${appRoutes.surveyEdit(surveyId)}?error=${error}`;
+}
+
+function clearValidationResult(definition: SurveyDefinition): SurveyDefinition {
+  const next = structuredClone(definition);
+  delete next.survey_meta.validation_result;
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Create draft
+// ---------------------------------------------------------------------------
 
 export async function createSurveyDraftAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -26,9 +50,9 @@ export async function createSurveyDraftAction(formData: FormData) {
   redirect(`${appRoutes.surveyEdit(survey.id)}?created=1`);
 }
 
-function buildEditErrorRedirect(surveyId: string, error: string) {
-  return `${appRoutes.surveyEdit(surveyId)}?error=${error}`;
-}
+// ---------------------------------------------------------------------------
+// Update settings / generate
+// ---------------------------------------------------------------------------
 
 export async function updateSurveySettingsAction(formData: FormData) {
   const surveyId = String(formData.get("surveyId") ?? "").trim();
@@ -50,13 +74,13 @@ export async function updateSurveySettingsAction(formData: FormData) {
   }
 
   const existing = await getOwnedSurveyById(surveyId);
-  const nextDefinition = structuredClone(existing.definition_json);
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
 
+  // Always clear validation when settings or questions change
+  const nextDefinition = clearValidationResult(existing.definition_json);
   nextDefinition.survey_meta.ontology_targets = ontologyTargets;
-
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
     survey_description: "",
@@ -78,6 +102,9 @@ export async function updateSurveySettingsAction(formData: FormData) {
         supportedLanguages: nextSupportedLanguages,
         ontologyTargets,
       });
+
+      // Generated content → validation is stale, clear it
+      proposal.definition.survey_meta.validation_result = undefined;
 
       await updateSurveyDraft({
         surveyId,
@@ -115,6 +142,10 @@ export async function updateSurveySettingsAction(formData: FormData) {
   redirect(`${appRoutes.surveyEdit(surveyId)}?${redirectParam}`);
 }
 
+// ---------------------------------------------------------------------------
+// Update question translation (inline edit)
+// ---------------------------------------------------------------------------
+
 export async function updateQuestionTranslationAction(
   formData: FormData,
 ): Promise<void> {
@@ -129,7 +160,9 @@ export async function updateQuestionTranslationAction(
   }
 
   const existing = await getOwnedSurveyById(surveyId);
-  const nextDefinition = structuredClone(existing.definition_json);
+
+  // Clear validation — any text edit invalidates previous result
+  const nextDefinition = clearValidationResult(existing.definition_json);
 
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
@@ -165,4 +198,80 @@ export async function updateQuestionTranslationAction(
   });
 
   revalidatePath(appRoutes.surveyEdit(surveyId));
+}
+
+// ---------------------------------------------------------------------------
+// Validate survey content (PII + semantic)
+// ---------------------------------------------------------------------------
+
+export async function validateSurveyContentAction(
+  formData: FormData,
+): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+
+  const survey = await getOwnedSurveyById(surveyId);
+  const { questions } = survey.definition_json;
+  const { mappings } = survey.mapping_contract_json;
+  const translations =
+    survey.definition_json.translations[survey.default_language];
+
+  if (!translations || questions.length === 0) {
+    throw new Error("No questions to validate. Generate the survey first.");
+  }
+
+  const result = await runContentValidation(questions, mappings, translations);
+
+  const nextDefinition = structuredClone(survey.definition_json);
+  nextDefinition.survey_meta.validation_result = result;
+
+  await updateSurveyDraft({ surveyId, definition_json: nextDefinition });
+
+  revalidatePath(appRoutes.surveyEdit(surveyId));
+}
+
+// ---------------------------------------------------------------------------
+// Publish survey
+// ---------------------------------------------------------------------------
+
+export async function publishSurveyAction(formData: FormData): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+
+  const survey = await getOwnedSurveyById(surveyId);
+  const validationResult = survey.definition_json.survey_meta.validation_result;
+  const translations =
+    survey.definition_json.translations[survey.default_language];
+
+  if (!validationResult?.passed) {
+    throw new Error(
+      "Survey must pass content validation before publishing.",
+    );
+  }
+
+  // Guard against stale validation (questions edited after validation ran)
+  const currentHash = computeContentHash(
+    survey.definition_json.questions,
+    translations,
+  );
+
+  if (currentHash !== validationResult.content_hash) {
+    throw new Error(
+      "Validation result is outdated. Re-run validation after your recent edits.",
+    );
+  }
+
+  await publishSurvey(surveyId);
+
+  revalidatePath(appRoutes.surveyDetail(surveyId));
+  revalidatePath(appRoutes.surveys);
+  revalidatePath(appRoutes.dashboard);
+
+  redirect(`${appRoutes.surveyDetail(surveyId)}?published=1`);
 }

@@ -1525,6 +1525,277 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   min-height: 1.3em;
 }
 
+/* ---------------------------------------------------------------------------
+   Review tab
+--------------------------------------------------------------------------- */
+
+.review-empty {
+  padding: 2.5rem 0;
+  text-align: center;
+}
+
+.review-empty__text {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.review-empty__hint {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.review-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+}
+
+.review-step {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  background: var(--card);
+  transition: opacity 0.15s ease;
+}
+
+.review-step--locked {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.review-step__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.review-step__number {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.1rem;
+}
+
+.review-step__meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.review-step__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+}
+
+.review-step__desc {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.review-step__action {
+  margin-top: 1.1rem;
+}
+
+/* Status badge */
+
+.review-status {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  margin-top: 0.15rem;
+}
+
+.review-status--none {
+  background: color-mix(in srgb, var(--muted) 15%, transparent);
+  color: var(--muted);
+}
+
+.review-status--pending {
+  background: color-mix(in srgb, #6366f1 12%, transparent);
+  color: #6366f1;
+}
+
+.review-status--stale {
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: #b45309;
+}
+
+.review-status--failed {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #b91c1c;
+}
+
+.review-status--passed {
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: #15803d;
+}
+
+.review-status--locked {
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--muted);
+}
+
+/* Issues list */
+
+.review-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.review-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--border) 30%, transparent);
+  border-radius: 7px;
+  border-left: 3px solid transparent;
+}
+
+.review-issue__badge {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  margin-top: 0.1rem;
+}
+
+.review-issue__badge--pii {
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+  color: #92400e;
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+}
+
+.review-issue__badge--semantic {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #991b1b;
+  border: 1px solid color-mix(in srgb, #ef4444 28%, transparent);
+}
+
+.review-issue {
+  border-left-color: var(--border);
+}
+
+.review-issue:has(.review-issue__badge--pii) {
+  border-left-color: #f59e0b;
+}
+
+.review-issue:has(.review-issue__badge--semantic) {
+  border-left-color: #ef4444;
+}
+
+.review-issue__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.review-issue__question {
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.review-issue__message {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+/* Notices */
+
+.review-notice {
+  margin: 0.85rem 0 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.review-notice--success {
+  background: color-mix(in srgb, #22c55e 10%, transparent);
+  color: #15803d;
+  border: 1px solid color-mix(in srgb, #22c55e 25%, transparent);
+}
+
+.review-notice--warning {
+  background: color-mix(in srgb, #f59e0b 10%, transparent);
+  color: #92400e;
+  border: 1px solid color-mix(in srgb, #f59e0b 25%, transparent);
+}
+
+.review-notice--error {
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  color: #991b1b;
+  border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
+}
+
+/* Shared button styles */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+
+.button--primary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.button--secondary {
+  background: transparent;
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
 @media (max-width: 720px) {
   .topbar,
   .section-header,

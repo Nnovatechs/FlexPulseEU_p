@@ -48,6 +48,19 @@ export type SurveyLanguageTranslations = {
   >;
 };
 
+export type ContentValidationIssue = {
+  question_key: string;
+  type: "pii" | "semantic";
+  message: string;
+};
+
+export type ContentValidationResult = {
+  validated_at: string;
+  content_hash: string;
+  passed: boolean;
+  issues: ContentValidationIssue[];
+};
+
 export type SurveyValidationRules = {
   pii: {
     allow_direct_identifiers: boolean;
@@ -65,6 +78,7 @@ export type SurveyDefinition = {
     supported_languages: SurveyLanguageCode[];
     estimated_completion_minutes?: number;
     ontology_targets?: string[];
+    validation_result?: ContentValidationResult;
   };
   questions: SurveyQuestionDefinition[];
   translations: Record<SurveyLanguageCode, SurveyLanguageTranslations>;

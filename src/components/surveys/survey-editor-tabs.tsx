@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 
-type Tab = "configuration" | "questions" | "preview";
+type Tab = "configuration" | "questions" | "review" | "preview";
 
 type SurveyEditorTabsProps = {
   configurationTab: React.ReactNode;
   questionsTab: React.ReactNode;
+  reviewTab: React.ReactNode;
   defaultTab?: Tab;
 };
 
 export function SurveyEditorTabs({
   configurationTab,
   questionsTab,
+  reviewTab,
   defaultTab = "configuration",
 }: SurveyEditorTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
@@ -41,6 +43,15 @@ export function SurveyEditorTabs({
         <button
           type="button"
           role="tab"
+          aria-selected={activeTab === "review"}
+          className={`editor-tabs__tab${activeTab === "review" ? " editor-tabs__tab--active" : ""}`}
+          onClick={() => setActiveTab("review")}
+        >
+          Review
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={false}
           className="editor-tabs__tab editor-tabs__tab--disabled"
           disabled
@@ -64,6 +75,14 @@ export function SurveyEditorTabs({
         className={activeTab !== "questions" ? "editor-tabs__panel--hidden" : undefined}
       >
         {questionsTab}
+      </div>
+
+      <div
+        role="tabpanel"
+        aria-label="Review"
+        className={activeTab !== "review" ? "editor-tabs__panel--hidden" : undefined}
+      >
+        {reviewTab}
       </div>
     </div>
   );

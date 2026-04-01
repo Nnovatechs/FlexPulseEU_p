@@ -3,8 +3,10 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
 import { FormActions } from "@/components/surveys/form-actions";
 import { QuestionsOverview } from "@/components/surveys/questions-overview";
+import { ReviewTab } from "@/components/surveys/review-tab";
 import { SurveyEditorTabs } from "@/components/surveys/survey-editor-tabs";
 import { updateSurveySettingsAction } from "@/features/surveys/actions";
+import { computeContentHash } from "@/features/surveys/content-validator";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
 
@@ -170,6 +172,26 @@ export default async function SurveyEditPage({
     />
   );
 
+  const hasQuestions = survey.definition_json.questions.length > 0;
+  const storedValidation =
+    survey.definition_json.survey_meta.validation_result ?? null;
+  const isValidationStale =
+    storedValidation !== null && activeTranslations !== null
+      ? computeContentHash(survey.definition_json.questions, activeTranslations) !==
+        storedValidation.content_hash
+      : false;
+
+  const reviewTab = (
+    <ReviewTab
+      surveyId={survey.id}
+      hasQuestions={hasQuestions}
+      questions={survey.definition_json.questions}
+      translations={activeTranslations}
+      validationResult={storedValidation}
+      isStale={isValidationStale}
+    />
+  );
+
   return (
     <div className="page-stack">
       <PageHeader eyebrow="Survey editor" title={survey.name} />
@@ -245,6 +267,7 @@ export default async function SurveyEditPage({
       <SurveyEditorTabs
         configurationTab={configurationTab}
         questionsTab={questionsTab}
+        reviewTab={reviewTab}
         defaultTab={generatedMessage ? "questions" : "configuration"}
       />
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type Tab = "configuration" | "questions" | "review" | "preview";
 
@@ -8,6 +8,8 @@ type SurveyEditorTabsProps = {
   configurationTab: React.ReactNode;
   questionsTab: React.ReactNode;
   reviewTab: React.ReactNode;
+  previewTab: React.ReactNode;
+  previewUnlocked: boolean;
   defaultTab?: Tab;
 };
 
@@ -15,9 +17,32 @@ export function SurveyEditorTabs({
   configurationTab,
   questionsTab,
   reviewTab,
+  previewTab,
+  previewUnlocked,
   defaultTab = "configuration",
 }: SurveyEditorTabsProps) {
-  const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get("tab");
+  const activeTab: Tab =
+    tabParam === "configuration" ||
+    tabParam === "questions" ||
+    tabParam === "review" ||
+    (tabParam === "preview" && previewUnlocked)
+      ? (tabParam as Tab)
+      : defaultTab;
+
+  function goToTab(tab: Tab) {
+    if (tab === "preview" && !previewUnlocked) {
+      return;
+    }
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", tab);
+    const qs = next.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  }
 
   return (
     <div className="editor-tabs">
@@ -27,7 +52,7 @@ export function SurveyEditorTabs({
           role="tab"
           aria-selected={activeTab === "configuration"}
           className={`editor-tabs__tab${activeTab === "configuration" ? " editor-tabs__tab--active" : ""}`}
-          onClick={() => setActiveTab("configuration")}
+          onClick={() => goToTab("configuration")}
         >
           Configuration
         </button>
@@ -36,7 +61,7 @@ export function SurveyEditorTabs({
           role="tab"
           aria-selected={activeTab === "questions"}
           className={`editor-tabs__tab${activeTab === "questions" ? " editor-tabs__tab--active" : ""}`}
-          onClick={() => setActiveTab("questions")}
+          onClick={() => goToTab("questions")}
         >
           Questions
         </button>
@@ -45,17 +70,28 @@ export function SurveyEditorTabs({
           role="tab"
           aria-selected={activeTab === "review"}
           className={`editor-tabs__tab${activeTab === "review" ? " editor-tabs__tab--active" : ""}`}
-          onClick={() => setActiveTab("review")}
+          onClick={() => goToTab("review")}
         >
           Review
         </button>
         <button
           type="button"
           role="tab"
-          aria-selected={false}
-          className="editor-tabs__tab editor-tabs__tab--disabled"
-          disabled
-          title="Preview will be available after publishing"
+          aria-selected={activeTab === "preview"}
+          className={`editor-tabs__tab${
+            activeTab === "preview"
+              ? " editor-tabs__tab--active"
+              : !previewUnlocked
+                ? " editor-tabs__tab--disabled"
+                : ""
+          }`}
+          disabled={!previewUnlocked}
+          onClick={() => goToTab("preview")}
+          title={
+            !previewUnlocked
+              ? "Complete content and multilingual validation first"
+              : "Preview all language versions"
+          }
         >
           Preview
         </button>
@@ -83,6 +119,14 @@ export function SurveyEditorTabs({
         className={activeTab !== "review" ? "editor-tabs__panel--hidden" : undefined}
       >
         {reviewTab}
+      </div>
+
+      <div
+        role="tabpanel"
+        aria-label="Preview"
+        className={activeTab !== "preview" ? "editor-tabs__panel--hidden" : undefined}
+      >
+        {previewTab}
       </div>
     </div>
   );

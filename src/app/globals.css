@@ -1610,6 +1610,11 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   margin-top: 1.1rem;
 }
 
+.review-preview-cta {
+  display: flex;
+  justify-content: flex-start;
+}
+
 /* Status badge */
 
 .review-status {
@@ -1651,6 +1656,11 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .review-status--locked {
   background: color-mix(in srgb, var(--muted) 12%, transparent);
   color: var(--muted);
+}
+
+.review-status--not_required {
+  background: color-mix(in srgb, #0f766e 12%, transparent);
+  color: #0f766e;
 }
 
 /* Issues list */
@@ -1707,6 +1717,18 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   border: 1px solid color-mix(in srgb, #7c3aed 28%, transparent);
 }
 
+.review-issue__badge--parity {
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  color: #b91c1c;
+  border: 1px solid color-mix(in srgb, #dc2626 28%, transparent);
+}
+
+.review-issue__badge--cultural {
+  background: color-mix(in srgb, #0f766e 12%, transparent);
+  color: #0f766e;
+  border: 1px solid color-mix(in srgb, #0f766e 28%, transparent);
+}
+
 .review-issue {
   border-left-color: var(--border);
 }
@@ -1725,6 +1747,14 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 
 .review-issue:has(.review-issue__badge--prompt_injection) {
   border-left-color: #7c3aed;
+}
+
+.review-issue:has(.review-issue__badge--parity) {
+  border-left-color: #dc2626;
+}
+
+.review-issue:has(.review-issue__badge--cultural) {
+  border-left-color: #0f766e;
 }
 
 .review-issue__body {
@@ -1770,6 +1800,140 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   background: color-mix(in srgb, #ef4444 10%, transparent);
   color: #991b1b;
   border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
+}
+
+.review-language-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.review-language-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.85rem 0.95rem;
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+}
+
+.review-language-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.review-language-group__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* Preview tab */
+
+.preview-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+}
+
+.preview-tab__lang-nav {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+  margin-bottom: 0.25rem;
+  overflow-x: auto;
+}
+
+.preview-tab__lang-tab {
+  padding: 0.45rem 0.9rem;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
+  min-height: auto;
+  border-radius: 0;
+}
+
+.preview-tab__lang-tab:hover {
+  color: var(--foreground);
+  transform: none;
+}
+
+.preview-tab__lang-tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.preview-tab__lang-canonical {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.preview-tab__survey-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.1rem 1.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.preview-tab__survey-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.preview-tab__survey-description {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.preview-tab__questions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.qov-card--preview {
+  pointer-events: none;
+  user-select: text;
+}
+
+.qov-card--preview .qov-card__edit-btn {
+  display: none;
+}
+
+.preview-tab__publish {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.25rem 1.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.preview-tab__publish-hint {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.5;
 }
 
 /* Shared button styles */

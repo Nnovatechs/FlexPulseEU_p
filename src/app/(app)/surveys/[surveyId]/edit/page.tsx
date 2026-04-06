@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
 import { FormActions } from "@/components/surveys/form-actions";
+import { PreviewTab } from "@/components/surveys/preview-tab";
 import { QuestionsOverview } from "@/components/surveys/questions-overview";
 import { ReviewTab } from "@/components/surveys/review-tab";
 import { SurveyEditorTabs } from "@/components/surveys/survey-editor-tabs";
@@ -9,6 +10,7 @@ import { updateSurveySettingsAction } from "@/features/surveys/actions";
 import { computeContentHash } from "@/features/surveys/content-validator";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
+import { computeMultilingualTranslationHash } from "@/features/surveys/translation-validation";
 
 type SurveyEditPageProps = {
   params: Promise<{ surveyId: string }>;
@@ -18,6 +20,7 @@ type SurveyEditPageProps = {
     generated?: string;
     error?: string;
     message?: string;
+    tab?: string;
   }>;
 };
 
@@ -47,6 +50,7 @@ export default async function SurveyEditPage({
   const createdMessage = resolvedSearchParams.created === "1";
   const savedMessage = resolvedSearchParams.saved === "1";
   const generatedMessage = resolvedSearchParams.generated === "1";
+  const tabParam = resolvedSearchParams.tab;
   const generationMessage = resolvedSearchParams.message
     ? decodeURIComponent(resolvedSearchParams.message)
     : "";
@@ -175,11 +179,29 @@ export default async function SurveyEditPage({
   const hasQuestions = survey.definition_json.questions.length > 0;
   const storedValidation =
     survey.definition_json.survey_meta.validation_result ?? null;
+  const storedMultilingualValidation =
+    survey.definition_json.survey_meta.multilingual_validation_result ?? null;
   const isValidationStale =
     storedValidation !== null && activeTranslations !== null
       ? computeContentHash(survey.definition_json.questions, activeTranslations) !==
         storedValidation.content_hash
       : false;
+  const isMultilingualValidationStale =
+    storedMultilingualValidation !== null
+      ? computeMultilingualTranslationHash(
+          survey.definition_json,
+          survey.supported_languages,
+        ) !== storedMultilingualValidation.translation_hash
+      : false;
+
+  const hasSecondaryLanguages = survey.supported_languages.some(
+    (lang) => lang !== survey.default_language,
+  );
+  const contentPassed = storedValidation?.passed === true && !isValidationStale;
+  const multilingualPassed =
+    !hasSecondaryLanguages ||
+    (storedMultilingualValidation?.passed === true && !isMultilingualValidationStale);
+  const previewUnlocked = contentPassed && multilingualPassed && hasQuestions;
 
   const reviewTab = (
     <ReviewTab
@@ -189,6 +211,23 @@ export default async function SurveyEditPage({
       translations={activeTranslations}
       validationResult={storedValidation}
       isStale={isValidationStale}
+      defaultLanguage={survey.default_language}
+      supportedLanguages={survey.supported_languages}
+      multilingualValidationResult={storedMultilingualValidation}
+      isMultilingualStale={isMultilingualValidationStale}
+    />
+  );
+
+  const previewTab = (
+    <PreviewTab
+      surveyId={survey.id}
+      surveyTitle={activeTranslations?.survey_title ?? survey.name}
+      surveyDescription={activeTranslations?.survey_description ?? ""}
+      questions={survey.definition_json.questions}
+      mappings={survey.mapping_contract_json.mappings}
+      translations={survey.definition_json.translations}
+      defaultLanguage={survey.default_language}
+      supportedLanguages={survey.supported_languages}
     />
   );
 
@@ -268,7 +307,15 @@ export default async function SurveyEditPage({
         configurationTab={configurationTab}
         questionsTab={questionsTab}
         reviewTab={reviewTab}
-        defaultTab={generatedMessage ? "questions" : "configuration"}
+        previewTab={previewTab}
+        previewUnlocked={previewUnlocked}
+        defaultTab={
+          tabParam === "preview" && previewUnlocked
+            ? "preview"
+            : generatedMessage
+              ? "questions"
+              : "configuration"
+        }
       />
     </div>
   );

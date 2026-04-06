@@ -116,6 +116,17 @@ describe("survey validation actions", () => {
       passed: true,
       issues: [],
     };
+    fixture.definition.survey_meta.multilingual_validation_result = {
+      validated_at: "2026-04-01T12:10:00.000Z",
+      translation_hash: "translation-hash",
+      validated_languages: [fixture.language, "French"],
+      passed: true,
+      issues: [],
+      language_statuses: [
+        { language: fixture.language, passed: true, issue_count: 0 },
+        { language: "French", passed: true, issue_count: 0 },
+      ],
+    };
 
     getOwnedSurveyById.mockResolvedValue({
       id: "survey-2",
@@ -141,6 +152,9 @@ describe("survey validation actions", () => {
     expect(updatePayload.surveyId).toBe("survey-2");
     expect(
       updatePayload.definition_json.survey_meta.validation_result,
+    ).toBeUndefined();
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
     ).toBeUndefined();
     expect(
       updatePayload.definition_json.translations[fixture.language].questions

@@ -1,7 +1,3 @@
-export const surveyLanguageOptions = [
-  "English",
-  "Croatian",
-  "French",
-  "Spanish",
-  "Italian",
-] as const;
+import { supportedSurveyLanguages } from "./languages";
+
+export const surveyLanguageOptions = supportedSurveyLanguages;

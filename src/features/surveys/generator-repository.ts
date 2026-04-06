@@ -10,6 +10,7 @@ import {
   createInitialMappingContract,
   createInitialSurveyDefinition,
 } from "./generator-types";
+import { assertSupportedSurveyLanguages } from "./languages";
 import {
   compileMappingContract,
   computeMappingHash,
@@ -36,9 +37,13 @@ function normalizeLanguages(
   defaultLanguage: SurveyLanguageCode,
   supportedLanguages?: SurveyLanguageCode[],
 ) {
-  return Array.from(
+  const languages = Array.from(
     new Set([defaultLanguage, ...(supportedLanguages ?? [])].map((value) => value.trim())),
   ).filter(Boolean);
+
+  assertSupportedSurveyLanguages(languages);
+
+  return languages;
 }
 
 function syncDefinitionMetadata(

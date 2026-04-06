@@ -4,6 +4,7 @@ import {
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { getInvalidSurveyLanguages } from "./languages";
 
 export type SurveyValidationIssue = {
   code: string;
@@ -145,6 +146,20 @@ export function validateSurveyDefinition(
       "duplicate_supported_language",
       "survey_meta.supported_languages",
       "Supported languages must not contain duplicates.",
+    );
+  }
+
+  const invalidLanguages = getInvalidSurveyLanguages([
+    defaultLanguage,
+    ...supportedLanguages,
+  ]);
+
+  if (invalidLanguages.length > 0) {
+    addIssue(
+      issues,
+      "unsupported_language",
+      "survey_meta.supported_languages",
+      `Unsupported survey language(s): ${invalidLanguages.join(", ")}.`,
     );
   }
 

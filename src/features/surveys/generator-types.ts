@@ -61,6 +61,28 @@ export type ContentValidationResult = {
   issues: ContentValidationIssue[];
 };
 
+export type MultilingualValidationIssue = {
+  language: SurveyLanguageCode;
+  question_key?: string;
+  type: "parity" | "quality" | "pii" | "cultural";
+  message: string;
+};
+
+export type MultilingualValidationLanguageStatus = {
+  language: SurveyLanguageCode;
+  passed: boolean;
+  issue_count: number;
+};
+
+export type MultilingualValidationResult = {
+  validated_at: string;
+  translation_hash: string;
+  validated_languages: SurveyLanguageCode[];
+  passed: boolean;
+  issues: MultilingualValidationIssue[];
+  language_statuses: MultilingualValidationLanguageStatus[];
+};
+
 export type SurveyValidationRules = {
   pii: {
     allow_direct_identifiers: boolean;
@@ -79,6 +101,7 @@ export type SurveyDefinition = {
     estimated_completion_minutes?: number;
     ontology_targets?: string[];
     validation_result?: ContentValidationResult;
+    multilingual_validation_result?: MultilingualValidationResult;
   };
   questions: SurveyQuestionDefinition[];
   translations: Record<SurveyLanguageCode, SurveyLanguageTranslations>;

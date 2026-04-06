@@ -14,6 +14,7 @@
     "test:integration": "vitest run tests/integration",
     "test:watch": "vitest",
     "eval:validation": "vitest run tests/evals/surveys/validation",
+    "eval:translation": "vitest run tests/evals/surveys/translation",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "keywords": [],

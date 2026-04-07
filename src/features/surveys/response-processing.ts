@@ -1,5 +1,10 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
+import {
+  deriveNormalizedSurveyLocation,
+  fetchHistoricalWeatherWithOpenMeteo,
+  geocodePostalCodeWithOpenMeteo,
+} from "./response-enrichment";
 
 type ProcessingJobRow = {
   id: string;
@@ -21,22 +26,11 @@ type SurveyResponseRow = {
   id: string;
   survey_id: string;
   survey_link_id: string;
+  responded_at: string;
   country_code_raw: string | null;
   postal_code_raw: string | null;
+  raw_location_retention_until: string | null;
 };
-
-function maskPostalArea(postalCode: string | null) {
-  if (!postalCode) {
-    return null;
-  }
-
-  const compact = postalCode.replace(/\s+/g, "").toUpperCase();
-  if (compact.length <= 3) {
-    return `${compact}*`;
-  }
-
-  return `${compact.slice(0, 3)}*`;
-}
 
 async function markJobOutcome(
   jobId: string,
@@ -63,7 +57,7 @@ async function markJobOutcome(
 
 async function updateResponsePipelineStatus(
   responseId: string,
-  status: "enriching" | "ready" | "failed",
+  status: "enriching" | "enriched" | "ready" | "failed",
 ) {
   const supabase = createSupabaseAdminClient();
 
@@ -119,6 +113,43 @@ async function loadResponseRuntime(responseId: string) {
   };
 }
 
+async function purgeExpiredRawLocationData(limit = 200) {
+  const supabase = createSupabaseAdminClient();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("survey_responses")
+    .select("id")
+    .not("raw_location_retention_until", "is", null)
+    .or("country_code_raw.not.is.null,postal_code_raw.not.is.null")
+    .lte("raw_location_retention_until", now)
+    .order("raw_location_retention_until", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to load expired raw location data: ${error.message}`);
+  }
+
+  const expiredIds = (data ?? []).map((row) => row.id as string);
+  if (expiredIds.length === 0) {
+    return { purgedCount: 0 };
+  }
+
+  const { error: updateError } = await supabase
+    .from("survey_responses")
+    .update({
+      country_code_raw: null,
+      postal_code_raw: null,
+      raw_location_retention_until: null,
+    })
+    .in("id", expiredIds);
+
+  if (updateError) {
+    throw new Error(`Failed to purge raw location data: ${updateError.message}`);
+  }
+
+  return { purgedCount: expiredIds.length };
+}
+
 async function processSingleJob(job: ProcessingJobRow) {
   const supabase = createSupabaseAdminClient();
   await updateResponsePipelineStatus(job.response_id, "enriching");
@@ -126,30 +157,67 @@ async function processSingleJob(job: ProcessingJobRow) {
   const { response, survey } = await loadResponseRuntime(job.response_id);
   const responseContext = survey.definition_json.survey_meta.response_context;
   const normalizedCountryCode = response.country_code_raw?.trim().toUpperCase() ?? null;
-  const locationAggCode = maskPostalArea(response.postal_code_raw);
   const weatherRequested = responseContext?.enrich_weather_context === true;
+  const geocodedLocation =
+    normalizedCountryCode && response.postal_code_raw
+      ? await geocodePostalCodeWithOpenMeteo({
+          countryCode: normalizedCountryCode,
+          postalCode: response.postal_code_raw,
+        })
+      : null;
+
+  const normalizedLocation = deriveNormalizedSurveyLocation({
+    countryCode: normalizedCountryCode,
+    postalCode: response.postal_code_raw,
+    geocodedLocation,
+  });
+
+  const weatherObservation =
+    weatherRequested &&
+    normalizedLocation.centroidLat != null &&
+    normalizedLocation.centroidLon != null
+      ? await fetchHistoricalWeatherWithOpenMeteo({
+          latitude: normalizedLocation.centroidLat,
+          longitude: normalizedLocation.centroidLon,
+          respondedAt: response.responded_at,
+        })
+      : null;
+
+  const qualityFlag = weatherRequested
+    ? weatherObservation
+      ? "weather_ok"
+      : geocodedLocation
+        ? "weather_unavailable"
+        : "geocoding_fallback_only"
+    : geocodedLocation
+      ? "location_only"
+      : "fallback_location_only";
 
   const { error: enrichmentError } = await supabase.from("response_enrichment").upsert({
     response_id: response.id,
-    provider: weatherRequested ? "pending_open_meteo" : "none",
-    normalized_country_code: normalizedCountryCode,
-    location_agg_code: locationAggCode,
-    location_agg_label: locationAggCode,
-    location_granularity: locationAggCode ? "postal_area" : null,
-    quality_flag: weatherRequested ? "weather_pending_provider" : "not_requested",
-    payload_json: weatherRequested
-      ? {
-          note: "Weather provider integration pending. Aggregated location persisted.",
-        }
-      : {
-          note: "No weather enrichment requested for this survey.",
-        },
+    provider: geocodedLocation || weatherObservation ? "open_meteo" : "none",
+    normalized_country_code: normalizedLocation.normalizedCountryCode,
+    location_agg_code: normalizedLocation.locationAggCode,
+    location_agg_label: normalizedLocation.locationAggLabel,
+    location_granularity: normalizedLocation.locationGranularity,
+    centroid_lat: normalizedLocation.centroidLat,
+    centroid_lon: normalizedLocation.centroidLon,
+    normalized_location_json: normalizedLocation.normalizedLocationJson,
+    temp_outdoor_c: weatherObservation?.temperatureOutdoorC ?? null,
+    humidity_pct: weatherObservation?.humidityPct ?? null,
+    observed_at: weatherObservation?.observedAt ?? null,
+    quality_flag: qualityFlag,
+    payload_json: {
+      weather: weatherObservation?.payload ?? { source: weatherRequested ? "not_available" : "not_requested" },
+      raw_location_retention_until: response.raw_location_retention_until,
+    },
   });
 
   if (enrichmentError) {
     throw new Error(`Failed to persist response enrichment: ${enrichmentError.message}`);
   }
 
+  await updateResponsePipelineStatus(response.id, "enriched");
   await updateResponsePipelineStatus(response.id, "ready");
   await markJobOutcome(job.id, "succeeded");
 }
@@ -229,4 +297,8 @@ export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
     processedCount,
     pendingJobs: jobs.length,
   };
+}
+
+export async function cleanupExpiredSurveyResponseLocationData(limit = 200) {
+  return purgeExpiredRawLocationData(limit);
 }

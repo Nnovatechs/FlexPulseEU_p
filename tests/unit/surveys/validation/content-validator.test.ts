@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkPromptInjectionHeuristics,
+  checkQuestionQualityHeuristics,
   checkStructuredPII,
   computeContentHash,
 } from "@/features/surveys/content-validator";
@@ -108,6 +109,38 @@ describe("survey content validator — deterministic layer", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.type).toBe("prompt_injection");
     expect(issues[0]?.message).toContain("prompt injection");
+  });
+
+  it("flags matrix-style rating prompts that refer to hidden statements", () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "Please rate your agreement with the following statements about automation in energy management.",
+      description: "Use a scale from 1 (Strongly disagree) to 5 (Strongly agree) for each statement.",
+      ontologyTarget: "fp_behaviour_v1.trust_automation.automation_trust_level",
+    });
+
+    fixture.definition.questions[0] = {
+      question_key: "Q_TEST_01",
+      type: "rating_scale",
+      required: true,
+      order: 1,
+      scale: {
+        min: 1,
+        max: 5,
+        step: 1,
+        min_label: "Strongly disagree",
+        max_label: "Strongly agree",
+      },
+    };
+
+    const issues = checkQuestionQualityHeuristics(
+      fixture.definition.questions,
+      fixture.translations,
+    );
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.type).toBe("quality");
+    expect(issues[0]?.message).toContain("Question 1");
+    expect(issues[0]?.message).toContain("multiple statements");
   });
 
   it("changes the content hash when visible option labels change", () => {

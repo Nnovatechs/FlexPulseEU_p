@@ -49,7 +49,6 @@ function ensureUniqueKeys(values: string[]) {
 
 function buildQuestionKey(
   question: SurveyGeneratorLLMQuestion,
-  index: number,
   duplicateIndex: number,
 ) {
   const targetSuffix = question.ontology_target
@@ -58,11 +57,7 @@ function buildQuestionKey(
     .join("_");
   const safeTarget = slugify(targetSuffix).toUpperCase();
 
-  if (duplicateIndex > 1) {
-    return `Q_${safeTarget}_${duplicateIndex.toString().padStart(2, "0")}`;
-  }
-
-  return `Q_${safeTarget}_${(index + 1).toString().padStart(2, "0")}`;
+  return `Q_${safeTarget}_${duplicateIndex.toString().padStart(2, "0")}`;
 }
 
 function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
@@ -171,7 +166,7 @@ export function transformGeneratedSurvey(
     const duplicateCount = (duplicatesByTarget.get(question.ontology_target) ?? 0) + 1;
     duplicatesByTarget.set(question.ontology_target, duplicateCount);
 
-    const questionKey = buildQuestionKey(question, index, duplicateCount);
+    const questionKey = buildQuestionKey(question, duplicateCount);
     const normalizedOptions = normalizeChoiceOptions(question);
 
     questions.push({

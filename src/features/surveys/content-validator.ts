@@ -152,6 +152,49 @@ export function checkPromptInjectionHeuristics(
   return issues;
 }
 
+const MATRIX_STYLE_PATTERNS = [
+  /\bfollowing statements\b/i,
+  /\beach statement\b/i,
+  /\bfor each statement\b/i,
+  /\brate your agreement with the following\b/i,
+  /\bfor each of the following\b/i,
+];
+
+export function checkQuestionQualityHeuristics(
+  questions: SurveyQuestionDefinition[],
+  translations: SurveyLanguageTranslations,
+): ContentValidationIssue[] {
+  const issues: ContentValidationIssue[] = [];
+
+  for (const q of questions) {
+    if (q.type !== "rating_scale") {
+      continue;
+    }
+
+    const trans = translations.questions[q.question_key];
+    if (!trans) {
+      continue;
+    }
+
+    const combined = `${trans.title} ${trans.description ?? ""}`.trim();
+    const looksMatrixLike = MATRIX_STYLE_PATTERNS.some((pattern) => pattern.test(combined));
+
+    if (!looksMatrixLike) {
+      continue;
+    }
+
+    issues.push({
+      question_key: q.question_key,
+      type: "quality",
+      message:
+        `Question ${q.order} appears to describe multiple statements or a matrix-style item ` +
+        "without actually providing those statements. Split it into separate rating-scale questions.",
+    });
+  }
+
+  return issues;
+}
+
 // ---------------------------------------------------------------------------
 // LLM output schemas
 // ---------------------------------------------------------------------------
@@ -467,16 +510,25 @@ export async function runContentValidation(
       ? checkPromptInjectionHeuristics(questions, translations)
       : [];
 
-  // Step 3: semantic PII intent check — LLM, only if prior safety checks passed
-  const llmPIIIssues =
+  // Step 3: deterministic quality heuristics — fail obvious malformed matrix-style items
+  const qualityHeuristicIssues =
     structuredPIIIssues.length === 0 && promptInjectionIssues.length === 0
+      ? checkQuestionQualityHeuristics(questions, translations)
+      : [];
+
+  // Step 4: semantic PII intent check — LLM, only if prior safety checks passed
+  const llmPIIIssues =
+    structuredPIIIssues.length === 0 &&
+    promptInjectionIssues.length === 0 &&
+    qualityHeuristicIssues.length === 0
       ? await checkPIIIntentWithLLM(questions, translations, surveyLanguage)
       : [];
 
-  // Step 4: semantic alignment — LLM, only if no safety or PII issues passed through
+  // Step 5: semantic alignment — LLM, only if no safety or PII issues passed through
   const semanticIssues =
     structuredPIIIssues.length === 0 &&
     promptInjectionIssues.length === 0 &&
+    qualityHeuristicIssues.length === 0 &&
     llmPIIIssues.length === 0
       ? await checkSemanticAlignment(
           questions,
@@ -489,6 +541,7 @@ export async function runContentValidation(
   const issues = [
     ...structuredPIIIssues,
     ...promptInjectionIssues,
+    ...qualityHeuristicIssues,
     ...llmPIIIssues,
     ...semanticIssues,
   ];

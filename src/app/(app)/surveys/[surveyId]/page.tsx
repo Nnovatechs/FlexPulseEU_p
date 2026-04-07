@@ -30,6 +30,11 @@ export default async function SurveyDetailPage({
             <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
               Edit survey
             </Link>
+            {survey.defaultPublicLinkUrl ? (
+              <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
+                Open public link
+              </Link>
+            ) : null}
             <Link href={appRoutes.surveyFill(survey.id)} className="button button--primary">
               Preview filling flow
             </Link>
@@ -86,6 +91,10 @@ export default async function SurveyDetailPage({
                   ? new Date(survey.publishedAt).toLocaleString("en-GB")
                   : "Not published yet"}
               </span>
+            </div>
+            <div className="analytics-row">
+              <strong>Public link</strong>
+              <span>{survey.defaultPublicLinkUrl ?? "Created on publish"}</span>
             </div>
           </div>
         </article>

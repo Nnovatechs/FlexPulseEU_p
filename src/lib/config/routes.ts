@@ -6,5 +6,7 @@ export const appRoutes = {
   surveyDetail: (surveyId: string) => `/surveys/${surveyId}`,
   surveyEdit: (surveyId: string) => `/surveys/${surveyId}/edit`,
   surveyFill: (surveyId: string) => `/surveys/${surveyId}/fill`,
+  publicSurveyLink: (linkToken: string) => `/s/${linkToken}`,
+  publicSurveyThankYou: (linkToken: string) => `/s/${linkToken}/thank-you`,
   surveyAnalytics: (surveyId: string) => `/surveys/${surveyId}/analytics`,
 } as const;

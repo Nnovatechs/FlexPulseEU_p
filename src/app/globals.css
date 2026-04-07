@@ -598,6 +598,13 @@ textarea {
   background: rgba(36, 84, 197, 0.05);
 }
 
+.choice-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+}
+
 .info-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -656,6 +663,19 @@ textarea {
   padding: 1.6rem;
 }
 
+.public-question__options,
+.public-question__scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.survey-submit {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .mock-answer {
   display: grid;
   place-items: center;
@@ -711,6 +731,18 @@ textarea {
 .public-survey-note {
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.public-thank-you {
+  padding: 2rem 2.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.public-thank-you h2,
+.public-thank-you p {
+  margin: 0;
 }
 
 .list-header {

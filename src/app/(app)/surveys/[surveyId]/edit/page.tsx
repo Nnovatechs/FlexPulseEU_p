@@ -10,6 +10,7 @@ import { updateSurveySettingsAction } from "@/features/surveys/actions";
 import { computeContentHash } from "@/features/surveys/content-validator";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
+import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
 import { computeMultilingualTranslationHash } from "@/features/surveys/translation-validation";
 
 type SurveyEditPageProps = {
@@ -59,6 +60,9 @@ export default async function SurveyEditPage({
     resolvedSearchParams.error === "missing-ontology-targets";
   const generationFailedError =
     resolvedSearchParams.error === "generation-failed";
+  const responseContext = normalizeSurveyResponseContextConfig(
+    survey.definition_json.survey_meta.response_context,
+  );
 
   const configurationTab = (
     <form action={updateSurveySettingsAction}>
@@ -88,6 +92,40 @@ export default async function SurveyEditPage({
                 placeholder="Short introduction or context for respondents"
               />
             </label>
+
+            <div className="field">
+              <span>Response context</span>
+              <p className="muted">
+                Configure whether published respondents should provide coarse
+                location context for later enrichment and profiling.
+              </p>
+              <div className="choice-stack">
+                <label className="choice-chip">
+                  <input
+                    type="checkbox"
+                    name="collectCountryCode"
+                    defaultChecked={responseContext.collect_country_code}
+                  />
+                  <span>Collect country code</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="checkbox"
+                    name="collectPostalCode"
+                    defaultChecked={responseContext.collect_postal_code}
+                  />
+                  <span>Collect postal code</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="checkbox"
+                    name="enrichWeatherContext"
+                    defaultChecked={responseContext.enrich_weather_context}
+                  />
+                  <span>Enrich weather context after submission</span>
+                </label>
+              </div>
+            </div>
           </div>
         </details>
 

@@ -22,6 +22,7 @@ import type {
   SurveyDefinition,
   SurveyLanguageTranslations,
 } from "./generator-types";
+import { normalizeSurveyResponseContextConfig } from "./generator-types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -120,6 +121,9 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("ontologyTargets")
     .map((value) => String(value).trim())
     .filter(Boolean);
+  const collectCountryCode = formData.get("collectCountryCode") === "on";
+  const collectPostalCode = formData.get("collectPostalCode") === "on";
+  const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
 
   if (!surveyId || !name || !defaultLanguage) {
     redirect(buildEditErrorRedirect(surveyId, "missing-fields"));
@@ -129,10 +133,16 @@ export async function updateSurveySettingsAction(formData: FormData) {
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
+  const responseContext = normalizeSurveyResponseContextConfig({
+    collect_country_code: collectCountryCode,
+    collect_postal_code: collectPostalCode,
+    enrich_weather_context: enrichWeatherContext,
+  });
 
   // Always clear validation when settings or questions change
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
   nextDefinition.survey_meta.ontology_targets = ontologyTargets;
+  nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
     survey_description: "",

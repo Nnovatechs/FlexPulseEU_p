@@ -93,6 +93,12 @@ export type SurveyValidationRules = {
   };
 };
 
+export type SurveyResponseContextConfig = {
+  collect_country_code: boolean;
+  collect_postal_code: boolean;
+  enrich_weather_context: boolean;
+};
+
 export type SurveyDefinition = {
   schema_version: 1;
   survey_meta: {
@@ -100,6 +106,7 @@ export type SurveyDefinition = {
     supported_languages: SurveyLanguageCode[];
     estimated_completion_minutes?: number;
     ontology_targets?: string[];
+    response_context?: SurveyResponseContextConfig;
     validation_result?: ContentValidationResult;
     multilingual_validation_result?: MultilingualValidationResult;
   };
@@ -167,6 +174,16 @@ export type PersistedSurvey = {
   mapping_hash: string | null;
 };
 
+export type PersistedSurveyLink = {
+  id: string;
+  survey_id: string;
+  link_token: string;
+  audience_label: string;
+  audience_token: string;
+  is_active: boolean;
+  created_at: string;
+};
+
 export type CreateSurveyDraftInput = {
   name: string;
   default_language: SurveyLanguageCode;
@@ -182,6 +199,21 @@ export type UpdateSurveyDraftInput = {
   mapping_contract_json?: MappingContract;
 };
 
+export function normalizeSurveyResponseContextConfig(
+  config?: Partial<SurveyResponseContextConfig> | null,
+): SurveyResponseContextConfig {
+  const collectPostalCode = config?.collect_postal_code === true;
+  const enrichWeatherContext = config?.enrich_weather_context === true;
+  const collectCountryCode =
+    config?.collect_country_code === true || collectPostalCode || enrichWeatherContext;
+
+  return {
+    collect_country_code: collectCountryCode,
+    collect_postal_code: collectPostalCode || enrichWeatherContext,
+    enrich_weather_context: enrichWeatherContext,
+  };
+}
+
 export function createInitialSurveyDefinition(
   defaultLanguage: SurveyLanguageCode,
   supportedLanguages: SurveyLanguageCode[],
@@ -194,6 +226,7 @@ export function createInitialSurveyDefinition(
       default_language: defaultLanguage,
       supported_languages: languages,
       ontology_targets: [],
+      response_context: normalizeSurveyResponseContextConfig(),
     },
     questions: [],
     translations: Object.fromEntries(

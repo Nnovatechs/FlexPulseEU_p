@@ -269,7 +269,7 @@ describe("survey validation actions", () => {
     formData.set("name", "Baseline survey");
     formData.set("surveyDescription", "Short intro");
     formData.set("defaultLanguage", fixture.language);
-    formData.set("collectPostalCode", "on");
+    formData.set("collectLocation", "on");
     formData.set("enrichWeatherContext", "on");
     formData.append("supportedLanguages", fixture.language);
 

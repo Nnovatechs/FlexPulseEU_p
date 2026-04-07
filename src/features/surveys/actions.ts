@@ -130,8 +130,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("ontologyTargets")
     .map((value) => String(value).trim())
     .filter(Boolean);
-  const collectCountryCode = formData.get("collectCountryCode") === "on";
-  const collectPostalCode = formData.get("collectPostalCode") === "on";
+  const collectLocation = formData.get("collectLocation") === "on";
   const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
 
   if (!surveyId || !name || !defaultLanguage) {
@@ -144,8 +143,8 @@ export async function updateSurveySettingsAction(formData: FormData) {
     new Set([defaultLanguage, ...supportedLanguages]),
   );
   const responseContext = normalizeSurveyResponseContextConfig({
-    collect_country_code: collectCountryCode,
-    collect_postal_code: collectPostalCode,
+    collect_country_code: collectLocation,
+    collect_postal_code: collectLocation,
     enrich_weather_context: enrichWeatherContext,
   });
 

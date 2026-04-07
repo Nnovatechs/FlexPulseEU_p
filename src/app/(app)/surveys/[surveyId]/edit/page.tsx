@@ -68,6 +68,8 @@ export default async function SurveyEditPage({
   const responseContext = normalizeSurveyResponseContextConfig(
     survey.definition_json.survey_meta.response_context,
   );
+  const collectsLocationContext =
+    responseContext.collect_country_code || responseContext.collect_postal_code;
 
   const configurationTab = (
     <form action={updateSurveySettingsAction}>
@@ -108,18 +110,10 @@ export default async function SurveyEditPage({
                 <label className="choice-chip">
                   <input
                     type="checkbox"
-                    name="collectCountryCode"
-                    defaultChecked={responseContext.collect_country_code}
+                    name="collectLocation"
+                    defaultChecked={collectsLocationContext}
                   />
-                  <span>Collect country code</span>
-                </label>
-                <label className="choice-chip">
-                  <input
-                    type="checkbox"
-                    name="collectPostalCode"
-                    defaultChecked={responseContext.collect_postal_code}
-                  />
-                  <span>Collect postal code</span>
+                  <span>Collect location context (country + postal code)</span>
                 </label>
                 <label className="choice-chip">
                   <input
@@ -130,6 +124,10 @@ export default async function SurveyEditPage({
                   <span>Enrich weather context after submission</span>
                 </label>
               </div>
+              <p className="muted">
+                Weather enrichment depends on location context and will force it
+                on even if only the weather option is selected.
+              </p>
             </div>
           </div>
         </details>

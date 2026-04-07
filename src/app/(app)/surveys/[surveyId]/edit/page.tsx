@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
 import { FormActions } from "@/components/surveys/form-actions";
@@ -12,6 +12,7 @@ import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
 import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
 import { computeMultilingualTranslationHash } from "@/features/surveys/translation-validation";
+import { appRoutes } from "@/lib/config/routes";
 
 type SurveyEditPageProps = {
   params: Promise<{ surveyId: string }>;
@@ -42,6 +43,10 @@ export default async function SurveyEditPage({
 
   if (!survey) {
     notFound();
+  }
+
+  if (survey.status !== "draft") {
+    redirect(`${appRoutes.surveyDetail(survey.id)}?error=immutable`);
   }
 
   const activeTranslations =

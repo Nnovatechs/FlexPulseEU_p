@@ -7,12 +7,15 @@ import { appRoutes } from "@/lib/config/routes";
 
 type SurveyDetailPageProps = {
   params: Promise<{ surveyId: string }>;
+  searchParams?: Promise<{ error?: string }>;
 };
 
 export default async function SurveyDetailPage({
   params,
+  searchParams,
 }: SurveyDetailPageProps) {
   const { surveyId } = await params;
+  const resolvedSearchParams = (await searchParams) ?? {};
   const survey = await getSurveyById(surveyId);
 
   if (!survey) {
@@ -21,15 +24,22 @@ export default async function SurveyDetailPage({
 
   return (
     <div className="page-stack">
+      {resolvedSearchParams.error === "immutable" ? (
+        <div className="notice notice--warning" role="status">
+          This survey has already been published and can no longer be edited.
+        </div>
+      ) : null}
       <PageHeader
         eyebrow="Survey detail"
         title={survey.title}
         description="Overview of the survey configuration, lifecycle, and question set."
         actions={
           <div className="button-row">
-            <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
-              Edit survey
-            </Link>
+            {survey.status === "Draft" ? (
+              <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
+                Edit survey
+              </Link>
+            ) : null}
             {survey.defaultPublicLinkUrl ? (
               <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
                 Open public link
@@ -94,7 +104,11 @@ export default async function SurveyDetailPage({
             </div>
             <div className="analytics-row">
               <strong>Public link</strong>
-              <span>{survey.defaultPublicLinkUrl ?? "Created on publish"}</span>
+              {survey.defaultPublicLinkUrl ? (
+                <Link href={survey.defaultPublicLinkUrl}>{survey.defaultPublicLinkUrl}</Link>
+              ) : (
+                <span>Created on publish</span>
+              )}
             </div>
           </div>
         </article>

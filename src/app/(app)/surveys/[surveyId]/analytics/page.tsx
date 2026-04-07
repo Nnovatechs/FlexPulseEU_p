@@ -86,9 +86,11 @@ export default async function SurveyAnalyticsPage({
             <Link href={appRoutes.surveyDetail(survey.id)} className="button button--ghost">
               Open survey detail
             </Link>
-            <Link href={appRoutes.surveyEdit(survey.id)} className="button button--ghost">
-              Reopen editing
-            </Link>
+            {survey.status === "Draft" ? (
+              <Link href={appRoutes.surveyEdit(survey.id)} className="button button--ghost">
+                Reopen editing
+              </Link>
+            ) : null}
             <Link href={appRoutes.surveyFill(survey.id)} className="button button--primary">
               Test survey URL
             </Link>

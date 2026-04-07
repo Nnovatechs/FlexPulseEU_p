@@ -32,6 +32,15 @@ function buildEditErrorRedirect(surveyId: string, error: string) {
   return `${appRoutes.surveyEdit(surveyId)}?error=${error}`;
 }
 
+function redirectIfSurveyNotEditable(
+  surveyId: string,
+  surveyStatus: Awaited<ReturnType<typeof getOwnedSurveyById>>["status"],
+): void {
+  if (surveyStatus !== "draft") {
+    redirect(`${appRoutes.surveyDetail(surveyId)}?error=immutable`);
+  }
+}
+
 function clearReviewValidationResults(definition: SurveyDefinition): SurveyDefinition {
   const next = structuredClone(definition);
   delete next.survey_meta.validation_result;
@@ -130,6 +139,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
   }
 
   const existing = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, existing.status);
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
@@ -223,6 +233,7 @@ export async function updateQuestionTranslationAction(
   }
 
   const existing = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, existing.status);
 
   // Clear validation — any text edit invalidates previous result
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
@@ -277,6 +288,7 @@ export async function validateSurveyContentAction(
   }
 
   const survey = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, survey.status);
   const { questions } = survey.definition_json;
   const { mappings } = survey.mapping_contract_json;
   const translations =
@@ -315,6 +327,7 @@ export async function generateSurveyTranslationsAction(
   }
 
   const survey = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, survey.status);
   assertCurrentContentValidation(survey);
 
   const sourceTranslations =

@@ -75,9 +75,11 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                 <Link href={appRoutes.surveyDetail(survey.id)} className="button button--secondary">
                   Open
                 </Link>
-                <Link href={appRoutes.surveyEdit(survey.id)} className="button button--ghost">
-                  Edit
-                </Link>
+                {survey.status === "Draft" ? (
+                  <Link href={appRoutes.surveyEdit(survey.id)} className="button button--ghost">
+                    Edit
+                  </Link>
+                ) : null}
                 <Link
                   href={appRoutes.surveyAnalytics(survey.id)}
                   className="button button--ghost"

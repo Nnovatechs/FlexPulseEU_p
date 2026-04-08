@@ -153,11 +153,36 @@ export function checkPromptInjectionHeuristics(
 }
 
 const MATRIX_STYLE_PATTERNS = [
+  // English
   /\bfollowing statements\b/i,
   /\beach statement\b/i,
   /\bfor each statement\b/i,
   /\brate your agreement with the following\b/i,
   /\bfor each of the following\b/i,
+  // Spanish
+  /\blas siguientes afirmaciones\b/i,
+  /\bcada afirmaci[oó]n\b/i,
+  /\bpara cada afirmaci[oó]n\b/i,
+  /\bvalora tu grado de acuerdo con las siguientes\b/i,
+  /\bpara cada una de las siguientes\b/i,
+  // French
+  /\bles affirmations suivantes\b/i,
+  /\bchaque affirmation\b/i,
+  /\bpour chaque affirmation\b/i,
+  /\b[eé]valuez votre niveau d['’]accord avec les affirmations suivantes\b/i,
+  /\bpour chacune des affirmations suivantes\b/i,
+  // Croatian
+  /\bsljede[ćc]e tvrdnje\b/i,
+  /\bsvaku tvrdnju\b/i,
+  /\bza svaku tvrdnju\b/i,
+  /\bocijenite svoje slaganje sa sljede[ćc]im tvrdnjama\b/i,
+  /\bza svaku od sljede[ćc]ih\b/i,
+  // German
+  /\bdie folgenden aussagen\b/i,
+  /\bjede aussage\b/i,
+  /\bf[üu]r jede aussage\b/i,
+  /\bbewerten sie ihre zustimmung zu den folgenden aussagen\b/i,
+  /\bf[üu]r jede der folgenden\b/i,
 ];
 
 export function checkQuestionQualityHeuristics(

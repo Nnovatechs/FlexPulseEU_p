@@ -99,13 +99,61 @@ export type SurveyResponseContextConfig = {
   enrich_weather_context: boolean;
 };
 
+export type MeasurementPlanEntry = {
+  concept_key: string;
+  evidence_source:
+    | "survey_questions"
+    | "response_context"
+    | "enrichment"
+    | "pipeline_flags";
+  measurement_type:
+    | "single_item_direct"
+    | "multi_item_likert_median"
+    | "single_choice_enum"
+    | "multi_choice_tag_set"
+    | "numeric_direct"
+    | "context_passthrough"
+    | "quality_flag_passthrough";
+  output_type: "number" | "boolean" | "string" | "string[]" | "enum";
+  aggregation_rule:
+    | "identity"
+    | "median"
+    | "mean"
+    | "set_union"
+    | "context_passthrough";
+  threshold_profile:
+    | "none"
+    | "likert_1_5_low_mid_high"
+    | "likert_1_5_low_mid_high_strict"
+    | "numeric_temperature_window"
+    | "enum_identity"
+    | "asset_inventory";
+  minimum_answer_count: number;
+  question_keys: string[];
+  required_question_keys: string[];
+  question_roles: Record<
+    string,
+    "anchor" | "core" | "supporting" | "informative_only"
+  >;
+  source_v1_targets: string[];
+  source_paths?: string[];
+};
+
+export type MeasurementPlan = {
+  schema_version: 1;
+  schema_namespace: "flexpulse_behavioural_schema";
+  concepts: MeasurementPlanEntry[];
+};
+
 export type SurveyDefinition = {
   schema_version: 1;
   survey_meta: {
     default_language: SurveyLanguageCode;
     supported_languages: SurveyLanguageCode[];
     estimated_completion_minutes?: number;
+    behavioural_concept_keys?: string[];
     ontology_targets?: string[];
+    measurement_plan_json?: MeasurementPlan;
     response_context?: SurveyResponseContextConfig;
     validation_result?: ContentValidationResult;
     multilingual_validation_result?: MultilingualValidationResult;
@@ -225,7 +273,13 @@ export function createInitialSurveyDefinition(
     survey_meta: {
       default_language: defaultLanguage,
       supported_languages: languages,
+      behavioural_concept_keys: [],
       ontology_targets: [],
+      measurement_plan_json: {
+        schema_version: 1,
+        schema_namespace: "flexpulse_behavioural_schema",
+        concepts: [],
+      },
       response_context: normalizeSurveyResponseContextConfig(),
     },
     questions: [],

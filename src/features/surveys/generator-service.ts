@@ -13,7 +13,7 @@ type GenerateSurveyWithLLMInput = {
   surveyDescription: string;
   defaultLanguage: string;
   supportedLanguages: string[];
-  ontologyTargets: string[];
+  schemaTargets: string[];
   configs: GeneratorTargetConfig[];
 };
 

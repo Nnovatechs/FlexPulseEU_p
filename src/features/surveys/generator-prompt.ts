@@ -5,7 +5,7 @@ type BuildSurveyGeneratorPromptInput = {
   surveyDescription: string;
   defaultLanguage: string;
   supportedLanguages: string[];
-  ontologyTargets: string[];
+  schemaTargets: string[];
   configs: GeneratorTargetConfig[];
 };
 
@@ -69,14 +69,14 @@ export function buildSurveyGeneratorPrompt(
     `Canonical language: ${input.defaultLanguage}`,
     `Supported languages in the draft: ${input.supportedLanguages.join(", ")}`,
     `Existing survey description: ${input.surveyDescription || "(empty)"}`,
-    `Selected ontology targets: ${input.ontologyTargets.join(", ")}`,
+    `Selected behavioural schema targets: ${input.schemaTargets.join(", ")}`,
     `Recommended visible question budget: around ${recommendedQuestionBudget} questions.`,
     "",
     "Target-specific generation rules:",
     targetRules,
     "",
     "Generation requirements:",
-    "- Use only the selected ontology targets.",
+    "- Use only the selected behavioural schema targets.",
     "- Every generated question must point to exactly one ontology_target.",
     "- Include 2-3 items only for the highest-priority latent constructs when budget allows.",
     "- When a construct needs multiple items, return them as separate rating_scale questions. Never compress multiple statements into one question.",

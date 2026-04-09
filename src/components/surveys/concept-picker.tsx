@@ -2,48 +2,38 @@
 
 import { useState } from "react";
 import {
-  fpBehaviourV1Concepts,
-  buildOntologyTarget,
-  type BehaviourOntologyBlock,
-} from "@/features/ontology/fp-behaviour-v1";
+  flexpulseSurveyDesignConceptsByDimension,
+  type FlexpulseDimension,
+} from "@/features/ontology/flexpulse-behavioural-schema";
 
-const ACTIONABLE_BLOCKS: BehaviourOntologyBlock[] = [
-  "awareness",
-  "flex_willingness",
-  "thermal_comfort",
-  "trust_automation",
-  "tariff_preferences",
-  "device_engagement",
-];
-
-const BLOCK_LABELS: Record<BehaviourOntologyBlock, string> = {
-  awareness: "Awareness",
-  flex_willingness: "Flexibility willingness",
-  thermal_comfort: "Thermal comfort",
-  trust_automation: "Trust in automation",
+const DIMENSION_LABELS: Record<FlexpulseDimension, string> = {
+  awareness_of_energy_systems: "Awareness of energy systems",
+  flexibility_willingness: "Flexibility willingness",
+  thermal_comfort_norms: "Thermal comfort norms",
   tariff_preferences: "Tariff preferences",
-  device_engagement: "Device engagement",
+  trust_in_automation: "Trust in automation",
+  der_engagement: "DER engagement",
   response_context: "Response context",
-  environment_context: "Environment context",
-  mapping_quality: "Mapping quality",
 };
 
-const conceptsByBlock = ACTIONABLE_BLOCKS.map((block) => ({
-  block,
-  label: BLOCK_LABELS[block],
-  concepts: fpBehaviourV1Concepts.filter((c) => c.block === block),
-}));
+const conceptsByDimension = flexpulseSurveyDesignConceptsByDimension.map(
+  ({ dimension, concepts }) => ({
+  dimension,
+  label: DIMENSION_LABELS[dimension],
+  concepts,
+}),
+);
 
 type ConceptPickerProps = {
-  initialTargets?: string[];
+  initialConceptKeys?: string[];
 };
 
-export function ConceptPicker({ initialTargets = [] }: ConceptPickerProps) {
+export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
   const [selected, setSelected] = useState<Set<string>>(
-    new Set(initialTargets),
+    new Set(initialConceptKeys),
   );
-  const [expanded, setExpanded] = useState<Set<BehaviourOntologyBlock>>(
-    new Set(ACTIONABLE_BLOCKS),
+  const [expanded, setExpanded] = useState<Set<FlexpulseDimension>>(
+    new Set(conceptsByDimension.map(({ dimension }) => dimension)),
   );
 
   function toggleConcept(target: string) {
@@ -58,55 +48,54 @@ export function ConceptPicker({ initialTargets = [] }: ConceptPickerProps) {
     });
   }
 
-  function toggleBlock(block: BehaviourOntologyBlock) {
+  function toggleDimension(dimension: FlexpulseDimension) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(block)) {
-        next.delete(block);
+      if (next.has(dimension)) {
+        next.delete(dimension);
       } else {
-        next.add(block);
+        next.add(dimension);
       }
       return next;
     });
   }
 
-  function selectAllInBlock(block: BehaviourOntologyBlock) {
-    const blockTargets = fpBehaviourV1Concepts
-      .filter((c) => c.block === block)
-      .map((c) => buildOntologyTarget(c.block, c.attribute));
-    setSelected((prev) => new Set([...prev, ...blockTargets]));
+  function selectAllInDimension(dimension: FlexpulseDimension) {
+    const dimensionConceptKeys =
+      conceptsByDimension
+        .find((entry) => entry.dimension === dimension)
+        ?.concepts.map((concept) => concept.concept_key) ?? [];
+    setSelected((prev) => new Set([...prev, ...dimensionConceptKeys]));
   }
 
-  function clearAllInBlock(block: BehaviourOntologyBlock) {
-    const blockTargets = new Set(
-      fpBehaviourV1Concepts
-        .filter((c) => c.block === block)
-        .map((c) => buildOntologyTarget(c.block, c.attribute)),
+  function clearAllInDimension(dimension: FlexpulseDimension) {
+    const dimensionConceptKeys = new Set(
+      conceptsByDimension
+        .find((entry) => entry.dimension === dimension)
+        ?.concepts.map((concept) => concept.concept_key) ?? [],
     );
     setSelected(
-      (prev) => new Set([...prev].filter((t) => !blockTargets.has(t))),
+      (prev) => new Set([...prev].filter((t) => !dimensionConceptKeys.has(t))),
     );
   }
 
   return (
     <>
       <div className="concept-blocks">
-        {conceptsByBlock.map(({ block, label, concepts }) => {
-          const isExpanded = expanded.has(block);
-          const blockTargets = concepts.map((c) =>
-            buildOntologyTarget(c.block, c.attribute),
-          );
-          const selectedInBlock = blockTargets.filter((t) =>
+        {conceptsByDimension.map(({ dimension, label, concepts }) => {
+          const isExpanded = expanded.has(dimension);
+          const dimensionConceptKeys = concepts.map((concept) => concept.concept_key);
+          const selectedInBlock = dimensionConceptKeys.filter((t) =>
             selected.has(t),
           ).length;
           const allSelected = selectedInBlock === concepts.length;
 
           return (
-            <div key={block} className="concept-block">
+            <div key={dimension} className="concept-block">
               <button
                 type="button"
                 className="concept-block__header"
-                onClick={() => toggleBlock(block)}
+                onClick={() => toggleDimension(dimension)}
                 aria-expanded={isExpanded}
               >
                 <span className="concept-block__title">{label}</span>
@@ -130,8 +119,8 @@ export function ConceptPicker({ initialTargets = [] }: ConceptPickerProps) {
                       className="link-button"
                       onClick={() =>
                         allSelected
-                          ? clearAllInBlock(block)
-                          : selectAllInBlock(block)
+                          ? clearAllInDimension(dimension)
+                          : selectAllInDimension(dimension)
                       }
                     >
                       {allSelected ? "Deselect all" : "Select all"}
@@ -140,29 +129,26 @@ export function ConceptPicker({ initialTargets = [] }: ConceptPickerProps) {
 
                   <div className="concept-grid">
                     {concepts.map((concept) => {
-                      const target = buildOntologyTarget(
-                        concept.block,
-                        concept.attribute,
-                      );
-                      const isChecked = selected.has(target);
+                      const conceptKey = concept.concept_key;
+                      const isChecked = selected.has(conceptKey);
 
                       return (
                         <label
-                          key={target}
+                          key={conceptKey}
                           className={`concept-item${isChecked ? " concept-item--selected" : ""}`}
                         >
                           <input
                             type="checkbox"
-                            name="ontologyTargets"
-                            value={target}
+                            name="behaviouralConceptKeys"
+                            value={conceptKey}
                             checked={isChecked}
-                            onChange={() => toggleConcept(target)}
+                            onChange={() => toggleConcept(conceptKey)}
                           />
                           <span className="concept-item__attribute">
-                            {concept.attribute.replaceAll("_", " ")}
+                            {concept.label}
                           </span>
                           <span className="concept-item__type">
-                            {concept.value_type}
+                            {concept.layer}
                           </span>
                         </label>
                       );

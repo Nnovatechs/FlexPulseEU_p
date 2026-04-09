@@ -14,7 +14,7 @@ describe("generator transform", () => {
           {
             title: "How much do you trust automation in general?",
             description: "",
-            ontology_target: "fp_behaviour_v1.trust_automation.automation_trust_level",
+            ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
             type: "rating_scale",
             required: true,
             options: [],
@@ -30,7 +30,7 @@ describe("generator transform", () => {
           {
             title: "How much do you trust automation during emergencies?",
             description: "",
-            ontology_target: "fp_behaviour_v1.trust_automation.automation_trust_level",
+            ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
             type: "rating_scale",
             required: true,
             options: [],
@@ -48,18 +48,18 @@ describe("generator transform", () => {
       baseDefinition,
       defaultLanguage: "English",
       supportedLanguages: ["English"],
-      ontologyTargets: ["fp_behaviour_v1.trust_automation.automation_trust_level"],
+      ontologyTargets: ["flexpulse_behavioural_schema.trust_in_automation"],
       fallbackSurveyTitle: "Trust survey",
       fallbackSurveyDescription: "Measures trust in automation.",
     });
 
     expect(result.definition.questions.map((question) => question.question_key)).toEqual([
-      "Q_TRUST_AUTOMATION_AUTOMATION_TRUST_LEVEL_01",
-      "Q_TRUST_AUTOMATION_AUTOMATION_TRUST_LEVEL_02",
+      "Q_TRUST_IN_AUTOMATION_01",
+      "Q_TRUST_IN_AUTOMATION_02",
     ]);
     expect(result.mappingContract.mappings.map((mapping) => mapping.question_key)).toEqual([
-      "Q_TRUST_AUTOMATION_AUTOMATION_TRUST_LEVEL_01",
-      "Q_TRUST_AUTOMATION_AUTOMATION_TRUST_LEVEL_02",
+      "Q_TRUST_IN_AUTOMATION_01",
+      "Q_TRUST_IN_AUTOMATION_02",
     ]);
   });
 });

@@ -3,6 +3,7 @@ import {
   type GeneratorTargetConfig,
 } from "./generator-config";
 import { generateSurveyWithLLM } from "./generator-service";
+import { createMeasurementPlanFromMappings } from "./measurement-plan";
 import { transformGeneratedSurvey } from "./generator-transform";
 import {
   validateGeneratedSurveyDraft,
@@ -16,18 +17,22 @@ type GenerateSurveyDraftProposalInput = {
   surveyDescription: string;
   defaultLanguage: string;
   supportedLanguages: string[];
-  ontologyTargets: string[];
+  behaviouralConceptKeys: string[];
+  schemaTargets: string[];
 };
 
 export type GeneratedSurveyDraftProposal = {
   definition: PersistedSurvey["definition_json"];
   mappingContract: PersistedSurvey["mapping_contract_json"];
+  measurementPlan: NonNullable<
+    PersistedSurvey["definition_json"]["survey_meta"]["measurement_plan_json"]
+  >;
   configs: GeneratorTargetConfig[];
 };
 
-function assertSelectedTargets(ontologyTargets: string[]) {
-  if (ontologyTargets.length === 0) {
-    throw new Error("Select at least one ontology concept before generating.");
+function assertSelectedTargets(schemaTargets: string[]) {
+  if (schemaTargets.length === 0) {
+    throw new Error("Select at least one behavioural concept before generating.");
   }
 }
 
@@ -47,15 +52,15 @@ function assertNoValidationIssues(issues: SurveyValidationIssue[]) {
 export async function generateSurveyDraftProposal(
   input: GenerateSurveyDraftProposalInput,
 ): Promise<GeneratedSurveyDraftProposal> {
-  assertSelectedTargets(input.ontologyTargets);
+  assertSelectedTargets(input.schemaTargets);
 
-  const configs = getGeneratorTargetConfigs(input.ontologyTargets);
+  const configs = getGeneratorTargetConfigs(input.schemaTargets);
   const output = await generateSurveyWithLLM({
     surveyName: input.surveyName,
     surveyDescription: input.surveyDescription,
     defaultLanguage: input.defaultLanguage,
     supportedLanguages: input.supportedLanguages,
-    ontologyTargets: input.ontologyTargets,
+    schemaTargets: input.schemaTargets,
     configs,
   });
 
@@ -64,10 +69,15 @@ export async function generateSurveyDraftProposal(
     baseDefinition: input.survey.definition_json,
     defaultLanguage: input.defaultLanguage,
     supportedLanguages: input.supportedLanguages,
-    ontologyTargets: input.ontologyTargets,
+    ontologyTargets: input.schemaTargets,
     fallbackSurveyTitle: input.surveyName,
     fallbackSurveyDescription: input.surveyDescription,
   });
+  const measurementPlan = createMeasurementPlanFromMappings(
+    input.behaviouralConceptKeys,
+    transformed.mappingContract.mappings,
+  );
+  transformed.definition.survey_meta.measurement_plan_json = measurementPlan;
 
   assertNoValidationIssues(
     validateGeneratedSurveyDraft(
@@ -79,6 +89,7 @@ export async function generateSurveyDraftProposal(
   return {
     definition: transformed.definition,
     mappingContract: transformed.mappingContract,
+    measurementPlan,
     configs,
   };
 }

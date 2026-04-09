@@ -52,7 +52,7 @@ function buildQuestionKey(
   duplicateIndex: number,
 ) {
   const targetSuffix = question.ontology_target
-    .replace(/^fp_behaviour_v1\./, "")
+    .replace(/^flexpulse_behavioural_schema\./, "")
     .split(".")
     .join("_");
   const safeTarget = slugify(targetSuffix).toUpperCase();

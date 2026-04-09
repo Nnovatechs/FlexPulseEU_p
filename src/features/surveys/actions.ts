@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
+import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { runContentValidation, computeContentHash } from "./content-validator";
 import { generateSurveyDraftProposal } from "./generator-executor";
+import { createMeasurementPlanFromMappings } from "./measurement-plan";
 import { translateSurveyLanguage } from "./translation-service";
 import {
   computeMultilingualTranslationHash,
@@ -126,10 +128,14 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("supportedLanguages")
     .map((value) => String(value).trim())
     .filter(Boolean);
-  const ontologyTargets = formData
-    .getAll("ontologyTargets")
+  const behaviouralConceptKeys = formData
+    .getAll("behaviouralConceptKeys")
     .map((value) => String(value).trim())
     .filter(Boolean);
+  const schemaTargets =
+    behaviouralConceptKeys.length > 0
+      ? deriveSchemaTargetsFromBehaviouralConceptKeys(behaviouralConceptKeys)
+      : [];
   const collectLocation = formData.get("collectLocation") === "on";
   const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
 
@@ -150,7 +156,12 @@ export async function updateSurveySettingsAction(formData: FormData) {
 
   // Always clear validation when settings or questions change
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
-  nextDefinition.survey_meta.ontology_targets = ontologyTargets;
+  nextDefinition.survey_meta.behavioural_concept_keys = behaviouralConceptKeys;
+  nextDefinition.survey_meta.ontology_targets = schemaTargets;
+  nextDefinition.survey_meta.measurement_plan_json = createMeasurementPlanFromMappings(
+    behaviouralConceptKeys,
+    existing.mapping_contract_json.mappings,
+  );
   nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
@@ -160,18 +171,22 @@ export async function updateSurveySettingsAction(formData: FormData) {
   nextDefinition.translations[defaultLanguage].survey_description = surveyDescription;
 
   if (intent === "generate") {
-    if (ontologyTargets.length === 0) {
+    if (behaviouralConceptKeys.length === 0) {
       redirect(buildEditErrorRedirect(surveyId, "missing-ontology-targets"));
     }
 
     try {
       const proposal = await generateSurveyDraftProposal({
-        survey: existing,
+        survey: {
+          ...existing,
+          definition_json: nextDefinition,
+        },
         surveyName: name,
         surveyDescription,
         defaultLanguage,
         supportedLanguages: nextSupportedLanguages,
-        ontologyTargets,
+        behaviouralConceptKeys,
+        schemaTargets,
       });
 
       // Generated content → validation is stale, clear it

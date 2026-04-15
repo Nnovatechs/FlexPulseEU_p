@@ -28,7 +28,7 @@ export function buildTranslationSurveyFixture({
   targetDescription = "Veuillez repondre selon les preferences actuelles de votre foyer.",
   optionLabels = ["Very uncomfortable", "Neutral", "Very comfortable"],
   translatedOptionLabels = ["Tres mal a l'aise", "Neutre", "Tres a l'aise"],
-  ontologyTarget = "fp_behaviour_v1.trust_automation.level",
+  ontologyTarget = "flexpulse_behavioural_schema.trust_in_automation",
 }: BuildTranslationSurveyInput = {}) {
   const definition = createInitialSurveyDefinition(sourceLanguage, [
     sourceLanguage,

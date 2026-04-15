@@ -10,6 +10,26 @@ export type SurveyQuestionType =
   | "numeric"
   | "boolean";
 
+export type PlannerQuestionType = Extract<
+  SurveyQuestionType,
+  "single_choice" | "multiple_choice" | "rating_scale" | "numeric"
+>;
+
+export type MeasurementAggregationRule =
+  | "identity"
+  | "median"
+  | "mean"
+  | "set_union"
+  | "context_passthrough";
+
+export type MeasurementThresholdProfile =
+  | "none"
+  | "likert_1_5_low_mid_high"
+  | "likert_1_5_low_mid_high_strict"
+  | "numeric_temperature_window"
+  | "enum_identity"
+  | "asset_inventory";
+
 export type SurveyQuestionOption = {
   option_key: string;
   value: string;
@@ -116,26 +136,11 @@ export type MeasurementPlanEntry = {
     | "quality_flag_passthrough";
   output_type: "number" | "boolean" | "string" | "string[]" | "enum";
   aggregation_rule:
-    | "identity"
-    | "median"
-    | "mean"
-    | "set_union"
-    | "context_passthrough";
-  threshold_profile:
-    | "none"
-    | "likert_1_5_low_mid_high"
-    | "likert_1_5_low_mid_high_strict"
-    | "numeric_temperature_window"
-    | "enum_identity"
-    | "asset_inventory";
+    MeasurementAggregationRule;
+  threshold_profile: MeasurementThresholdProfile;
   minimum_answer_count: number;
   question_keys: string[];
   required_question_keys: string[];
-  question_roles: Record<
-    string,
-    "anchor" | "core" | "supporting" | "informative_only"
-  >;
-  source_v1_targets: string[];
   source_paths?: string[];
 };
 

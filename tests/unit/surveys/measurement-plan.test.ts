@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyMeasurementPlannerOutput,
   createMeasurementPlanFromMappings,
   createMeasurementPlanBlueprint,
   materializeMeasurementPlan,
@@ -16,10 +17,9 @@ describe("measurement plan", () => {
       measurement_type: "multi_item_likert_median",
       minimum_answer_count: 2,
     });
-    expect(trustPlan?.question_slots).toHaveLength(3);
+    expect(trustPlan?.question_slots).toHaveLength(6);
     expect(trustPlan?.question_slots[0]).toMatchObject({
-      role: "anchor",
-      required: true,
+      required: false,
     });
   });
 
@@ -51,11 +51,43 @@ describe("measurement plan", () => {
   });
 
   it("materializes a final measurement plan by binding slots to question keys", () => {
-    const blueprint = createMeasurementPlanBlueprint(["flexibility_willingness"]);
+    const blueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["flexibility_willingness"]),
+      {
+        concepts: [
+          {
+            concept_key: "flexibility_willingness",
+            measurement_type: "multi_item_likert_median",
+            aggregation_rule: "median",
+            threshold_profile: "likert_1_5_low_mid_high",
+            minimum_answer_count: 2,
+            question_slots: [
+              {
+                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_01",
+                required: true,
+              },
+              {
+                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_02",
+                required: true,
+              },
+              {
+                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_03",
+                required: false,
+              },
+              {
+                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_04",
+                required: false,
+              },
+            ],
+          },
+        ],
+      },
+    );
     const plan = materializeMeasurementPlan(blueprint, {
       SLOT_FLEXIBILITY_WILLINGNESS_01: "Q_FLEXIBILITY_WILLINGNESS_01",
       SLOT_FLEXIBILITY_WILLINGNESS_02: "Q_FLEXIBILITY_WILLINGNESS_02",
       SLOT_FLEXIBILITY_WILLINGNESS_03: "Q_FLEXIBILITY_WILLINGNESS_03",
+      SLOT_FLEXIBILITY_WILLINGNESS_04: "Q_FLEXIBILITY_WILLINGNESS_04",
     });
 
     expect(plan.concepts[0]).toMatchObject({
@@ -64,17 +96,106 @@ describe("measurement plan", () => {
         "Q_FLEXIBILITY_WILLINGNESS_01",
         "Q_FLEXIBILITY_WILLINGNESS_02",
         "Q_FLEXIBILITY_WILLINGNESS_03",
+        "Q_FLEXIBILITY_WILLINGNESS_04",
       ],
       required_question_keys: [
         "Q_FLEXIBILITY_WILLINGNESS_01",
         "Q_FLEXIBILITY_WILLINGNESS_02",
       ],
-      question_roles: {
-        Q_FLEXIBILITY_WILLINGNESS_01: "anchor",
-        Q_FLEXIBILITY_WILLINGNESS_02: "core",
-        Q_FLEXIBILITY_WILLINGNESS_03: "core",
-      },
     });
+  });
+
+  it("applies planner output to refine the measurement blueprint before writing", () => {
+    const blueprint = createMeasurementPlanBlueprint(["trust_in_automation"]);
+    const planned = applyMeasurementPlannerOutput(blueprint, {
+      concepts: [
+        {
+          concept_key: "trust_in_automation",
+          measurement_type: "multi_item_likert_median",
+          aggregation_rule: "median",
+          threshold_profile: "likert_1_5_low_mid_high",
+          minimum_answer_count: 2,
+          question_slots: [
+            {
+              slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+              required: true,
+            },
+            {
+              slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+              required: true,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(planned.concepts[0]).toMatchObject({
+      concept_key: "trust_in_automation",
+      minimum_answer_count: 2,
+      question_slots: [
+        {
+          slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+        },
+        {
+          slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+        },
+      ],
+    });
+  });
+
+  it("rejects planner outputs that omit a selected concept", () => {
+    const blueprint = createMeasurementPlanBlueprint([
+      "trust_in_automation",
+      "awareness_of_energy_systems",
+    ]);
+
+    expect(() =>
+      applyMeasurementPlannerOutput(blueprint, {
+        concepts: [
+          {
+            concept_key: "trust_in_automation",
+            measurement_type: "multi_item_likert_median",
+            aggregation_rule: "median",
+            threshold_profile: "likert_1_5_low_mid_high",
+            minimum_answer_count: 2,
+            question_slots: [
+              {
+                slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+                required: true,
+              },
+              {
+                slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+                required: true,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(/did not return a concept plan/);
+  });
+
+  it("rejects planner outputs with impossible minimum answer counts", () => {
+    const blueprint = createMeasurementPlanBlueprint(["trust_in_automation"]);
+
+    expect(() =>
+      applyMeasurementPlannerOutput(blueprint, {
+        concepts: [
+          {
+            concept_key: "trust_in_automation",
+            measurement_type: "single_item_direct",
+            aggregation_rule: "identity",
+            threshold_profile: "likert_1_5_low_mid_high",
+            minimum_answer_count: 2,
+            question_slots: [
+              {
+                slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+                required: true,
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(/impossible minimum_answer_count/);
   });
 
   it("derives a usable measurement plan from actual mapping entries", () => {

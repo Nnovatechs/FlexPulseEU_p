@@ -5,6 +5,7 @@ import {
   SurveyQuestionDefinition,
 } from "./generator-types";
 import { getGeneratorTargetConfig } from "./generator-config";
+import type { MeasurementPlanBlueprint, MeasurementType } from "./measurement-plan";
 import {
   SurveyGeneratorLLMOutput,
   SurveyGeneratorLLMQuestion,
@@ -16,6 +17,7 @@ type TransformGeneratedSurveyInput = {
   defaultLanguage: string;
   supportedLanguages: string[];
   ontologyTargets: string[];
+  measurementPlanBlueprint: MeasurementPlanBlueprint;
   fallbackSurveyTitle: string;
   fallbackSurveyDescription: string;
 };
@@ -23,7 +25,17 @@ type TransformGeneratedSurveyInput = {
 type TransformGeneratedSurveyResult = {
   definition: SurveyDefinition;
   mappingContract: MappingContract;
+  slotBindings: Record<string, string>;
 };
+
+const GENERIC_RATING_INSTRUCTION_PATTERNS = [
+  /\brate how true this is for you\b/i,
+  /\brate your agreement\b/i,
+  /\brate how willing you are\b/i,
+  /\buse a scale\b/i,
+  /\bscale\s+\d/i,
+  /\bstrongly disagree\b/i,
+];
 
 function slugify(value: string) {
   return value
@@ -58,6 +70,61 @@ function buildQuestionKey(
   const safeTarget = slugify(targetSuffix).toUpperCase();
 
   return `Q_${safeTarget}_${duplicateIndex.toString().padStart(2, "0")}`;
+}
+
+function looksLikeStandalonePrompt(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (trimmed.endsWith("?")) {
+    return true;
+  }
+
+  return /\b(i|i'm|i’d|i'd|i am|my|me|we|our|you|your|would|could|should|can|prefer|trust|accept|understand|know|allow|want|need|tolerate|consider|feel|am|is|are)\b/i.test(
+    trimmed,
+  );
+}
+
+function looksLikeMetadataLabel(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  if (looksLikeStandalonePrompt(trimmed)) {
+    return false;
+  }
+
+  return trimmed.split(/\s+/).length <= 12;
+}
+
+function normalizeQuestionCopy(question: SurveyGeneratorLLMQuestion) {
+  const title = question.title.trim();
+  const description = question.description.trim();
+  const descriptionLooksGeneric = GENERIC_RATING_INSTRUCTION_PATTERNS.some((pattern) =>
+    pattern.test(description),
+  );
+
+  if (
+    description &&
+    looksLikeMetadataLabel(title) &&
+    looksLikeStandalonePrompt(description) &&
+    !descriptionLooksGeneric
+  ) {
+    return {
+      ...question,
+      title: description,
+      description: "",
+    };
+  }
+
+  return {
+    ...question,
+    title,
+    description,
+  };
 }
 
 function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
@@ -111,12 +178,55 @@ function buildTransformStrategy(
   };
 }
 
-function assertQuestionMatchesConfig(question: SurveyGeneratorLLMQuestion) {
-  const config = getGeneratorTargetConfig(question.ontology_target);
+function getCompatibleQuestionTypes(
+  measurementType: MeasurementType,
+): SurveyQuestionDefinition["type"][] {
+  switch (measurementType) {
+    case "multi_item_likert_median":
+      return ["rating_scale"];
+    case "single_choice_enum":
+      return ["single_choice"];
+    case "multi_choice_tag_set":
+      return ["multiple_choice"];
+    case "numeric_direct":
+      return ["numeric"];
+    case "single_item_direct":
+      return ["rating_scale", "single_choice", "numeric", "boolean"];
+    case "context_passthrough":
+    case "quality_flag_passthrough":
+      return [];
+    default:
+      return [];
+  }
+}
 
-  if (question.type !== config.question_type) {
+function assertQuestionMatchesPlan(
+  question: SurveyGeneratorLLMQuestion,
+  blueprintBySlot: Map<string, MeasurementPlanBlueprint["concepts"][number]>,
+) {
+  const config = getGeneratorTargetConfig(question.ontology_target);
+  const plannedConcept = blueprintBySlot.get(question.slot_key);
+
+  if (!plannedConcept) {
+    throw new Error(`Unexpected slot "${question.slot_key}" in generated survey.`);
+  }
+
+  if (plannedConcept.concept_key !== config.concept.concept_key) {
     throw new Error(
-      `Question for "${question.ontology_target}" must use "${config.question_type}", got "${question.type}".`,
+      `Slot "${question.slot_key}" belongs to "${plannedConcept.concept_key}" but question targets "${config.concept.concept_key}".`,
+    );
+  }
+
+  const compatibleQuestionTypes = getCompatibleQuestionTypes(
+    plannedConcept.measurement_type,
+  );
+
+  if (
+    compatibleQuestionTypes.length > 0 &&
+    !compatibleQuestionTypes.includes(question.type)
+  ) {
+    throw new Error(
+      `Question for "${question.ontology_target}" uses "${question.type}" but measurement type "${plannedConcept.measurement_type}" only allows ${compatibleQuestionTypes.join(", ")}.`,
     );
   }
 
@@ -149,6 +259,10 @@ export function transformGeneratedSurvey(
 ): TransformGeneratedSurveyResult {
   const nextDefinition = structuredClone(input.baseDefinition);
   const duplicatesByTarget = new Map<string, number>();
+  const blueprintBySlot = new Map<
+    string,
+    MeasurementPlanBlueprint["concepts"][number]
+  >();
 
   nextDefinition.survey_meta.default_language = input.defaultLanguage;
   nextDefinition.survey_meta.supported_languages = input.supportedLanguages;
@@ -158,54 +272,71 @@ export function transformGeneratedSurvey(
 
   const questions: SurveyQuestionDefinition[] = [];
   const mappings: SurveyMappingDefinition[] = [];
+  const slotBindings: Record<string, string> = {};
   const defaultLanguageQuestions: SurveyDefinition["translations"][string]["questions"] =
     {};
 
-  input.output.questions.forEach((question, index) => {
-    const config = assertQuestionMatchesConfig(question);
-    const duplicateCount = (duplicatesByTarget.get(question.ontology_target) ?? 0) + 1;
-    duplicatesByTarget.set(question.ontology_target, duplicateCount);
+  input.measurementPlanBlueprint.concepts.forEach((concept) => {
+    concept.question_slots.forEach((slot) => {
+      blueprintBySlot.set(slot.slot_key, concept);
+    });
+  });
 
-    const questionKey = buildQuestionKey(question, duplicateCount);
-    const normalizedOptions = normalizeChoiceOptions(question);
+  input.output.questions.forEach((question, index) => {
+    const normalizedQuestion = normalizeQuestionCopy(question);
+    const config = assertQuestionMatchesPlan(normalizedQuestion, blueprintBySlot);
+    const duplicateCount =
+      (duplicatesByTarget.get(normalizedQuestion.ontology_target) ?? 0) + 1;
+    duplicatesByTarget.set(normalizedQuestion.ontology_target, duplicateCount);
+
+    const questionKey = buildQuestionKey(normalizedQuestion, duplicateCount);
+    if (slotBindings[normalizedQuestion.slot_key]) {
+      throw new Error(
+        `Duplicate measurement slot "${normalizedQuestion.slot_key}" in generated survey.`,
+      );
+    }
+    slotBindings[normalizedQuestion.slot_key] = questionKey;
+    const normalizedOptions = normalizeChoiceOptions(normalizedQuestion);
 
     questions.push({
       question_key: questionKey,
-      type: question.type,
-      required: question.required,
+      type: normalizedQuestion.type,
+      required: normalizedQuestion.required,
       order: index + 1,
       options:
-        question.type === "single_choice" || question.type === "multiple_choice"
+        normalizedQuestion.type === "single_choice" ||
+        normalizedQuestion.type === "multiple_choice"
           ? normalizedOptions.map((option) => ({
               option_key: option.option_key,
               value: option.value,
             }))
           : undefined,
       scale:
-        question.type === "rating_scale" && question.scale
+        normalizedQuestion.type === "rating_scale" && normalizedQuestion.scale
           ? {
-              min: question.scale.min,
-              max: question.scale.max,
-              step: question.scale.step,
-              min_label: question.scale.min_label,
-              max_label: question.scale.max_label,
+              min: normalizedQuestion.scale.min,
+              max: normalizedQuestion.scale.max,
+              step: normalizedQuestion.scale.step,
+              min_label: normalizedQuestion.scale.min_label,
+              max_label: normalizedQuestion.scale.max_label,
             }
           : undefined,
       numeric:
-        question.type === "numeric" && question.numeric
+        normalizedQuestion.type === "numeric" && normalizedQuestion.numeric
           ? {
-              min: question.numeric.min ?? undefined,
-              max: question.numeric.max ?? undefined,
-              unit: question.numeric.unit ?? undefined,
+              min: normalizedQuestion.numeric.min ?? undefined,
+              max: normalizedQuestion.numeric.max ?? undefined,
+              unit: normalizedQuestion.numeric.unit ?? undefined,
             }
           : undefined,
     });
 
     defaultLanguageQuestions[questionKey] = {
-      title: question.title.trim(),
-      description: question.description.trim() || undefined,
+      title: normalizedQuestion.title.trim(),
+      description: normalizedQuestion.description.trim() || undefined,
       options:
-        question.type === "single_choice" || question.type === "multiple_choice"
+        normalizedQuestion.type === "single_choice" ||
+        normalizedQuestion.type === "multiple_choice"
           ? Object.fromEntries(
               normalizedOptions.map((option) => [option.option_key, option.label]),
             )
@@ -214,11 +345,11 @@ export function transformGeneratedSurvey(
 
     mappings.push({
       question_key: questionKey,
-      ontology_target: question.ontology_target,
+      ontology_target: normalizedQuestion.ontology_target,
       expected_type: config.expected_type,
-      required_for_mapping: question.required,
+      required_for_mapping: normalizedQuestion.required,
       transform_strategy: buildTransformStrategy(
-        question,
+        normalizedQuestion,
         normalizedOptions,
         config.expected_type,
       ),
@@ -260,5 +391,6 @@ export function transformGeneratedSurvey(
       schema_version: 1,
       mappings,
     },
+    slotBindings,
   };
 }

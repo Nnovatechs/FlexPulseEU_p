@@ -1,4 +1,5 @@
 import { SurveyQuestionType } from "./generator-types";
+import type { MeasurementPlanBlueprint } from "./measurement-plan";
 
 export type SurveyGeneratorQuestionType = Extract<
   SurveyQuestionType,
@@ -12,6 +13,7 @@ export type SurveyGeneratorLLMOption = {
 };
 
 export type SurveyGeneratorLLMQuestion = {
+  slot_key: string;
   title: string;
   description: string;
   ontology_target: string;
@@ -38,6 +40,123 @@ export type SurveyGeneratorLLMOutput = {
   estimated_completion_minutes: number;
   questions: SurveyGeneratorLLMQuestion[];
 };
+
+export type MeasurementPlannerLLMConcept = {
+  concept_key: string;
+  measurement_type:
+    | "single_item_direct"
+    | "multi_item_likert_median"
+    | "single_choice_enum"
+    | "multi_choice_tag_set"
+    | "numeric_direct"
+    | "context_passthrough"
+    | "quality_flag_passthrough";
+  aggregation_rule:
+    | "identity"
+    | "median"
+    | "mean"
+    | "set_union"
+    | "context_passthrough";
+  threshold_profile:
+    | "none"
+    | "likert_1_5_low_mid_high"
+    | "likert_1_5_low_mid_high_strict"
+    | "numeric_temperature_window"
+    | "enum_identity"
+    | "asset_inventory";
+  minimum_answer_count: number;
+  question_slots: Array<{
+    slot_key: string;
+    required: boolean;
+  }>;
+};
+
+export type MeasurementPlannerLLMOutput = {
+  concepts: MeasurementPlannerLLMConcept[];
+};
+
+export function buildMeasurementPlannerOutputJsonSchema(
+  blueprint: MeasurementPlanBlueprint,
+) {
+  return {
+    name: "measurement_planner_output",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["concepts"],
+      properties: {
+        concepts: {
+          type: "array",
+          minItems: blueprint.concepts.length,
+          maxItems: blueprint.concepts.length,
+          items: {
+            anyOf: blueprint.concepts.map((concept) => ({
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "concept_key",
+                "measurement_type",
+                "aggregation_rule",
+                "threshold_profile",
+                "minimum_answer_count",
+                "question_slots",
+              ],
+              properties: {
+                concept_key: {
+                  type: "string",
+                  const: concept.concept_key,
+                },
+                measurement_type: {
+                  type: "string",
+                  enum: concept.allowed_measurement_types,
+                },
+                aggregation_rule: {
+                  type: "string",
+                  enum: ["identity", "median", "mean", "set_union", "context_passthrough"],
+                },
+                threshold_profile: {
+                  type: "string",
+                  enum: [
+                    "none",
+                    "likert_1_5_low_mid_high",
+                    "likert_1_5_low_mid_high_strict",
+                    "numeric_temperature_window",
+                    "enum_identity",
+                    "asset_inventory",
+                  ],
+                },
+                minimum_answer_count: {
+                  type: "integer",
+                  minimum: 0,
+                  maximum: 10,
+                },
+                question_slots: {
+                  type: "array",
+                  maxItems: concept.question_slots.length,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["slot_key", "required"],
+                    properties: {
+                      slot_key: concept.question_slots.length
+                        ? {
+                            type: "string",
+                            enum: concept.question_slots.map((slot) => slot.slot_key),
+                          }
+                        : { type: "string", enum: [] },
+                      required: { type: "boolean" },
+                    },
+                  },
+                },
+              },
+            })),
+          },
+        },
+      },
+    },
+  } as const;
+}
 
 export const surveyGeneratorOutputJsonSchema = {
   name: "survey_generator_output",
@@ -71,6 +190,7 @@ export const surveyGeneratorOutputJsonSchema = {
           type: "object",
           additionalProperties: false,
           required: [
+            "slot_key",
             "title",
             "description",
             "ontology_target",
@@ -81,6 +201,10 @@ export const surveyGeneratorOutputJsonSchema = {
             "numeric",
           ],
           properties: {
+            slot_key: {
+              type: "string",
+              minLength: 1,
+            },
             title: {
               type: "string",
               minLength: 1,
@@ -197,4 +321,16 @@ export function parseSurveyGeneratorLLMOutput(
   }
 
   return parsed as SurveyGeneratorLLMOutput;
+}
+
+export function parseMeasurementPlannerLLMOutput(
+  value: string,
+): MeasurementPlannerLLMOutput {
+  const parsed: unknown = JSON.parse(value);
+
+  if (!isObject(parsed) || !Array.isArray(parsed.concepts)) {
+    throw new Error("Measurement planner output is missing required concept fields.");
+  }
+
+  return parsed as MeasurementPlannerLLMOutput;
 }

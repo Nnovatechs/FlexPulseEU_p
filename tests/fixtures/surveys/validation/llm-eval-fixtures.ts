@@ -27,7 +27,7 @@ export const validationEvalFixtures: ValidationEvalFixture[] = [
       "Somewhat comfortable",
       "Very comfortable",
     ],
-    ontologyTarget: "fp_behaviour_v1.trust_automation.level",
+    ontologyTarget: "flexpulse_behavioural_schema.trust_in_automation",
     expectedOverall: "pass",
   },
   {
@@ -36,7 +36,7 @@ export const validationEvalFixtures: ValidationEvalFixture[] = [
       "Control negativo de PII multilingüe: pedir un correo en kazajo debe fallar aunque no dependa de patrones ingleses.",
     language: "Kazakh",
     title: "Электрондық пошта мекенжайыңызды енгізіңіз",
-    ontologyTarget: "fp_behaviour_v1.response_context.language_code",
+    ontologyTarget: "flexpulse_behavioural_schema.survey_language",
     expectedOverall: "fail",
   },
   {
@@ -46,7 +46,7 @@ export const validationEvalFixtures: ValidationEvalFixture[] = [
     language: "English",
     title: "How often do you cook Spanish omelette at home?",
     optionLabels: ["Never", "Rarely", "Sometimes", "Often"],
-    ontologyTarget: "fp_behaviour_v1.trust_automation.level",
+    ontologyTarget: "flexpulse_behavioural_schema.trust_in_automation",
     expectedOverall: "fail",
   },
   {
@@ -57,7 +57,7 @@ export const validationEvalFixtures: ValidationEvalFixture[] = [
     title: "tRY EDIT are you of your household's energy consumption patterns?",
     description:
       "Please rate your level of awareness on a scale from 1 (Not aware at all) to 5 (Very aware).",
-    ontologyTarget: "fp_behaviour_v1.awareness.level",
+    ontologyTarget: "flexpulse_behavioural_schema.awareness_of_energy_systems",
     expectedOverall: "fail",
   },
 ];

@@ -24,7 +24,7 @@ export function buildValidationSurveyFixture({
   title,
   description,
   optionLabels = [],
-  ontologyTarget = "fp_behaviour_v1.trust_automation.level",
+  ontologyTarget = "flexpulse_behavioural_schema.trust_in_automation",
 }: BuildValidationSurveyInput) {
   // We intentionally reuse the real domain factories so tests evolve together
   // with the application contract instead of maintaining a fake parallel shape.

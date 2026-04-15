@@ -1,4 +1,9 @@
 import { GeneratorTargetConfig } from "./generator-config";
+import { MeasurementPlanBlueprint } from "./measurement-plan";
+import {
+  buildConceptMethodologyNotes,
+  buildMethodologyRulesText,
+} from "./survey-methodology";
 
 type BuildSurveyGeneratorPromptInput = {
   surveyName: string;
@@ -7,61 +12,97 @@ type BuildSurveyGeneratorPromptInput = {
   supportedLanguages: string[];
   schemaTargets: string[];
   configs: GeneratorTargetConfig[];
+  measurementPlanBlueprint: MeasurementPlanBlueprint;
+};
+
+type BuildMeasurementPlannerPromptInput = {
+  surveyName: string;
+  surveyDescription: string;
+  defaultLanguage: string;
+  supportedLanguages: string[];
+  behaviouralConceptKeys: string[];
+  schemaTargets: string[];
+  configs: GeneratorTargetConfig[];
+  baseMeasurementPlanBlueprint: MeasurementPlanBlueprint;
+  repairFeedback?: string[];
 };
 
 export type SurveyGeneratorPrompt = {
   system: string;
   user: string;
-  recommendedQuestionBudget: number;
 };
 
-function computeRecommendedQuestionBudget(configs: GeneratorTargetConfig[]) {
-  const total = configs.reduce(
-    (sum, config) => sum + config.item_count_default,
-    0,
-  );
-
-  return Math.max(6, Math.min(28, total));
-}
+export type MeasurementPlannerPrompt = {
+  system: string;
+  user: string;
+};
 
 export function buildSurveyGeneratorPrompt(
   input: BuildSurveyGeneratorPromptInput,
 ): SurveyGeneratorPrompt {
-  const recommendedQuestionBudget = computeRecommendedQuestionBudget(
-    input.configs,
-  );
-
   const targetRules = input.configs
     .map((config, index) => {
       return [
         `${index + 1}. ${config.ontology_target}`,
-        `   - family: ${config.measurement_family}`,
-        `   - required question type: ${config.question_type}`,
+        `   - label: ${config.concept.label}`,
+        `   - layer: ${config.concept.layer}`,
+        `   - descriptor role: ${config.concept.descriptor_role}`,
+        `   - compatible measurement approaches: ${config.allowed_measurement_types.join(", ")}`,
+        `   - compatible question formats: ${config.allowed_question_types.join(", ") || "(planner decides no visible question)"}`,
         `   - expected mapped value type: ${config.expected_type}`,
-        `   - preferred item count: ${config.item_count_default}`,
-        `   - minimum item count: ${config.item_count_min}`,
         `   - priority: ${config.priority}`,
-        `   - threshold policy: ${config.threshold_policy}`,
         `   - notes: ${config.prompt_notes}`,
+        `   - methodology notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
       ].join("\n");
     })
     .join("\n");
 
+  const blueprintRules = input.measurementPlanBlueprint.concepts
+    .map((entry, index) => {
+      return [
+        `${index + 1}. ${entry.concept_key}`,
+        `   - evidence source: ${entry.evidence_source}`,
+        `   - measurement type: ${entry.measurement_type}`,
+        `   - aggregation rule: ${entry.aggregation_rule}`,
+        `   - minimum answers: ${entry.minimum_answer_count}`,
+        `   - threshold profile: ${entry.threshold_profile}`,
+        `   - slots: ${
+          entry.question_slots.length > 0
+            ? entry.question_slots
+                .map(
+                  (slot) =>
+                    `${slot.slot_key} [required=${slot.required}]`,
+                )
+                .join("; ")
+            : "(no survey question slots)"
+        }`,
+      ].join("\n");
+    })
+    .join("\n");
+  const methodologyRules = buildMethodologyRulesText();
+
   const system = [
     "You are a survey generation engine for FlexPulseEU.",
-    "Generate a concise, methodologically coherent survey in the canonical language only.",
+    "Realize an already-planned behavioural measurement instrument in the canonical language only.",
     "Return JSON only.",
-    "Do not invent ontology targets outside the allowed list.",
+    "Do not invent schema targets or slot keys outside the allowed list.",
     "Do not ask for direct personal identifiers.",
     "Keep wording neutral, clear, and suitable for real respondents.",
     "Avoid duplicate or near-duplicate questions.",
-    "Prefer compact surveys while preserving stronger measurement for high-priority latent constructs.",
+    "Optimize wording quality without changing the planner's semantic intent or burden logic.",
     "Use only these question types: single_choice, multiple_choice, rating_scale, numeric.",
     "For single_choice and multiple_choice questions, include options with ontology_value and is_truthy fields.",
     "For rating_scale questions, use a 1-5 scale unless the target notes strongly suggest otherwise.",
     "For rating_scale questions, each question must be a single complete statement or direct prompt that can be rated on its own.",
+    "The title field must contain the full respondent-facing item text, not a short label, topic name, or metadata heading.",
+    "A respondent must be able to answer the item by reading the title alone.",
+    "Use description only for optional clarification, examples, or scope notes. Do not put the main question text in description.",
+    "Do not use title text like 'Understanding home energy use', 'Willingness to shift appliance use', or other abstract labels in place of a real item.",
+    "Do not use generic description text like 'Rate how true this is for you' as a substitute for an actual item.",
     "Do not generate matrix-style wording such as 'the following statements', 'each statement', or any question that implies hidden sub-items not present in the JSON.",
     "For numeric questions, include sensible bounds when possible.",
+    "Generate one question for each slot in the measurement blueprint that comes from survey_questions.",
+    "Reuse the exact slot_key provided for each generated question.",
   ].join(" ");
 
   const user = [
@@ -70,17 +111,23 @@ export function buildSurveyGeneratorPrompt(
     `Supported languages in the draft: ${input.supportedLanguages.join(", ")}`,
     `Existing survey description: ${input.surveyDescription || "(empty)"}`,
     `Selected behavioural schema targets: ${input.schemaTargets.join(", ")}`,
-    `Recommended visible question budget: around ${recommendedQuestionBudget} questions.`,
+    "",
+    methodologyRules,
     "",
     "Target-specific generation rules:",
     targetRules,
     "",
+    "Measurement blueprint to realize:",
+    blueprintRules,
+    "",
     "Generation requirements:",
     "- Use only the selected behavioural schema targets.",
     "- Every generated question must point to exactly one ontology_target.",
-    "- Include 2-3 items only for the highest-priority latent constructs when budget allows.",
-    "- When a construct needs multiple items, return them as separate rating_scale questions. Never compress multiple statements into one question.",
-    "- Use single direct items for secondary ordinal constructs.",
+    "- Every generated question must keep the slot_key from the blueprint.",
+    "- Treat the blueprint as the accepted measurement design. Your job is to realize it faithfully.",
+    "- The title must be the actual question or statement shown to the respondent.",
+    "- The description must never carry the main semantic burden of the item.",
+    "- When a concept blueprint contains multiple slots, generate separate questions for those slots. Never compress multiple statements into one question.",
     "- Do not use matrix wording like 'Please rate your agreement with the following statements' unless the actual statements are returned as separate questions.",
     "- Use multiple_choice for conditions, barriers, motivators, accepted scopes, or device lists.",
     "- Use single_choice for factual booleans or categorical preferences.",
@@ -93,6 +140,130 @@ export function buildSurveyGeneratorPrompt(
   return {
     system,
     user,
-    recommendedQuestionBudget,
   };
+}
+
+export function buildMeasurementPlannerPrompt(
+  input: BuildMeasurementPlannerPromptInput,
+): MeasurementPlannerPrompt {
+  const conceptRules = input.configs
+    .map((config, index) =>
+      [
+        `${index + 1}. ${config.concept.concept_key}`,
+        `   - schema target: ${config.ontology_target}`,
+        `   - label: ${config.concept.label}`,
+        `   - description: ${config.concept.description}`,
+        `   - layer: ${config.concept.layer}`,
+        `   - descriptor role: ${config.concept.descriptor_role}`,
+        `   - compatible measurement approaches: ${config.allowed_measurement_types.join(", ")}`,
+        `   - compatible question formats: ${config.allowed_question_types.join(", ") || "(no visible question)"}`,
+        `   - expected output type: ${config.expected_type}`,
+        `   - visible question capacity: up to ${config.slot_capacity_max} slot(s) if you decide the concept needs survey questions`,
+        `   - planner context notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
+      ].join("\n"),
+    )
+    .join("\n");
+  const blueprintRules = input.baseMeasurementPlanBlueprint.concepts
+    .map((entry, index) => {
+      return [
+        `${index + 1}. ${entry.concept_key}`,
+        `   - evidence source: ${entry.evidence_source}`,
+        `   - allowed slot keys: ${
+          entry.question_slots.length > 0
+            ? entry.question_slots.map((slot) => slot.slot_key).join(", ")
+            : "(none)"
+        }`,
+      ].join("\n");
+    })
+    .join("\n");
+  const methodologyRules = buildMethodologyRulesText();
+
+  const system = [
+    "Identity:",
+    "You are the Survey Measurement Planning Agent for FlexPulseEU.",
+    "",
+    "Mission:",
+    "Decide how each selected behavioural concept should be measured so downstream components can generate surveys and later map responses into structured participant profiles.",
+    "",
+    "Limits:",
+    "- You are not a survey writer.",
+    "- You do not produce final question wording.",
+    "- You do not produce mapping_contract_json directly.",
+    "- You do not compute participant scores from real responses.",
+    "",
+    "System context:",
+    "- This system studies household energy behaviour, flexibility, comfort, tariffs, automation trust and DER-related patterns.",
+    "- Surveys may be multilingual.",
+    "- Low semantic noise and low linguistic fragility are important.",
+    "- Your output is consumed by survey generation, mapping and profiling components, not by end users.",
+    "- The planning goal is a reasonably defensible measurement strategy, not academic complexity for its own sake.",
+    "",
+    "Decision principles:",
+    "- Use the provided ontology concepts and system context to choose the most appropriate measurement approach.",
+    "- Treat capability envelopes as operational limits, not hidden recommendations about the right number of items.",
+    "- Prefer practical and defensible designs over unnecessary complexity.",
+    "- Consider multilingual robustness and downstream mapping clarity.",
+    "- Use multiple angles or some redundancy only when they materially improve interpretability.",
+    "- Avoid plans that are fragile, ambiguous or hard to compile operationally.",
+    "- You must decide item count per concept yourself; the system is not providing a recommended total question budget.",
+    "",
+    "Output contract:",
+    "- Return JSON only.",
+    "- Cover every selected concept.",
+    "- Use only the provided concept_key values and allowed slot keys.",
+    "- Keep the plan specific enough for downstream compilation.",
+    "",
+    "Completion criterion:",
+    "The task is complete only when every selected concept has one valid planning entry and the output satisfies the required schema.",
+  ].join("\n");
+
+  const user = [
+    "Dynamic input:",
+    `Survey name: ${input.surveyName}`,
+    `Canonical language: ${input.defaultLanguage}`,
+    `Supported languages in the draft: ${input.supportedLanguages.join(", ")}`,
+    `Existing survey description: ${input.surveyDescription || "(empty)"}`,
+    `Selected behavioural concept keys: ${input.behaviouralConceptKeys.join(", ")}`,
+    `Reference schema targets for downstream mapping context: ${input.schemaTargets.join(", ")}`,
+    "",
+    "Application context:",
+    "- Purpose: generate multilingual surveys for energy-behaviour concepts and later map responses into structured participant profiles.",
+    "- Important constraints: low semantic noise, cross-language robustness, downstream mapping clarity.",
+    "- Downstream artifacts: your plan will later feed survey writing, mapping_contract_json compilation and measurement_plan_json materialization.",
+    "",
+    methodologyRules,
+    "",
+    "Server-provided planning envelope and allowed slot keys:",
+    blueprintRules,
+    "",
+    "Concept-specific planning rules:",
+    conceptRules,
+    "",
+    "Planner mission:",
+    "- Design the best instrument you can under the methodology contract while keeping respondent burden realistic.",
+    "- Decide how each concept should be measured inside the compatible measurement envelope for that concept.",
+    "- Decide how many question slots each survey-question concept needs; the listed slot capacity is only the operational ceiling.",
+    "- Prefer non-question evidence sources to stay slot-free.",
+    "- Treat unnecessary redundancy as a defect.",
+    "",
+    "Return exactly one planning entry per selected concept.",
+    "Do not omit any selected concept.",
+    "Do not return extra concepts beyond the selected set.",
+    "The concept_key field in the JSON output must exactly match one of the selected behavioural concept keys.",
+    "Do not use schema targets such as flexpulse_behavioural_schema.* as concept_key values.",
+    "For survey-question concepts, reuse only the allowed slot_key values listed in the base measurement blueprint.",
+    "Do not invent new slot_key names, do not change capitalization, and do not concatenate multiple slot keys into one string.",
+    "For each concept decide the concrete slots, required coverage, aggregation rule and threshold profile.",
+    "Do not create slots for context-only or quality-only concepts.",
+    ...(input.repairFeedback && input.repairFeedback.length > 0
+      ? [
+          "",
+          "Feedback from the previous invalid planning attempt:",
+          ...input.repairFeedback.map((issue) => `- ${issue}`),
+          "Fix those issues while preserving the selected concepts and overall mission.",
+        ]
+      : []),
+  ].join("\n");
+
+  return { system, user };
 }

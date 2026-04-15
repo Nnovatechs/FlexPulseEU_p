@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { createMeasurementPlanBlueprint } from "@/features/surveys/measurement-plan";
 import { createInitialSurveyDefinition } from "@/features/surveys/generator-types";
 import { transformGeneratedSurvey } from "@/features/surveys/generator-transform";
 
 describe("generator transform", () => {
   it("creates unique question keys when multiple questions share the same ontology target", () => {
     const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
+    const measurementPlanBlueprint = createMeasurementPlanBlueprint([
+      "trust_in_automation",
+    ]);
     const result = transformGeneratedSurvey({
       output: {
         survey_title: "Trust survey",
@@ -12,6 +16,7 @@ describe("generator transform", () => {
         estimated_completion_minutes: 4,
         questions: [
           {
+            slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
             title: "How much do you trust automation in general?",
             description: "",
             ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
@@ -28,6 +33,7 @@ describe("generator transform", () => {
             numeric: null,
           },
           {
+            slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
             title: "How much do you trust automation during emergencies?",
             description: "",
             ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
@@ -49,6 +55,7 @@ describe("generator transform", () => {
       defaultLanguage: "English",
       supportedLanguages: ["English"],
       ontologyTargets: ["flexpulse_behavioural_schema.trust_in_automation"],
+      measurementPlanBlueprint,
       fallbackSurveyTitle: "Trust survey",
       fallbackSurveyDescription: "Measures trust in automation.",
     });
@@ -61,5 +68,61 @@ describe("generator transform", () => {
       "Q_TRUST_IN_AUTOMATION_01",
       "Q_TRUST_IN_AUTOMATION_02",
     ]);
+    expect(result.slotBindings).toEqual({
+      SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_IN_AUTOMATION_01",
+      SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_IN_AUTOMATION_02",
+    });
   });
+
+  it("promotes a real respondent-facing prompt from description into title when writer splits label and item", () => {
+    const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
+    const measurementPlanBlueprint = createMeasurementPlanBlueprint([
+      "der_engagement",
+    ]);
+
+    const result = transformGeneratedSurvey({
+      output: {
+        survey_title: "DER survey",
+        survey_description: "Measures DER engagement.",
+        estimated_completion_minutes: 4,
+        questions: [
+          {
+            slot_key: "SLOT_DER_ENGAGEMENT_01",
+            title: "Willingness to invest time to set up flexibility",
+            description:
+              "I would be willing to spend some time setting up or learning a system that helps my home use energy more flexibly.",
+            ontology_target: "flexpulse_behavioural_schema.der_engagement",
+            type: "rating_scale",
+            required: true,
+            options: [],
+            scale: {
+              min: 1,
+              max: 5,
+              step: 1,
+              min_label: "Strongly disagree",
+              max_label: "Strongly agree",
+            },
+            numeric: null,
+          },
+        ],
+      },
+      baseDefinition,
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      ontologyTargets: ["flexpulse_behavioural_schema.der_engagement"],
+      measurementPlanBlueprint,
+      fallbackSurveyTitle: "DER survey",
+      fallbackSurveyDescription: "Measures DER engagement.",
+    });
+
+    expect(
+      result.definition.translations.English.questions.Q_DER_ENGAGEMENT_01?.title,
+    ).toBe(
+      "I would be willing to spend some time setting up or learning a system that helps my home use energy more flexibly.",
+    );
+    expect(
+      result.definition.translations.English.questions.Q_DER_ENGAGEMENT_01?.description,
+    ).toBeUndefined();
+  });
+
 });

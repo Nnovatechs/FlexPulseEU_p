@@ -11,7 +11,7 @@ import type {
   MeasurementAggregationRule,
   MeasurementThresholdProfile,
 } from "./generator-types";
-import type { MeasurementPlannerLLMOutput } from "./generator-llm-types";
+import type { MeasurementPlannerLLMOutput } from "./survey-generation-contracts";
 
 export type MeasurementEvidenceSource =
   | "survey_questions"
@@ -33,17 +33,27 @@ export type MeasurementPlanQuestionSlot = {
   required: boolean;
 };
 
-export type MeasurementPlanBlueprintEntry = {
+export type MeasurementPlanBaseBlueprintEntry = {
   concept_key: string;
   evidence_source: MeasurementEvidenceSource;
   allowed_measurement_types: MeasurementType[];
-  measurement_type: MeasurementType;
   output_type: FlexpulseOutputType;
+  slot_capacity_max: number;
+  source_paths?: string[];
+};
+
+export type MeasurementPlanBaseBlueprint = {
+  schema_version: 1;
+  schema_namespace: "flexpulse_behavioural_schema";
+  concepts: MeasurementPlanBaseBlueprintEntry[];
+};
+
+export type MeasurementPlanBlueprintEntry = MeasurementPlanBaseBlueprintEntry & {
+  measurement_type: MeasurementType;
   aggregation_rule: MeasurementAggregationRule;
   threshold_profile: MeasurementThresholdProfile;
   minimum_answer_count: number;
   question_slots: MeasurementPlanQuestionSlot[];
-  source_paths?: string[];
 };
 
 export type MeasurementPlanBlueprint = {
@@ -71,23 +81,23 @@ export type MeasurementPlan = {
   concepts: MeasurementPlanEntry[];
 };
 
-function assertMeasurementTypeCompatibleWithSlots(
+function assertMeasurementTypeCompatibleWithCounts(
   conceptKey: string,
   measurementType: MeasurementType,
-  questionSlots: MeasurementPlanQuestionSlot[],
-  minimumAnswerCount: number,
+  slotCount: number,
+  requiredSlotCount: number,
 ) {
   switch (measurementType) {
     case "context_passthrough":
     case "quality_flag_passthrough":
-      if (questionSlots.length !== 0) {
+      if (slotCount !== 0 || requiredSlotCount !== 0) {
         throw new Error(
-          `Planner must not create survey question slots for passthrough concept "${conceptKey}".`,
+          `Planner must not require survey question slots for passthrough concept "${conceptKey}".`,
         );
       }
       return;
     case "multi_item_likert_median":
-      if (questionSlots.length < 2 || minimumAnswerCount < 2) {
+      if (slotCount < 2 || requiredSlotCount < 2) {
         throw new Error(
           `Planner must provide at least 2 usable items for multi-item concept "${conceptKey}".`,
         );
@@ -97,7 +107,7 @@ function assertMeasurementTypeCompatibleWithSlots(
     case "single_choice_enum":
     case "multi_choice_tag_set":
     case "numeric_direct":
-      if (questionSlots.length !== 1 || minimumAnswerCount !== 1) {
+      if (slotCount !== 1 || requiredSlotCount !== 1) {
         throw new Error(
           `Planner must use exactly 1 required question slot for single-step concept "${conceptKey}".`,
         );
@@ -147,55 +157,6 @@ function deriveEvidenceSource(
   return "survey_questions";
 }
 
-function deriveDefaultMeasurementType(
-  concept: Pick<FlexpulseBehaviouralConcept, "descriptor_role" | "output_type">,
-  config: Pick<GeneratorTargetConfig, "allowed_measurement_types">,
-): MeasurementType {
-  if (config.allowed_measurement_types.length === 1) {
-    return config.allowed_measurement_types[0];
-  }
-
-  if (concept.output_type === "string[]") {
-    return "multi_choice_tag_set";
-  }
-
-  if (concept.output_type === "enum") {
-    return "single_choice_enum";
-  }
-
-  if (
-    concept.output_type === "number" &&
-    concept.descriptor_role === "applicability_factor"
-  ) {
-    return "numeric_direct";
-  }
-
-  if (concept.descriptor_role === "primary_profile_axis") {
-    return "multi_item_likert_median";
-  }
-
-  return "single_item_direct";
-}
-
-function deriveDefaultAggregationRule(
-  measurementType: MeasurementType,
-): MeasurementAggregationRule {
-  switch (measurementType) {
-    case "multi_item_likert_median":
-      return "median";
-    case "multi_choice_tag_set":
-      return "set_union";
-    case "context_passthrough":
-    case "quality_flag_passthrough":
-      return "context_passthrough";
-    case "single_item_direct":
-    case "single_choice_enum":
-    case "numeric_direct":
-    default:
-      return "identity";
-  }
-}
-
 function deriveStructuralMinimumAnswerCount(
   measurementType: MeasurementType,
 ): number {
@@ -214,7 +175,7 @@ function deriveStructuralMinimumAnswerCount(
   }
 }
 
-function deriveDefaultThresholdProfile(
+function deriveThresholdProfileForMeasurementType(
   measurementType: MeasurementType,
   outputType: FlexpulseOutputType,
 ): MeasurementThresholdProfile {
@@ -263,23 +224,23 @@ function deriveSourcePaths(
 
 function buildQuestionSlots(
   conceptKey: string,
-  evidenceSource: MeasurementEvidenceSource,
-  config: Pick<GeneratorTargetConfig, "slot_capacity_max">,
+  slotCount: number,
+  requiredSlotCount: number,
 ): MeasurementPlanQuestionSlot[] {
-  if (evidenceSource !== "survey_questions") {
+  if (slotCount === 0) {
     return [];
   }
 
   const prefix = toSlotPrefix(conceptKey);
-  return Array.from({ length: config.slot_capacity_max }, (_, index) => ({
+  return Array.from({ length: slotCount }, (_, index) => ({
     slot_key: `SLOT_${prefix}_${String(index + 1).padStart(2, "0")}`,
-    required: false,
+    required: index < requiredSlotCount,
   }));
 }
 
 export function createMeasurementPlanBlueprint(
   conceptKeys: string[],
-): MeasurementPlanBlueprint {
+): MeasurementPlanBaseBlueprint {
   return {
     schema_version: 1,
     schema_namespace: "flexpulse_behavioural_schema",
@@ -292,23 +253,14 @@ export function createMeasurementPlanBlueprint(
 
       const config = getGeneratorTargetConfigByConceptKey(conceptKey);
       const evidenceSource = deriveEvidenceSource(concept);
-      const defaultMeasurementType = deriveDefaultMeasurementType(concept, config);
 
       return {
         concept_key: concept.concept_key,
         evidence_source: evidenceSource,
         allowed_measurement_types: config.allowed_measurement_types,
-        measurement_type: defaultMeasurementType,
         output_type: concept.output_type,
-        aggregation_rule: deriveDefaultAggregationRule(defaultMeasurementType),
-        threshold_profile: deriveDefaultThresholdProfile(
-          defaultMeasurementType,
-          concept.output_type,
-        ),
-        minimum_answer_count: deriveStructuralMinimumAnswerCount(
-          defaultMeasurementType,
-        ),
-        question_slots: buildQuestionSlots(concept.concept_key, evidenceSource, config),
+        slot_capacity_max:
+          evidenceSource === "survey_questions" ? config.slot_capacity_max : 0,
         source_paths: deriveSourcePaths(concept),
       };
     }),
@@ -316,7 +268,7 @@ export function createMeasurementPlanBlueprint(
 }
 
 export function applyMeasurementPlannerOutput(
-  blueprint: MeasurementPlanBlueprint,
+  blueprint: MeasurementPlanBaseBlueprint,
   plannerOutput: MeasurementPlannerLLMOutput,
 ): MeasurementPlanBlueprint {
   const plannerByConcept = Object.fromEntries(
@@ -333,22 +285,27 @@ export function applyMeasurementPlannerOutput(
           `Measurement planner did not return a concept plan for "${entry.concept_key}".`,
         );
       }
-      if (entry.evidence_source !== "survey_questions" && planned.question_slots.length > 0) {
+      if (entry.evidence_source !== "survey_questions" && planned.slot_count > 0) {
         throw new Error(
-          `Planner must not create survey question slots for non-question concept "${entry.concept_key}".`,
+          `Planner must not create survey question coverage for non-question concept "${entry.concept_key}".`,
         );
       }
       if (
         entry.evidence_source === "survey_questions" &&
-        planned.question_slots.length === 0
+        planned.slot_count === 0
       ) {
         throw new Error(
           `Planner must create at least one survey question slot for "${entry.concept_key}".`,
         );
       }
-      if (planned.minimum_answer_count > planned.question_slots.length) {
+      if (planned.required_slot_count > planned.slot_count) {
         throw new Error(
-          `Planner returned impossible minimum_answer_count for "${entry.concept_key}".`,
+          `Planner returned impossible required_slot_count for "${entry.concept_key}".`,
+        );
+      }
+      if (planned.slot_count > entry.slot_capacity_max) {
+        throw new Error(
+          `Planner exceeded slot capacity for concept "${entry.concept_key}".`,
         );
       }
       assertMeasurementTypeAllowed(
@@ -356,11 +313,11 @@ export function applyMeasurementPlannerOutput(
         planned.measurement_type,
         entry.allowed_measurement_types,
       );
-      assertMeasurementTypeCompatibleWithSlots(
+      assertMeasurementTypeCompatibleWithCounts(
         entry.concept_key,
         planned.measurement_type,
-        planned.question_slots,
-        planned.minimum_answer_count,
+        planned.slot_count,
+        planned.required_slot_count,
       );
 
       return {
@@ -368,8 +325,12 @@ export function applyMeasurementPlannerOutput(
         measurement_type: planned.measurement_type,
         aggregation_rule: planned.aggregation_rule,
         threshold_profile: planned.threshold_profile,
-        minimum_answer_count: planned.minimum_answer_count,
-        question_slots: planned.question_slots,
+        minimum_answer_count: planned.required_slot_count,
+        question_slots: buildQuestionSlots(
+          entry.concept_key,
+          planned.slot_count,
+          planned.required_slot_count,
+        ),
       };
     }),
   };
@@ -421,12 +382,12 @@ export function createMeasurementPlanFromMappings(
   conceptKeys: string[],
   mappings: Array<{ question_key: string; ontology_target: string }>,
 ): MeasurementPlan {
-  const blueprint = createMeasurementPlanBlueprint(conceptKeys);
+  const baseBlueprint = createMeasurementPlanBlueprint(conceptKeys);
 
   return {
     schema_version: 1,
     schema_namespace: "flexpulse_behavioural_schema",
-    concepts: blueprint.concepts.map((entry) => {
+    concepts: baseBlueprint.concepts.map((entry) => {
       const concept = getFlexpulseBehaviouralConcept(entry.concept_key);
       if (!concept) {
         throw new Error(`Unknown FlexPulse behavioural concept "${entry.concept_key}".`);
@@ -436,11 +397,11 @@ export function createMeasurementPlanFromMappings(
         return {
           concept_key: entry.concept_key,
           evidence_source: entry.evidence_source,
-          measurement_type: entry.measurement_type,
+          measurement_type: entry.allowed_measurement_types[0] ?? "context_passthrough",
           output_type: entry.output_type,
-          aggregation_rule: entry.aggregation_rule,
-          threshold_profile: entry.threshold_profile,
-          minimum_answer_count: entry.minimum_answer_count,
+          aggregation_rule: "context_passthrough",
+          threshold_profile: "none",
+          minimum_answer_count: 0,
           question_keys: [],
           required_question_keys: [],
           source_paths: entry.source_paths,
@@ -451,17 +412,45 @@ export function createMeasurementPlanFromMappings(
         .filter((mapping) => mapping.ontology_target === concept.schema_target)
         .map((mapping) => mapping.question_key);
 
-      const minimum_answer_count = deriveStructuralMinimumAnswerCount(
-        entry.measurement_type,
+      const preferredMeasurementTypes: MeasurementType[] = [
+        "multi_item_likert_median",
+        "multi_choice_tag_set",
+        "single_choice_enum",
+        "numeric_direct",
+        "single_item_direct",
+      ];
+      const measurementType =
+        preferredMeasurementTypes.find(
+          (type) =>
+            entry.allowed_measurement_types.includes(type) &&
+            ((type === "multi_item_likert_median" && question_keys.length >= 2) ||
+              (type === "multi_choice_tag_set" && concept.output_type === "string[]") ||
+              (type === "single_choice_enum" && concept.output_type === "enum") ||
+              (type === "numeric_direct" && concept.output_type === "number") ||
+              type === "single_item_direct"),
+        ) ??
+        entry.allowed_measurement_types[0] ??
+        "single_item_direct";
+      const minimum_answer_count = Math.min(
+        question_keys.length,
+        deriveStructuralMinimumAnswerCount(measurementType),
       );
       const required_question_keys = question_keys.slice(0, minimum_answer_count);
       return {
         concept_key: entry.concept_key,
         evidence_source: entry.evidence_source,
-        measurement_type: entry.measurement_type,
+        measurement_type: measurementType,
         output_type: entry.output_type,
-        aggregation_rule: entry.aggregation_rule,
-        threshold_profile: entry.threshold_profile,
+        aggregation_rule:
+          measurementType === "multi_item_likert_median"
+            ? "median"
+            : measurementType === "multi_choice_tag_set"
+              ? "set_union"
+              : "identity",
+        threshold_profile: deriveThresholdProfileForMeasurementType(
+          measurementType,
+          entry.output_type,
+        ),
         minimum_answer_count,
         question_keys,
         required_question_keys,

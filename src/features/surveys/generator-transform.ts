@@ -9,7 +9,7 @@ import type { MeasurementPlanBlueprint, MeasurementType } from "./measurement-pl
 import {
   SurveyGeneratorLLMOutput,
   SurveyGeneratorLLMQuestion,
-} from "./generator-llm-types";
+} from "./survey-generation-contracts";
 
 type TransformGeneratedSurveyInput = {
   output: SurveyGeneratorLLMOutput;

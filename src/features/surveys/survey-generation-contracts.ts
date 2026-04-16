@@ -1,5 +1,5 @@
 import { SurveyQuestionType } from "./generator-types";
-import type { MeasurementPlanBlueprint } from "./measurement-plan";
+import type { MeasurementPlanBaseBlueprint } from "./measurement-plan";
 
 export type SurveyGeneratorQuestionType = Extract<
   SurveyQuestionType,
@@ -64,11 +64,8 @@ export type MeasurementPlannerLLMConcept = {
     | "numeric_temperature_window"
     | "enum_identity"
     | "asset_inventory";
-  minimum_answer_count: number;
-  question_slots: Array<{
-    slot_key: string;
-    required: boolean;
-  }>;
+  slot_count: number;
+  required_slot_count: number;
 };
 
 export type MeasurementPlannerLLMOutput = {
@@ -76,7 +73,7 @@ export type MeasurementPlannerLLMOutput = {
 };
 
 export function buildMeasurementPlannerOutputJsonSchema(
-  blueprint: MeasurementPlanBlueprint,
+  blueprint: MeasurementPlanBaseBlueprint,
 ) {
   return {
     name: "measurement_planner_output",
@@ -99,8 +96,8 @@ export function buildMeasurementPlannerOutputJsonSchema(
                 "measurement_type",
                 "aggregation_rule",
                 "threshold_profile",
-                "minimum_answer_count",
-                "question_slots",
+                "slot_count",
+                "required_slot_count",
               ],
               properties: {
                 concept_key: {
@@ -126,28 +123,15 @@ export function buildMeasurementPlannerOutputJsonSchema(
                     "asset_inventory",
                   ],
                 },
-                minimum_answer_count: {
+                slot_count: {
                   type: "integer",
                   minimum: 0,
-                  maximum: 10,
+                  maximum: concept.slot_capacity_max,
                 },
-                question_slots: {
-                  type: "array",
-                  maxItems: concept.question_slots.length,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["slot_key", "required"],
-                    properties: {
-                      slot_key: concept.question_slots.length
-                        ? {
-                            type: "string",
-                            enum: concept.question_slots.map((slot) => slot.slot_key),
-                          }
-                        : { type: "string", enum: [] },
-                      required: { type: "boolean" },
-                    },
-                  },
+                required_slot_count: {
+                  type: "integer",
+                  minimum: 0,
+                  maximum: concept.slot_capacity_max,
                 },
               },
             })),

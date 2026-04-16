@@ -19,8 +19,7 @@ const describeWithOpenAI = process.env.OPENAI_API_KEY ? describe : describe.skip
 
 function assertFixtureExpectations(
   fixture: PlannerEvalFixture,
-  blueprint = createMeasurementPlanBlueprint(fixture.behaviouralConceptKeys),
-  plannedBlueprint = blueprint,
+  plannedBlueprint: ReturnType<typeof applyMeasurementPlannerOutput>,
 ) {
   for (const [conceptKey, minimum] of Object.entries(
     fixture.minQuestionSlotsByConcept ?? {},
@@ -104,7 +103,7 @@ describeWithOpenAI("survey planner product evals", () => {
         blueprintIssues: [],
       });
 
-      assertFixtureExpectations(fixture, baseMeasurementPlanBlueprint, plannedBlueprint);
+      assertFixtureExpectations(fixture, plannedBlueprint);
     },
     120_000,
   );

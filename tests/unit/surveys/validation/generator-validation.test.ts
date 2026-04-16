@@ -92,7 +92,21 @@ describe("survey methodology validation", () => {
   });
 
   it("rejects planner blueprints that leave survey concepts without slots", () => {
-    const blueprint = createMeasurementPlanBlueprint(["trust_in_automation"]);
+    const blueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["trust_in_automation"]),
+      {
+        concepts: [
+          {
+            concept_key: "trust_in_automation",
+            measurement_type: "multi_item_likert_median",
+            aggregation_rule: "median",
+            threshold_profile: "likert_1_5_low_mid_high",
+            slot_count: 2,
+            required_slot_count: 2,
+          },
+        ],
+      },
+    );
     blueprint.concepts[0].question_slots = [];
     const issues = validateMeasurementPlanBlueprint(
       blueprint,
@@ -104,7 +118,21 @@ describe("survey methodology validation", () => {
   });
 
   it("rejects planner blueprints with malformed slot keys", () => {
-    const blueprint = createMeasurementPlanBlueprint(["trust_in_automation"]);
+    const blueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["trust_in_automation"]),
+      {
+        concepts: [
+          {
+            concept_key: "trust_in_automation",
+            measurement_type: "multi_item_likert_median",
+            aggregation_rule: "median",
+            threshold_profile: "likert_1_5_low_mid_high",
+            slot_count: 2,
+            required_slot_count: 2,
+          },
+        ],
+      },
+    );
     blueprint.concepts[0].question_slots = [
       {
         slot_key: 'SLOT_trust_in_automation_01},{"',
@@ -169,17 +197,8 @@ describe("survey methodology validation", () => {
             measurement_type: "multi_item_likert_median",
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
-            minimum_answer_count: 2,
-            question_slots: [
-              {
-                slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
-                required: true,
-              },
-              {
-                slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
-                required: true,
-              },
-            ],
+            slot_count: 2,
+            required_slot_count: 2,
           },
         ],
       },

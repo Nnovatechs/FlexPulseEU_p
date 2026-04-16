@@ -1,14 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { createMeasurementPlanBlueprint } from "@/features/surveys/measurement-plan";
+import {
+  applyMeasurementPlannerOutput,
+  createMeasurementPlanBlueprint,
+} from "@/features/surveys/measurement-plan";
 import { createInitialSurveyDefinition } from "@/features/surveys/generator-types";
 import { transformGeneratedSurvey } from "@/features/surveys/generator-transform";
 
 describe("generator transform", () => {
   it("creates unique question keys when multiple questions share the same ontology target", () => {
     const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
-    const measurementPlanBlueprint = createMeasurementPlanBlueprint([
-      "trust_in_automation",
-    ]);
+    const measurementPlanBlueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["trust_in_automation"]),
+      {
+        concepts: [
+          {
+            concept_key: "trust_in_automation",
+            measurement_type: "multi_item_likert_median",
+            aggregation_rule: "median",
+            threshold_profile: "likert_1_5_low_mid_high",
+            slot_count: 2,
+            required_slot_count: 2,
+          },
+        ],
+      },
+    );
     const result = transformGeneratedSurvey({
       output: {
         survey_title: "Trust survey",
@@ -76,9 +91,21 @@ describe("generator transform", () => {
 
   it("promotes a real respondent-facing prompt from description into title when writer splits label and item", () => {
     const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
-    const measurementPlanBlueprint = createMeasurementPlanBlueprint([
-      "der_engagement",
-    ]);
+    const measurementPlanBlueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["der_engagement"]),
+      {
+        concepts: [
+          {
+            concept_key: "der_engagement",
+            measurement_type: "single_item_direct",
+            aggregation_rule: "identity",
+            threshold_profile: "likert_1_5_low_mid_high",
+            slot_count: 1,
+            required_slot_count: 1,
+          },
+        ],
+      },
+    );
 
     const result = transformGeneratedSurvey({
       output: {

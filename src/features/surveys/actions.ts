@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { runContentValidation, computeContentHash } from "./content-validator";
-import { generateSurveyDraftProposal } from "./generator-executor";
+import { generateSurveyDraftProposal } from "./survey-generation-flow";
 import { createMeasurementPlanFromMappings } from "./measurement-plan";
 import { translateSurveyLanguage } from "./translation-service";
 import {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { getGeneratorTargetConfigs } from "@/features/surveys/generator-config";
-import { buildMeasurementPlannerPrompt } from "@/features/surveys/generator-prompt";
+import { buildMeasurementPlannerPrompt } from "@/features/surveys/survey-generation-prompts";
 import { createMeasurementPlanBlueprint } from "@/features/surveys/measurement-plan";
 
 describe("measurement planner prompt", () => {
@@ -37,7 +37,8 @@ describe("measurement planner prompt", () => {
       "the system is not providing a recommended total question budget",
     );
     expect(prompt.user).toContain("Application context:");
-    expect(prompt.user).toContain("Server-provided planning envelope and allowed slot keys:");
+    expect(prompt.user).toContain("Server-provided planning envelope:");
+    expect(prompt.user).toContain("slot_count");
     expect(prompt.user).not.toContain("Recommended visible question budget");
     expect(prompt.user).not.toContain("target 3");
   });

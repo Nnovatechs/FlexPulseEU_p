@@ -1,5 +1,8 @@
 import { GeneratorTargetConfig } from "./generator-config";
-import { MeasurementPlanBlueprint } from "./measurement-plan";
+import {
+  MeasurementPlanBaseBlueprint,
+  MeasurementPlanBlueprint,
+} from "./measurement-plan";
 import {
   buildConceptMethodologyNotes,
   buildMethodologyRulesText,
@@ -23,7 +26,7 @@ type BuildMeasurementPlannerPromptInput = {
   behaviouralConceptKeys: string[];
   schemaTargets: string[];
   configs: GeneratorTargetConfig[];
-  baseMeasurementPlanBlueprint: MeasurementPlanBlueprint;
+  baseMeasurementPlanBlueprint: MeasurementPlanBaseBlueprint;
   repairFeedback?: string[];
 };
 
@@ -168,11 +171,8 @@ export function buildMeasurementPlannerPrompt(
       return [
         `${index + 1}. ${entry.concept_key}`,
         `   - evidence source: ${entry.evidence_source}`,
-        `   - allowed slot keys: ${
-          entry.question_slots.length > 0
-            ? entry.question_slots.map((slot) => slot.slot_key).join(", ")
-            : "(none)"
-        }`,
+        `   - slot capacity max: ${entry.slot_capacity_max}`,
+        `   - output type: ${entry.output_type}`,
       ].join("\n");
     })
     .join("\n");
@@ -210,7 +210,7 @@ export function buildMeasurementPlannerPrompt(
     "Output contract:",
     "- Return JSON only.",
     "- Cover every selected concept.",
-    "- Use only the provided concept_key values and allowed slot keys.",
+    "- Use only the provided concept_key values and supported system measurement types.",
     "- Keep the plan specific enough for downstream compilation.",
     "",
     "Completion criterion:",
@@ -233,7 +233,7 @@ export function buildMeasurementPlannerPrompt(
     "",
     methodologyRules,
     "",
-    "Server-provided planning envelope and allowed slot keys:",
+    "Server-provided planning envelope:",
     blueprintRules,
     "",
     "Concept-specific planning rules:",
@@ -251,10 +251,10 @@ export function buildMeasurementPlannerPrompt(
     "Do not return extra concepts beyond the selected set.",
     "The concept_key field in the JSON output must exactly match one of the selected behavioural concept keys.",
     "Do not use schema targets such as flexpulse_behavioural_schema.* as concept_key values.",
-    "For survey-question concepts, reuse only the allowed slot_key values listed in the base measurement blueprint.",
-    "Do not invent new slot_key names, do not change capitalization, and do not concatenate multiple slot keys into one string.",
-    "For each concept decide the concrete slots, required coverage, aggregation rule and threshold profile.",
-    "Do not create slots for context-only or quality-only concepts.",
+    "For each concept decide the measurement_type, aggregation_rule, threshold_profile, slot_count and required_slot_count yourself.",
+    "The system will generate deterministic slot_key names later. You must not plan concrete slot identifiers yourself.",
+    "For context-only or quality-only concepts, return slot_count 0 and required_slot_count 0.",
+    "For survey-question concepts, choose slot_count according to methodological need, not by copying a system default.",
     ...(input.repairFeedback && input.repairFeedback.length > 0
       ? [
           "",

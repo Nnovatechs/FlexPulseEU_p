@@ -14,12 +14,8 @@ describe("measurement plan", () => {
     expect(trustPlan).toMatchObject({
       concept_key: "trust_in_automation",
       evidence_source: "survey_questions",
-      measurement_type: "multi_item_likert_median",
-      minimum_answer_count: 2,
-    });
-    expect(trustPlan?.question_slots).toHaveLength(6);
-    expect(trustPlan?.question_slots[0]).toMatchObject({
-      required: false,
+      output_type: "number",
+      slot_capacity_max: 6,
     });
   });
 
@@ -34,18 +30,18 @@ describe("measurement plan", () => {
       expect.objectContaining({
         concept_key: "country_code",
         evidence_source: "response_context",
-        question_slots: [],
+        slot_capacity_max: 0,
         source_paths: ["response_context.country_code"],
       }),
       expect.objectContaining({
         concept_key: "climate_context",
         evidence_source: "enrichment",
-        question_slots: [],
+        slot_capacity_max: 0,
       }),
       expect.objectContaining({
         concept_key: "mapping_requires_review",
         evidence_source: "pipeline_flags",
-        question_slots: [],
+        slot_capacity_max: 0,
       }),
     ]);
   });
@@ -60,25 +56,8 @@ describe("measurement plan", () => {
             measurement_type: "multi_item_likert_median",
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
-            minimum_answer_count: 2,
-            question_slots: [
-              {
-                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_01",
-                required: true,
-              },
-              {
-                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_02",
-                required: true,
-              },
-              {
-                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_03",
-                required: false,
-              },
-              {
-                slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_04",
-                required: false,
-              },
-            ],
+            slot_count: 4,
+            required_slot_count: 2,
           },
         ],
       },
@@ -114,17 +93,8 @@ describe("measurement plan", () => {
           measurement_type: "multi_item_likert_median",
           aggregation_rule: "median",
           threshold_profile: "likert_1_5_low_mid_high",
-          minimum_answer_count: 2,
-          question_slots: [
-            {
-              slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
-              required: true,
-            },
-            {
-              slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
-              required: true,
-            },
-          ],
+          slot_count: 2,
+          required_slot_count: 2,
         },
       ],
     });
@@ -157,17 +127,8 @@ describe("measurement plan", () => {
             measurement_type: "multi_item_likert_median",
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
-            minimum_answer_count: 2,
-            question_slots: [
-              {
-                slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
-                required: true,
-              },
-              {
-                slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
-                required: true,
-              },
-            ],
+            slot_count: 2,
+            required_slot_count: 2,
           },
         ],
       }),
@@ -185,17 +146,12 @@ describe("measurement plan", () => {
             measurement_type: "single_item_direct",
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
-            minimum_answer_count: 2,
-            question_slots: [
-              {
-                slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
-                required: true,
-              },
-            ],
+            slot_count: 1,
+            required_slot_count: 2,
           },
         ],
       }),
-    ).toThrow(/impossible minimum_answer_count/);
+    ).toThrow(/impossible required_slot_count/);
   });
 
   it("derives a usable measurement plan from actual mapping entries", () => {
@@ -216,6 +172,7 @@ describe("measurement plan", () => {
     expect(plan.concepts).toEqual([
       expect.objectContaining({
         concept_key: "trust_in_automation",
+        measurement_type: "multi_item_likert_median",
         question_keys: [
           "Q_TRUST_AUTOMATION_TRUST_LEVEL_01",
           "Q_TRUST_AUTOMATION_TRUST_LEVEL_02",

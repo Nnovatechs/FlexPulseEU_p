@@ -9,7 +9,7 @@ vi.mock("@/features/surveys/generator-transform", () => ({
   transformGeneratedSurvey: vi.fn(),
 }));
 
-import { generateSurveyDraftProposal } from "@/features/surveys/generator-executor";
+import { generateSurveyDraftProposal } from "@/features/surveys/survey-generation-flow";
 import {
   generateMeasurementPlanWithLLM,
   generateSurveyWithLLM,
@@ -91,13 +91,8 @@ describe("generateSurveyDraftProposal", () => {
             measurement_type: "single_item_direct",
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
-            minimum_answer_count: 1,
-            question_slots: [
-              {
-                slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
-                required: true,
-              },
-            ],
+            slot_count: 1,
+            required_slot_count: 1,
           },
         ],
       });

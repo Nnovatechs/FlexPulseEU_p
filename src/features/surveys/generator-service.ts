@@ -1,19 +1,26 @@
 import OpenAI from "openai";
 import { getOpenAIEnv } from "@/lib/llm/env";
 import {
+  writeSurveyGeneratorDebugJson,
+  writeSurveyGeneratorDebugText,
+} from "./generator-debug";
+import {
   buildMeasurementPlannerOutputJsonSchema,
   MeasurementPlannerLLMOutput,
   parseMeasurementPlannerLLMOutput,
   SurveyGeneratorLLMOutput,
   parseSurveyGeneratorLLMOutput,
   surveyGeneratorOutputJsonSchema,
-} from "./generator-llm-types";
+} from "./survey-generation-contracts";
 import {
   buildMeasurementPlannerPrompt,
   buildSurveyGeneratorPrompt,
-} from "./generator-prompt";
+} from "./survey-generation-prompts";
 import { GeneratorTargetConfig } from "./generator-config";
-import { MeasurementPlanBlueprint } from "./measurement-plan";
+import {
+  MeasurementPlanBaseBlueprint,
+  MeasurementPlanBlueprint,
+} from "./measurement-plan";
 
 type GenerateSurveyWithLLMInput = {
   surveyName: string;
@@ -23,6 +30,7 @@ type GenerateSurveyWithLLMInput = {
   schemaTargets: string[];
   configs: GeneratorTargetConfig[];
   measurementPlanBlueprint: MeasurementPlanBlueprint;
+  debugFilePrefix?: string;
 };
 
 type GenerateMeasurementPlanWithLLMInput = {
@@ -33,8 +41,9 @@ type GenerateMeasurementPlanWithLLMInput = {
   behaviouralConceptKeys: string[];
   schemaTargets: string[];
   configs: GeneratorTargetConfig[];
-  baseMeasurementPlanBlueprint: MeasurementPlanBlueprint;
+  baseMeasurementPlanBlueprint: MeasurementPlanBaseBlueprint;
   repairFeedback?: string[];
+  debugFilePrefix?: string;
 };
 
 function createClient() {
@@ -55,6 +64,22 @@ export async function generateMeasurementPlanWithLLM(
   const responseSchema = buildMeasurementPlannerOutputJsonSchema(
     input.baseMeasurementPlanBlueprint,
   );
+  const debugPrefix = input.debugFilePrefix ?? "planner";
+
+  await Promise.all([
+    writeSurveyGeneratorDebugText(
+      `${debugPrefix}/prompt-system.txt`,
+      prompt.system,
+    ),
+    writeSurveyGeneratorDebugText(
+      `${debugPrefix}/prompt-user.txt`,
+      prompt.user,
+    ),
+    writeSurveyGeneratorDebugJson(
+      `${debugPrefix}/response-schema.json`,
+      responseSchema,
+    ),
+  ]);
 
   const completion = await client.chat.completions.create({
     model: env.model,
@@ -79,7 +104,19 @@ export async function generateMeasurementPlanWithLLM(
     throw new Error("OpenAI returned an empty measurement planning response.");
   }
 
-  return parseMeasurementPlannerLLMOutput(message.content);
+  await writeSurveyGeneratorDebugText(
+    `${debugPrefix}/output-raw.json`,
+    message.content,
+  );
+
+  const parsed = parseMeasurementPlannerLLMOutput(message.content);
+
+  await writeSurveyGeneratorDebugJson(
+    `${debugPrefix}/output-parsed.json`,
+    parsed,
+  );
+
+  return parsed;
 }
 
 export async function generateSurveyWithLLM(
@@ -88,6 +125,18 @@ export async function generateSurveyWithLLM(
   const { env, client } = createClient();
 
   const prompt = buildSurveyGeneratorPrompt(input);
+  const debugPrefix = input.debugFilePrefix ?? "writer";
+
+  await Promise.all([
+    writeSurveyGeneratorDebugText(
+      `${debugPrefix}/prompt-system.txt`,
+      prompt.system,
+    ),
+    writeSurveyGeneratorDebugText(
+      `${debugPrefix}/prompt-user.txt`,
+      prompt.user,
+    ),
+  ]);
 
   const completion = await client.chat.completions.create({
     model: env.model,
@@ -118,5 +167,17 @@ export async function generateSurveyWithLLM(
     throw new Error("OpenAI returned an empty survey generation response.");
   }
 
-  return parseSurveyGeneratorLLMOutput(message.content);
+  await writeSurveyGeneratorDebugText(
+    `${debugPrefix}/output-raw.json`,
+    message.content,
+  );
+
+  const parsed = parseSurveyGeneratorLLMOutput(message.content);
+
+  await writeSurveyGeneratorDebugJson(
+    `${debugPrefix}/output-parsed.json`,
+    parsed,
+  );
+
+  return parsed;
 }

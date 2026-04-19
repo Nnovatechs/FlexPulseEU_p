@@ -17,6 +17,31 @@ function toTitleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function summarizeLocationContext(survey: PersistedSurvey) {
+  const responseContext = survey.definition_json.survey_meta.response_context;
+
+  if (!responseContext?.collect_country_code && !responseContext?.collect_postal_code) {
+    return "Not collected";
+  }
+
+  if (responseContext.collect_country_code && responseContext.collect_postal_code) {
+    return "Country code and postal code";
+  }
+
+  if (responseContext.collect_country_code) {
+    return "Country code only";
+  }
+
+  return "Postal code only";
+}
+
+function summarizeEnrichment(survey: PersistedSurvey) {
+  const responseContext = survey.definition_json.survey_meta.response_context;
+  return responseContext?.enrich_weather_context
+    ? "Weather enrichment enabled"
+    : "No enrichment";
+}
+
 function buildSurveyProjection(
   survey: PersistedSurvey,
   defaultPublicLinkUrl: string | null,
@@ -46,6 +71,8 @@ function buildSurveyProjection(
     internalName: survey.name,
     defaultLanguage: survey.default_language,
     supportedLanguages: survey.supported_languages,
+    locationContextSummary: summarizeLocationContext(survey),
+    enrichmentSummary: summarizeEnrichment(survey),
     status: toTitleCase(survey.status) as Survey["status"],
     createdAt: survey.created_at,
     updatedAt: survey.updated_at,

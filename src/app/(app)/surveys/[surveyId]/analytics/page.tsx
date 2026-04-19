@@ -25,11 +25,6 @@ export default async function SurveyAnalyticsPage({
         eyebrow="Survey analytics"
         title={`${survey.title} dashboard`}
         description="Review the current readiness of the survey and the areas still pending."
-        actions={
-          <Link href={appRoutes.surveyFill(survey.id)} className="button button--secondary">
-            Preview respondent flow
-          </Link>
-        }
       />
 
       <MetricGrid
@@ -91,9 +86,11 @@ export default async function SurveyAnalyticsPage({
                 Reopen editing
               </Link>
             ) : null}
-            <Link href={appRoutes.surveyFill(survey.id)} className="button button--primary">
-              Test survey URL
-            </Link>
+            {survey.defaultPublicLinkUrl ? (
+              <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
+                Open public link
+              </Link>
+            ) : null}
           </div>
         </article>
       </section>

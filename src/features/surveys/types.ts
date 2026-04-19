@@ -15,6 +15,8 @@ export type Survey = {
   internalName: string;
   defaultLanguage: string;
   supportedLanguages: string[];
+  locationContextSummary: string;
+  enrichmentSummary: string;
   status: SurveyStatus;
   createdAt: string;
   updatedAt: string;

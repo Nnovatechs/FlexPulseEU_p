@@ -211,6 +211,45 @@ export type CompiledMappingContract = {
   question_keys: string[];
 };
 
+export type MapperProfileTag = "low" | "medium" | "high";
+
+export type MapperProfileEntry = {
+  value: string | number | boolean | string[] | number[] | null;
+  tag?: MapperProfileTag;
+};
+
+export type MapperContextMetadata = {
+  country_code: string | null;
+  survey_language: string;
+  location: {
+    agg_code: string | null;
+    label: string | null;
+    granularity: string | null;
+    centroid_lat: number | null;
+    centroid_lon: number | null;
+  } | null;
+  climate: {
+    provider: string | null;
+    quality_flag: string | null;
+    observed_at: string | null;
+    temp_outdoor_c: number | null;
+    humidity_pct: number | null;
+  } | null;
+};
+
+export type MapperOutput = {
+  profile: Record<string, MapperProfileEntry>;
+  context_metadata: MapperContextMetadata;
+  mapping_metadata: {
+    mapping_hash: string | null;
+    measurement_hash: string | null;
+    mapping_hash_at_submission: string | null;
+    measurement_hash_at_submission: string | null;
+    mapper_version: string;
+    threshold_profile_version: string;
+  };
+};
+
 export type PersistedSurvey = {
   id: string;
   name: string;
@@ -225,6 +264,7 @@ export type PersistedSurvey = {
   mapping_contract_json: MappingContract;
   mapping_compiled_json: CompiledMappingContract | null;
   mapping_hash: string | null;
+  measurement_hash?: string | null;
 };
 
 export type PersistedSurveyLink = {

@@ -16,6 +16,7 @@ import { assertSupportedSurveyLanguages } from "./languages";
 import {
   compileMappingContract,
   computeMappingHash,
+  computeMeasurementHash,
 } from "./generator-mapping";
 import { validateSurveyPublication } from "./generator-validation";
 
@@ -33,6 +34,7 @@ type SurveyRow = {
   mapping_contract_json: ReturnType<typeof createInitialMappingContract>;
   mapping_compiled_json: ReturnType<typeof compileMappingContract> | null;
   mapping_hash: string | null;
+  measurement_hash?: string | null;
 };
 
 type SurveyLinkRow = PersistedSurveyLink;
@@ -101,6 +103,7 @@ function mapSurveyRow(row: SurveyRow): PersistedSurvey {
     mapping_contract_json: row.mapping_contract_json,
     mapping_compiled_json: row.mapping_compiled_json,
     mapping_hash: row.mapping_hash,
+    measurement_hash: row.measurement_hash ?? null,
   };
 }
 
@@ -271,6 +274,13 @@ export async function publishSurvey(surveyId: string): Promise<PersistedSurvey> 
 
   const mappingCompiled = compileMappingContract(existing.mapping_contract_json);
   const mappingHash = computeMappingHash(existing.mapping_contract_json);
+  const measurementPlan = existing.definition_json.survey_meta.measurement_plan_json;
+
+  if (!measurementPlan) {
+    throw new Error("Survey cannot be published yet. Missing measurement plan.");
+  }
+
+  const measurementHash = computeMeasurementHash(measurementPlan);
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -280,6 +290,7 @@ export async function publishSurvey(surveyId: string): Promise<PersistedSurvey> 
       published_at: new Date().toISOString(),
       mapping_compiled_json: mappingCompiled,
       mapping_hash: mappingHash,
+      measurement_hash: measurementHash,
     })
     .eq("id", surveyId)
     .eq("created_by", existing.created_by)

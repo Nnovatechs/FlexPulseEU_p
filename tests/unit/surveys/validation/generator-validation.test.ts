@@ -9,6 +9,7 @@ import {
   validateMeasurementPlannerConceptCoverage,
   validateMeasurementPlanBlueprint,
   validateSurveyDefinition,
+  validateSurveyPublication,
 } from "@/features/surveys/generator-validation";
 import {
   applyMeasurementPlannerOutput,
@@ -69,6 +70,40 @@ describe("survey definition validation — response context", () => {
 });
 
 describe("survey methodology validation", () => {
+  it("rejects publication when the survey is missing a usable measurement plan", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Trust survey";
+    definition.questions = [
+      {
+        question_key: "Q_TRUST_01",
+        type: "rating_scale",
+        required: true,
+        order: 1,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+    ];
+    definition.translations.English.questions = {
+      Q_TRUST_01: { title: "I trust automation in home energy management." },
+    };
+
+    const contract = createInitialMappingContract();
+    contract.mappings = [
+      {
+        question_key: "Q_TRUST_01",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+    ];
+
+    const issues = validateSurveyPublication(definition, contract);
+
+    expect(
+      issues.some((issue) => issue.code === "missing_measurement_plan_concepts"),
+    ).toBe(true);
+  });
+
   it("rejects planner outputs that omit selected concepts", () => {
     const issues = validateMeasurementPlannerConceptCoverage(
       ["trust_in_automation", "awareness_of_energy_systems"],

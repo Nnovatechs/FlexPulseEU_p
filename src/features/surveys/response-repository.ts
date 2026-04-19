@@ -41,6 +41,7 @@ export async function createSurveyResponseAndEnqueueJob(
         ? buildRawLocationRetentionUntil()
         : null,
       mapping_hash_at_submission: input.survey.mapping_hash,
+      measurement_hash_at_submission: input.survey.measurement_hash ?? null,
     })
     .select("id")
     .single();

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { processPendingSurveyResponseEnrichmentJobs } from "@/features/surveys/response-processing";
+import { processPendingSurveyResponseJobs } from "@/features/surveys/response-processing";
 import { getInternalJobSecret } from "@/lib/server/internal-jobs-env";
 
 function isAuthorized(request: Request) {
@@ -19,7 +19,7 @@ async function handle(request: Request) {
 
   const url = new URL(request.url);
   const limit = Number(url.searchParams.get("limit") ?? "10");
-  const result = await processPendingSurveyResponseEnrichmentJobs(
+  const result = await processPendingSurveyResponseJobs(
     Number.isFinite(limit) && limit > 0 ? Math.min(limit, 50) : 10,
   );
 

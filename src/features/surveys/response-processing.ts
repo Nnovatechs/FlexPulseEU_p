@@ -5,11 +5,18 @@ import {
   fetchHistoricalWeatherWithOpenMeteo,
   geocodePostalCodeWithOpenMeteo,
 } from "./response-enrichment";
+import { upsertResponseMappingResult } from "./response-mapping-repository";
+import {
+  mapSurveyResponseToOutput,
+  RESPONSE_MAPPER_VERSION,
+  type ResponseEnrichmentRecord,
+} from "./response-mapper";
+import type { SubmittedSurveyAnswer } from "./response-validation";
 
 type ProcessingJobRow = {
   id: string;
   response_id: string;
-  job_type: "response_enrichment";
+  job_type: "response_enrichment" | "response_mapping";
   status:
     | "pending"
     | "running"
@@ -26,10 +33,14 @@ type SurveyResponseRow = {
   id: string;
   survey_id: string;
   survey_link_id: string;
+  submitted_language: string;
   responded_at: string;
+  answers_json: Record<string, SubmittedSurveyAnswer>;
   country_code_raw: string | null;
   postal_code_raw: string | null;
   raw_location_retention_until: string | null;
+  mapping_hash_at_submission: string | null;
+  measurement_hash_at_submission: string | null;
 };
 
 async function markJobOutcome(
@@ -57,7 +68,7 @@ async function markJobOutcome(
 
 async function updateResponsePipelineStatus(
   responseId: string,
-  status: "enriching" | "enriched" | "ready" | "failed",
+  status: "queued" | "enriching" | "enriched" | "mapping" | "ready" | "failed",
 ) {
   const supabase = createSupabaseAdminClient();
 
@@ -106,10 +117,23 @@ async function loadResponseRuntime(responseId: string) {
     throw new Error(`Failed to load survey link for response: ${linkError?.message ?? "unknown"}`);
   }
 
+  const { data: enrichmentData, error: enrichmentError } = await supabase
+    .from("response_enrichment")
+    .select("*")
+    .eq("response_id", responseId)
+    .maybeSingle();
+
+  if (enrichmentError) {
+    throw new Error(
+      `Failed to load response enrichment: ${enrichmentError.message}`,
+    );
+  }
+
   return {
     response,
     survey: surveyData as PersistedSurvey,
     surveyLink: linkData as PersistedSurveyLink,
+    enrichment: (enrichmentData as ResponseEnrichmentRecord | null) ?? null,
   };
 }
 
@@ -150,7 +174,20 @@ async function purgeExpiredRawLocationData(limit = 200) {
   return { purgedCount: expiredIds.length };
 }
 
-async function processSingleJob(job: ProcessingJobRow) {
+async function enqueueResponseMappingJob(responseId: string) {
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase.from("processing_jobs").insert({
+    response_id: responseId,
+    job_type: "response_mapping",
+    status: "pending",
+  });
+
+  if (error) {
+    throw new Error(`Failed to enqueue response mapping job: ${error.message}`);
+  }
+}
+
+async function processEnrichmentJob(job: ProcessingJobRow) {
   const supabase = createSupabaseAdminClient();
   await updateResponsePipelineStatus(job.response_id, "enriching");
 
@@ -218,28 +255,56 @@ async function processSingleJob(job: ProcessingJobRow) {
   }
 
   await updateResponsePipelineStatus(response.id, "enriched");
+  await enqueueResponseMappingJob(response.id);
+  await markJobOutcome(job.id, "succeeded");
+}
+
+async function processMappingJob(job: ProcessingJobRow) {
+  await updateResponsePipelineStatus(job.response_id, "mapping");
+
+  const { response, survey, enrichment } = await loadResponseRuntime(job.response_id);
+
+  const mapperOutput = mapSurveyResponseToOutput({
+    survey,
+    answers: response.answers_json,
+    submittedLanguage: response.submitted_language,
+    countryCodeRaw: response.country_code_raw,
+    mappingHashAtSubmission: response.mapping_hash_at_submission,
+    measurementHashAtSubmission: response.measurement_hash_at_submission,
+    enrichment,
+  });
+
+  await upsertResponseMappingResult({
+    responseId: response.id,
+    mapperOutput,
+    mappingHashUsed: mapperOutput.mapping_metadata.mapping_hash,
+    measurementHashUsed: mapperOutput.mapping_metadata.measurement_hash,
+    mapperVersion: RESPONSE_MAPPER_VERSION,
+  });
+
   await updateResponsePipelineStatus(response.id, "ready");
   await markJobOutcome(job.id, "succeeded");
 }
 
-export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
-  const supabase = createSupabaseAdminClient();
+function getRetryPipelineStatus(jobType: ProcessingJobRow["job_type"]) {
+  return jobType === "response_mapping" ? "enriched" : "queued";
+}
 
+async function claimNextProcessingJob() {
+  const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("processing_jobs")
     .select("*")
     .in("status", ["pending", "retry_scheduled"])
-    .eq("job_type", "response_enrichment")
     .lte("scheduled_at", new Date().toISOString())
     .order("scheduled_at", { ascending: true })
-    .limit(limit);
+    .limit(10);
 
   if (error) {
     throw new Error(`Failed to load processing jobs: ${error.message}`);
   }
 
   const jobs = (data ?? []) as ProcessingJobRow[];
-  let processedCount = 0;
 
   for (const job of jobs) {
     const nextAttempts = job.attempts + 1;
@@ -260,12 +325,52 @@ export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
       throw new Error(`Failed to claim processing job: ${claimError.message}`);
     }
 
-    if (!claimedJob) {
-      continue;
+    if (claimedJob) {
+      return claimedJob as ProcessingJobRow;
+    }
+  }
+
+  return null;
+}
+
+async function countPendingProcessingJobs() {
+  const supabase = createSupabaseAdminClient();
+  const { count, error } = await supabase
+    .from("processing_jobs")
+    .select("id", { count: "exact", head: true })
+    .in("status", ["pending", "retry_scheduled"])
+    .lte("scheduled_at", new Date().toISOString())
+    ;
+
+  if (error) {
+    throw new Error(`Failed to load processing jobs: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
+async function processClaimedJob(job: ProcessingJobRow) {
+  if (job.job_type === "response_mapping") {
+    await processMappingJob(job);
+    return;
+  }
+
+  await processEnrichmentJob(job);
+}
+
+export async function processPendingSurveyResponseJobs(limit = 10) {
+  let processedCount = 0;
+
+  while (processedCount < limit) {
+    const job = await claimNextProcessingJob();
+    if (!job) {
+      break;
     }
 
+    const nextAttempts = job.attempts;
+
     try {
-      await processSingleJob(claimedJob as ProcessingJobRow);
+      await processClaimedJob(job);
       processedCount += 1;
     } catch (error) {
       const message =
@@ -276,7 +381,10 @@ export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
         await markJobOutcome(job.id, "dead", message);
       } else {
         const nextSchedule = new Date(Date.now() + nextAttempts * 60 * 1000).toISOString();
+        const retryPipelineStatus = getRetryPipelineStatus(job.job_type);
+        await updateResponsePipelineStatus(job.response_id, retryPipelineStatus);
 
+        const supabase = createSupabaseAdminClient();
         const { error: retryError } = await supabase
           .from("processing_jobs")
           .update({
@@ -295,7 +403,7 @@ export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
 
   return {
     processedCount,
-    pendingJobs: jobs.length,
+    pendingJobs: await countPendingProcessingJobs(),
   };
 }
 

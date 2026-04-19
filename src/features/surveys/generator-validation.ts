@@ -681,6 +681,7 @@ export function validateSurveyPublication(
   definition: SurveyDefinition,
   contract: MappingContract,
 ): SurveyValidationIssue[] {
+  const measurementPlan = definition.survey_meta.measurement_plan_json;
   const issues = [
     ...validateSurveyDefinition(definition, {
       require_complete_translations: true,
@@ -720,6 +721,28 @@ export function validateSurveyPublication(
       );
     }
   }
+
+  if (!measurementPlan) {
+    addIssue(
+      issues,
+      "missing_measurement_plan",
+      "survey_meta.measurement_plan_json",
+      "A survey must define a measurement plan before publication.",
+    );
+    return issues;
+  }
+
+  if (measurementPlan.concepts.length === 0) {
+    addIssue(
+      issues,
+      "missing_measurement_plan_concepts",
+      "survey_meta.measurement_plan_json.concepts",
+      "A survey must define at least one measurement plan concept before publication.",
+    );
+    return issues;
+  }
+
+  issues.push(...validateMeasurementPlanAlignment(definition, contract, measurementPlan));
 
   return issues;
 }

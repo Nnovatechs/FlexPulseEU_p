@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { getOpenAIEnv } from "@/lib/llm/env";
 import type {
+  MultilingualValidationIssue,
   SurveyLanguageCode,
   SurveyLanguageTranslations,
   SurveyMappingDefinition,
@@ -15,6 +16,8 @@ type TranslateSurveyLanguageInput = {
   sourceTranslations: SurveyLanguageTranslations;
   questions: SurveyQuestionDefinition[];
   mappings: SurveyMappingDefinition[];
+  previousTranslation?: SurveyLanguageTranslations;
+  validationIssues?: MultilingualValidationIssue[];
 };
 
 const surveyTranslationOutputSchema = {

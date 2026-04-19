@@ -111,6 +111,150 @@ describe("survey translation actions", () => {
     });
   });
 
+  it("retries translation with validator feedback until the language passes", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    const revisedTranslation = {
+      ...fixture.targetTranslations,
+      questions: {
+        ...fixture.targetTranslations.questions,
+        Q_TEST_01: {
+          ...fixture.targetTranslations.questions.Q_TEST_01,
+          title:
+            "Quel est votre niveau de confort vis-a-vis du pilotage automatise de la consommation ?",
+        },
+      },
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-retry-1",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage
+      .mockResolvedValueOnce(fixture.targetTranslations)
+      .mockResolvedValueOnce(revisedTranslation);
+    validateTranslatedSurveyLanguage
+      .mockResolvedValueOnce([
+        {
+          language: fixture.targetLanguage,
+          question_key: "Q_TEST_01",
+          type: "quality",
+          message: "La formulacion suena poco natural.",
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-retry-1");
+
+    await generateSurveyTranslationsAction(formData);
+
+    expect(translateSurveyLanguage).toHaveBeenCalledTimes(2);
+    expect(validateTranslatedSurveyLanguage).toHaveBeenCalledTimes(2);
+    expect(translateSurveyLanguage.mock.calls[1]?.[0]).toMatchObject({
+      previousTranslation: fixture.targetTranslations,
+      validationIssues: [
+        {
+          language: fixture.targetLanguage,
+          question_key: "Q_TEST_01",
+          type: "quality",
+          message: "La formulacion suena poco natural.",
+        },
+      ],
+    });
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.translations[fixture.targetLanguage].questions
+        .Q_TEST_01.title,
+    ).toBe(revisedTranslation.questions.Q_TEST_01.title);
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: true,
+    });
+  });
+
+  it("stops retrying after the maximum refinement attempts", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-retry-2",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage
+      .mockResolvedValueOnce(fixture.targetTranslations)
+      .mockResolvedValueOnce(fixture.targetTranslations)
+      .mockResolvedValueOnce(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "quality",
+        message: "Sigue sonando poco natural.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-retry-2");
+
+    await generateSurveyTranslationsAction(formData);
+
+    expect(translateSurveyLanguage).toHaveBeenCalledTimes(3);
+    expect(validateTranslatedSurveyLanguage).toHaveBeenCalledTimes(3);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: false,
+      issues: [
+        {
+          language: fixture.targetLanguage,
+          question_key: "Q_TEST_01",
+          type: "quality",
+          message: "Sigue sonando poco natural.",
+        },
+      ],
+    });
+  });
+
   it("rejects translation generation when canonical validation is outdated", async () => {
     // This protects the sequential workflow: step 2 must not run on content that
     // changed after the canonical validation hash was issued.

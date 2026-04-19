@@ -250,6 +250,7 @@ export default async function SurveyEditPage({
       hasQuestions={hasQuestions}
       questions={survey.definition_json.questions}
       translations={activeTranslations}
+      translationsByLanguage={survey.definition_json.translations}
       validationResult={storedValidation}
       isStale={isValidationStale}
       defaultLanguage={survey.default_language}

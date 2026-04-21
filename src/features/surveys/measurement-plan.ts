@@ -139,11 +139,11 @@ function toSlotPrefix(conceptKey: string) {
 function deriveEvidenceSource(
   concept: FlexpulseBehaviouralConcept,
 ): MeasurementEvidenceSource {
-  if (concept.layer === "quality_signals") {
+  if (concept.concept_role === "quality_signal") {
     return "pipeline_flags";
   }
 
-  if (concept.layer === "response_context") {
+  if (concept.concept_role === "context_signal") {
     if (
       concept.concept_key === "climate_context" ||
       concept.concept_key === "normalized_location_context"

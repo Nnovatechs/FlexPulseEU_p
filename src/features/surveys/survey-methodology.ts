@@ -1,4 +1,4 @@
-import type { FlexpulseDescriptorRole } from "@/features/ontology/flexpulse-behavioural-schema";
+import type { FlexpulseConceptRole } from "@/features/ontology/flexpulse-behavioural-schema";
 import type { GeneratorTargetConfig } from "./generator-config";
 
 export const SURVEY_METHODOLOGY_CONTRACT = {
@@ -80,7 +80,7 @@ export const SURVEY_METHODOLOGY_CONTRACT = {
   ],
 } as const;
 
-function getRoleSpecificRules(role: FlexpulseDescriptorRole): string[] {
+function getRoleSpecificRules(role: FlexpulseConceptRole): string[] {
   switch (role) {
     case "primary_profile_axis":
       return [
@@ -133,7 +133,7 @@ export function buildConceptMethodologyNotes(
 ): string[] {
   return [
     "Treat generator priors as soft constraints, not mandatory templates.",
-    ...getRoleSpecificRules(config.concept.descriptor_role),
+    ...getRoleSpecificRules(config.concept.concept_role),
     config.prompt_notes,
   ];
 }

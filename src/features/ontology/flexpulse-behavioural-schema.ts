@@ -1,11 +1,4 @@
-export type FlexpulseBehaviouralLayer =
-  | "profile_axes"
-  | "behavioural_modulators"
-  | "applicability_and_assets"
-  | "response_context"
-  | "quality_signals";
-
-export type FlexpulseDescriptorRole =
+export type FlexpulseConceptRole =
   | "primary_profile_axis"
   | "behavioural_modulator"
   | "applicability_factor"
@@ -35,8 +28,7 @@ export type FlexpulseBehaviouralConcept = {
   schema_target: string;
   label: string;
   description: string;
-  layer: FlexpulseBehaviouralLayer;
-  descriptor_role: FlexpulseDescriptorRole;
+  concept_role: FlexpulseConceptRole;
   dimension: FlexpulseDimension;
   output_type: FlexpulseOutputType;
   validation_constraints?: {
@@ -67,14 +59,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Awareness of energy systems",
     description:
       "How well the respondent understands energy systems, energy flexibility and the role of automation in household energy management.",
-    layer: "profile_axes",
-    descriptor_role: "primary_profile_axis",
+    concept_role: "primary_profile_axis",
     dimension: "awareness_of_energy_systems",
     output_type: "number",
-    validation_constraints: {
-      min: 1,
-      max: 5,
-    },
   },
   {
     schema_version: 1,
@@ -84,14 +71,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Flexibility willingness",
     description:
       "Overall willingness to participate in flexibility or demand response programmes under realistic domestic conditions.",
-    layer: "profile_axes",
-    descriptor_role: "primary_profile_axis",
+    concept_role: "primary_profile_axis",
     dimension: "flexibility_willingness",
     output_type: "number",
-    validation_constraints: {
-      min: 1,
-      max: 5,
-    },
   },
   {
     schema_version: 1,
@@ -101,14 +83,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Thermal comfort norms",
     description:
       "How strict the respondent is about preserving thermal comfort and how much indoor variation they consider acceptable.",
-    layer: "profile_axes",
-    descriptor_role: "primary_profile_axis",
+    concept_role: "primary_profile_axis",
     dimension: "thermal_comfort_norms",
     output_type: "number",
-    validation_constraints: {
-      min: 1,
-      max: 5,
-    },
   },
   {
     schema_version: 1,
@@ -118,14 +95,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Tariff preference orientation",
     description:
       "Attitudinal orientation toward tariff structures, variability and risk when deciding whether flexibility feels acceptable.",
-    layer: "profile_axes",
-    descriptor_role: "primary_profile_axis",
+    concept_role: "primary_profile_axis",
     dimension: "tariff_preferences",
     output_type: "number",
-    validation_constraints: {
-      min: 1,
-      max: 5,
-    },
   },
   {
     schema_version: 1,
@@ -135,14 +107,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Trust in automation",
     description:
       "The respondent's readiness to trust automated control in residential energy management under realistic safeguards.",
-    layer: "profile_axes",
-    descriptor_role: "primary_profile_axis",
+    concept_role: "primary_profile_axis",
     dimension: "trust_in_automation",
     output_type: "number",
-    validation_constraints: {
-      min: 1,
-      max: 5,
-    },
   },
   {
     schema_version: 1,
@@ -152,14 +119,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "DER engagement",
     description:
       "General behavioural engagement with distributed energy resources, including openness to using, adopting and flexibly operating DER-relevant assets.",
-    layer: "profile_axes",
-    descriptor_role: "primary_profile_axis",
+    concept_role: "primary_profile_axis",
     dimension: "der_engagement",
     output_type: "number",
-    validation_constraints: {
-      min: 1,
-      max: 5,
-    },
   },
   {
     schema_version: 1,
@@ -169,11 +131,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Manual override need",
     description:
       "How important manual override capability is before automated energy control feels acceptable.",
-    layer: "behavioural_modulators",
-    descriptor_role: "behavioural_modulator",
+    concept_role: "behavioural_modulator",
     dimension: "trust_in_automation",
     output_type: "number",
-    validation_constraints: { min: 1, max: 5 },
   },
   {
     schema_version: 1,
@@ -183,11 +143,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Explainability need",
     description:
       "How strongly the respondent needs transparent explanations before trusting automated control.",
-    layer: "behavioural_modulators",
-    descriptor_role: "behavioural_modulator",
+    concept_role: "behavioural_modulator",
     dimension: "trust_in_automation",
     output_type: "number",
-    validation_constraints: { min: 1, max: 5 },
   },
   {
     schema_version: 1,
@@ -197,11 +155,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Bill stability need",
     description:
       "How important it is for the respondent to protect against unstable or unpredictable bills before adopting flexibility or automation.",
-    layer: "behavioural_modulators",
-    descriptor_role: "behavioural_modulator",
+    concept_role: "behavioural_modulator",
     dimension: "tariff_preferences",
     output_type: "number",
-    validation_constraints: { min: 1, max: 5 },
   },
   {
     schema_version: 1,
@@ -211,11 +167,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Event frequency tolerance",
     description:
       "How often flexibility events can happen before the programme feels intrusive or unacceptable.",
-    layer: "behavioural_modulators",
-    descriptor_role: "behavioural_modulator",
+    concept_role: "behavioural_modulator",
     dimension: "flexibility_willingness",
     output_type: "number",
-    validation_constraints: { min: 1, max: 5 },
   },
   {
     schema_version: 1,
@@ -225,11 +179,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Savings motivation",
     description:
       "How strongly bill savings motivate the respondent to consider flexibility or new tariff arrangements.",
-    layer: "behavioural_modulators",
-    descriptor_role: "behavioural_modulator",
+    concept_role: "behavioural_modulator",
     dimension: "tariff_preferences",
     output_type: "number",
-    validation_constraints: { min: 1, max: 5 },
   },
   {
     schema_version: 1,
@@ -239,11 +191,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Routine dependency",
     description:
       "How strongly daily routines depend on devices or comfort patterns that could be affected by flexibility programmes.",
-    layer: "behavioural_modulators",
-    descriptor_role: "behavioural_modulator",
+    concept_role: "behavioural_modulator",
     dimension: "der_engagement",
     output_type: "number",
-    validation_constraints: { min: 1, max: 5 },
   },
   {
     schema_version: 1,
@@ -253,8 +203,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Owned DER assets",
     description:
       "The set of DER-relevant assets or devices currently present in the home or routinely used by the respondent.",
-    layer: "applicability_and_assets",
-    descriptor_role: "applicability_factor",
+    concept_role: "applicability_factor",
     dimension: "der_engagement",
     output_type: "string[]",
     validation_constraints: {
@@ -269,8 +218,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Interested DER assets",
     description:
       "The set of DER-relevant assets or device types the respondent is interested in adopting or engaging with in the future.",
-    layer: "applicability_and_assets",
-    descriptor_role: "applicability_factor",
+    concept_role: "applicability_factor",
     dimension: "der_engagement",
     output_type: "string[]",
     validation_constraints: {
@@ -285,8 +233,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Winter comfort setpoint",
     description:
       "Preferred winter indoor temperature setpoint used as a factual comfort anchor for building-specific threshold reasoning.",
-    layer: "applicability_and_assets",
-    descriptor_role: "applicability_factor",
+    concept_role: "applicability_factor",
     dimension: "thermal_comfort_norms",
     output_type: "number",
     validation_constraints: {
@@ -302,8 +249,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Summer comfort setpoint",
     description:
       "Preferred summer indoor temperature setpoint used as a factual comfort anchor for flexibility reasoning in warmer periods.",
-    layer: "applicability_and_assets",
-    descriptor_role: "applicability_factor",
+    concept_role: "applicability_factor",
     dimension: "thermal_comfort_norms",
     output_type: "number",
     validation_constraints: {
@@ -319,8 +265,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Preferred tariff model",
     description:
       "The tariff model the respondent currently prefers when thinking about energy bills and flexibility participation.",
-    layer: "applicability_and_assets",
-    descriptor_role: "applicability_factor",
+    concept_role: "applicability_factor",
     dimension: "tariff_preferences",
     output_type: "enum",
   },
@@ -332,8 +277,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Country code",
     description:
       "Normalized country code associated with the response for regional comparison and policy stratification.",
-    layer: "response_context",
-    descriptor_role: "context_signal",
+    concept_role: "context_signal",
     dimension: "response_context",
     output_type: "string",
   },
@@ -345,8 +289,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Normalized location context",
     description:
       "Privacy-preserving normalized location context retained at a suitable granularity for clustering, regional analysis and map aggregation.",
-    layer: "response_context",
-    descriptor_role: "context_signal",
+    concept_role: "context_signal",
     dimension: "response_context",
     output_type: "string",
   },
@@ -358,8 +301,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Climate context",
     description:
       "Normalized climate and season context associated with the response, used to interpret comfort and flexibility answers across local climate settings.",
-    layer: "response_context",
-    descriptor_role: "context_signal",
+    concept_role: "context_signal",
     dimension: "response_context",
     output_type: "enum",
   },
@@ -371,8 +313,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Survey language",
     description:
       "Language in which the response was completed, retained for multilingual analysis and translation-quality checks.",
-    layer: "response_context",
-    descriptor_role: "context_signal",
+    concept_role: "context_signal",
     dimension: "response_context",
     output_type: "string",
   },
@@ -384,8 +325,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Mapping low confidence",
     description:
       "Quality flag indicating that the final mapped descriptor should be treated cautiously or reviewed.",
-    layer: "quality_signals",
-    descriptor_role: "quality_signal",
+    concept_role: "quality_signal",
     dimension: "response_context",
     output_type: "boolean",
   },
@@ -397,8 +337,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     label: "Mapping requires review",
     description:
       "Quality flag indicating that a response needs manual or secondary review before being treated as fully reliable.",
-    layer: "quality_signals",
-    descriptor_role: "quality_signal",
+    concept_role: "quality_signal",
     dimension: "response_context",
     output_type: "boolean",
   },
@@ -410,9 +349,9 @@ export const flexpulseBehaviouralConceptsByKey = Object.fromEntries(
 
 export const flexpulseSurveyDesignConcepts = flexpulseBehaviouralSchemaV1.filter(
   (concept) =>
-    concept.layer === "profile_axes" ||
-    concept.layer === "behavioural_modulators" ||
-    concept.layer === "applicability_and_assets",
+    concept.concept_role === "primary_profile_axis" ||
+    concept.concept_role === "behavioural_modulator" ||
+    concept.concept_role === "applicability_factor",
 );
 
 export const flexpulseSurveyDesignDimensions = Array.from(
@@ -428,23 +367,23 @@ export const flexpulseSurveyDesignConceptsByDimension =
   }));
 
 export const flexpulsePrimaryProfileAxes = flexpulseBehaviouralSchemaV1.filter(
-  (concept) => concept.descriptor_role === "primary_profile_axis",
+  (concept) => concept.concept_role === "primary_profile_axis",
 );
 
 export const flexpulseBehaviouralModulators = flexpulseBehaviouralSchemaV1.filter(
-  (concept) => concept.descriptor_role === "behavioural_modulator",
+  (concept) => concept.concept_role === "behavioural_modulator",
 );
 
 export const flexpulseApplicabilityFactors = flexpulseBehaviouralSchemaV1.filter(
-  (concept) => concept.descriptor_role === "applicability_factor",
+  (concept) => concept.concept_role === "applicability_factor",
 );
 
 export const flexpulseResponseContextConcepts = flexpulseBehaviouralSchemaV1.filter(
-  (concept) => concept.descriptor_role === "context_signal",
+  (concept) => concept.concept_role === "context_signal",
 );
 
 export const flexpulseQualitySignals = flexpulseBehaviouralSchemaV1.filter(
-  (concept) => concept.descriptor_role === "quality_signal",
+  (concept) => concept.concept_role === "quality_signal",
 );
 
 export function getFlexpulseBehaviouralConcept(conceptKey: string) {

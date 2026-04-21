@@ -203,8 +203,8 @@ function buildProfile(
         const ontologyConcept = getFlexpulseBehaviouralConcept(concept.concept_key);
         return (
           ontologyConcept &&
-          ontologyConcept.layer !== "response_context" &&
-          ontologyConcept.layer !== "quality_signals"
+          ontologyConcept.concept_role !== "context_signal" &&
+          ontologyConcept.concept_role !== "quality_signal"
         );
       })
       .map((concept) => {

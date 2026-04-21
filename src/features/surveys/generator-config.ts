@@ -53,11 +53,11 @@ function mapOutputTypeToExpectedType(
 function derivePriority(
   concept: FlexpulseBehaviouralConcept,
 ): TargetPriority {
-  if (concept.descriptor_role === "primary_profile_axis") {
+  if (concept.concept_role === "primary_profile_axis") {
     return "high";
   }
 
-  if (concept.descriptor_role === "behavioural_modulator") {
+  if (concept.concept_role === "behavioural_modulator") {
     return "medium";
   }
 
@@ -65,7 +65,7 @@ function derivePriority(
 }
 
 function derivePromptNotes(concept: FlexpulseBehaviouralConcept): string {
-  switch (concept.descriptor_role) {
+  switch (concept.concept_role) {
     case "primary_profile_axis":
       return "Plan this as a core behavioural construct. You must decide whether single-item or multi-item coverage is methodologically justified; prefer interpretable profile-level signal over superficial attitudes.";
     case "behavioural_modulator":
@@ -257,7 +257,8 @@ export const generatorTargetConfigs: GeneratorTargetConfig[] =
   flexpulseBehaviouralSchemaV1
     .filter(
       (concept) =>
-        concept.layer !== "response_context" && concept.layer !== "quality_signals",
+        concept.concept_role !== "context_signal" &&
+        concept.concept_role !== "quality_signal",
     )
     .map(buildGeneratorTargetConfig);
 

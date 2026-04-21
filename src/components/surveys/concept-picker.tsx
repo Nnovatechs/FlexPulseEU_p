@@ -16,6 +16,14 @@ const DIMENSION_LABELS: Record<FlexpulseDimension, string> = {
   response_context: "Response context",
 };
 
+const CONCEPT_ROLE_LABELS = {
+  primary_profile_axis: "Primary profile axis",
+  behavioural_modulator: "Behavioural modulator",
+  applicability_factor: "Applicability factor",
+  context_signal: "Context signal",
+  quality_signal: "Quality signal",
+} as const;
+
 const conceptsByDimension = flexpulseSurveyDesignConceptsByDimension.map(
   ({ dimension, concepts }) => ({
   dimension,
@@ -148,7 +156,7 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
                             {concept.label}
                           </span>
                           <span className="concept-item__type">
-                            {concept.layer}
+                            {CONCEPT_ROLE_LABELS[concept.concept_role]}
                           </span>
                         </label>
                       );

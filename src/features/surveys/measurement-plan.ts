@@ -5,7 +5,6 @@ import {
 } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   getGeneratorTargetConfigByConceptKey,
-  type GeneratorTargetConfig,
 } from "./generator-config";
 import type {
   MeasurementAggregationRule,

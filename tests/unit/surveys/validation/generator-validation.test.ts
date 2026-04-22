@@ -137,7 +137,6 @@ describe("survey methodology validation", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
-            required_slot_count: 2,
           },
         ],
       },
@@ -163,7 +162,6 @@ describe("survey methodology validation", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
-            required_slot_count: 2,
           },
         ],
       },
@@ -171,7 +169,6 @@ describe("survey methodology validation", () => {
     blueprint.concepts[0].question_slots = [
       {
         slot_key: 'SLOT_trust_in_automation_01},{"',
-        required: true,
       },
     ];
     const issues = validateMeasurementPlanBlueprint(blueprint);
@@ -233,7 +230,6 @@ describe("survey methodology validation", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
-            required_slot_count: 2,
           },
         ],
       },

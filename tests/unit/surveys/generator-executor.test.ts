@@ -92,7 +92,6 @@ describe("generateSurveyDraftProposal", () => {
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 1,
-            required_slot_count: 1,
           },
         ],
       });

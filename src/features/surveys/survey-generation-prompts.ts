@@ -72,10 +72,7 @@ export function buildSurveyGeneratorPrompt(
         `   - slots: ${
           entry.question_slots.length > 0
             ? entry.question_slots
-                .map(
-                  (slot) =>
-                    `${slot.slot_key} [required=${slot.required}]`,
-                )
+                .map((slot) => slot.slot_key)
                 .join("; ")
             : "(no survey question slots)"
         }`,
@@ -106,6 +103,8 @@ export function buildSurveyGeneratorPrompt(
     "For numeric questions, include sensible bounds when possible.",
     "Generate one question for each slot in the measurement blueprint that comes from survey_questions.",
     "Reuse the exact slot_key provided for each generated question.",
+    "Every respondent-facing question generated from the blueprint is mandatory by system design.",
+    "Do not return a required field for questions; the system applies obligatoriness automatically.",
   ].join(" ");
 
   const user = [
@@ -138,6 +137,7 @@ export function buildSurveyGeneratorPrompt(
     "- Keep the survey short enough to be realistic for actual respondents.",
     "- survey_title must be suitable for respondents in the canonical language.",
     "- survey_description should briefly explain the survey purpose in the canonical language.",
+    "- Do not include a required field in question objects.",
   ].join("\n");
 
   return {
@@ -251,9 +251,10 @@ export function buildMeasurementPlannerPrompt(
     "Do not return extra concepts beyond the selected set.",
     "The concept_key field in the JSON output must exactly match one of the selected behavioural concept keys.",
     "Do not use schema targets such as flexpulse_behavioural_schema.* as concept_key values.",
-    "For each concept decide the measurement_type, aggregation_rule, threshold_profile, slot_count and required_slot_count yourself.",
+    "For each concept decide the measurement_type, aggregation_rule, threshold_profile and slot_count yourself.",
     "The system will generate deterministic slot_key names later. You must not plan concrete slot identifiers yourself.",
-    "For context-only or quality-only concepts, return slot_count 0 and required_slot_count 0.",
+    "Question obligatoriness is decided by the system. All respondent-facing survey questions are treated as required.",
+    "For context-only or quality-only concepts, return slot_count 0.",
     "For survey-question concepts, choose slot_count according to methodological need, not by copying a system default.",
     ...(input.repairFeedback && input.repairFeedback.length > 0
       ? [

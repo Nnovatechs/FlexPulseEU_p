@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useState, useRef, useTransition } from "react";
 import type {
   SurveyLanguageTranslations,
   SurveyQuestionDefinition,
@@ -9,249 +9,696 @@ import type {
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
 
-type PublicSurveyFormProps = {
-  linkToken: string;
-  selectedLanguage: string;
-  questions: SurveyQuestionDefinition[];
-  bundle: SurveyLanguageTranslations;
-  responseContext: SurveyResponseContextConfig | undefined;
-  copy: PublicSurveyCopy;
-  submitAction: (formData: FormData) => void | Promise<void>;
+// ─── Language metadata ────────────────────────────────────────────────────
+
+const LANGUAGE_META: Record<string, { flag: string; nativeName: string }> = {
+  English: { flag: "🇬🇧", nativeName: "English" },
+  Spanish: { flag: "🇪🇸", nativeName: "Español" },
+  French: { flag: "🇫🇷", nativeName: "Français" },
+  Croatian: { flag: "🇭🇷", nativeName: "Hrvatski" },
+  German: { flag: "🇩🇪", nativeName: "Deutsch" },
+  Italian: { flag: "🇮🇹", nativeName: "Italiano" },
+  Portuguese: { flag: "🇵🇹", nativeName: "Português" },
+  Dutch: { flag: "🇳🇱", nativeName: "Nederlands" },
 };
 
-function getQuestionTranslation(
-  bundle: SurveyLanguageTranslations,
-  questionKey: string,
-) {
-  return bundle.questions[questionKey] ?? { title: questionKey };
+function getLangMeta(lang: string) {
+  return LANGUAGE_META[lang] ?? { flag: "🌐", nativeName: lang };
 }
 
-function renderQuestionInput(
-  question: SurveyQuestionDefinition,
-  bundle: SurveyLanguageTranslations,
-  copy: PublicSurveyCopy,
-) {
-  const translation = getQuestionTranslation(bundle, question.question_key);
-  const fieldName = `question:${question.question_key}`;
+// ─── Block computation ────────────────────────────────────────────────────
 
-  if (question.type === "single_choice" && question.options) {
-    return (
-      <div className="public-question__options">
-        {question.options.map((option) => (
-          <label key={option.option_key} className="choice-chip">
-            <input
-              type="radio"
-              name={fieldName}
-              value={option.option_key}
-              required={question.required}
-            />
-            <span>{translation.options?.[option.option_key] ?? option.option_key}</span>
-          </label>
-        ))}
-      </div>
-    );
+function computeBlocks(questions: SurveyQuestionDefinition[]): SurveyQuestionDefinition[][] {
+  const n = questions.length;
+  if (n === 0) return [[]];
+  if (n <= 6) return [questions];
+
+  // Target ~5-7 questions per block, more blocks for larger surveys
+  const targetBlockSize = n <= 15 ? 5 : n <= 35 ? 6 : 7;
+  const numBlocks = Math.ceil(n / targetBlockSize);
+  const actualSize = Math.ceil(n / numBlocks);
+
+  const blocks: SurveyQuestionDefinition[][] = [];
+  for (let i = 0; i < n; i += actualSize) {
+    blocks.push(questions.slice(i, Math.min(i + actualSize, n)));
   }
+  return blocks;
+}
 
-  if (question.type === "multiple_choice" && question.options) {
-    return (
-      <div
-        className="public-question__options"
-        data-required-multiple-choice={question.required ? "true" : undefined}
-        data-question-name={fieldName}
-      >
-        {question.options.map((option) => (
-          <label key={option.option_key} className="choice-chip">
-            <input type="checkbox" name={fieldName} value={option.option_key} />
-            <span>{translation.options?.[option.option_key] ?? option.option_key}</span>
-          </label>
-        ))}
-      </div>
-    );
+function getGlobalQuestionNumber(
+  blocks: SurveyQuestionDefinition[][],
+  blockIdx: number,
+  questionIdx: number,
+): number {
+  let offset = 0;
+  for (let i = 0; i < blockIdx; i++) offset += blocks[i].length;
+  return offset + questionIdx + 1;
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+type AnswerValues = Record<string, string | string[]>;
+
+export type PublicSurveyFormProps = {
+  linkToken: string;
+  defaultLanguage: string;
+  initialLanguage: string;
+  hasExplicitLangParam: boolean;
+  supportedLanguages: string[];
+  questions: SurveyQuestionDefinition[];
+  allBundles: Record<string, SurveyLanguageTranslations>;
+  allCopy: Record<string, PublicSurveyCopy>;
+  responseContext: SurveyResponseContextConfig | undefined;
+  submitAction: (formData: FormData) => Promise<void>;
+};
+
+// ─── Validation ────────────────────────────────────────────────────────────
+
+function validateBlock(
+  block: SurveyQuestionDefinition[],
+  values: AnswerValues,
+): string | null {
+  for (const q of block) {
+    if (!q.required) continue;
+    const v = values[q.question_key];
+    const isEmpty =
+      v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+    if (isEmpty) return "Please answer all required questions before continuing.";
   }
-
-  if (question.type === "rating_scale" && question.scale) {
-    const scale = question.scale;
-    const values = Array.from(
-      { length: scale.max - scale.min + 1 },
-      (_, index) => scale.min + index,
-    );
-
-    return (
-      <div className="public-question__scale">
-        {values.map((value) => (
-          <label key={value} className="choice-chip">
-            <input
-              type="radio"
-              name={fieldName}
-              value={String(value)}
-              required={question.required}
-            />
-            <span>{value}</span>
-          </label>
-        ))}
-      </div>
-    );
-  }
-
-  if (question.type === "numeric") {
-    return (
-      <input
-        type="number"
-        name={fieldName}
-        required={question.required}
-        min={question.numeric?.min}
-        max={question.numeric?.max}
-        step="any"
-      />
-    );
-  }
-
-  if (question.type === "boolean") {
-    return (
-      <div className="public-question__options">
-        <label className="choice-chip">
-          <input type="radio" name={fieldName} value="true" required={question.required} />
-          <span>{copy.yesLabel}</span>
-        </label>
-        <label className="choice-chip">
-          <input type="radio" name={fieldName} value="false" required={question.required} />
-          <span>{copy.noLabel}</span>
-        </label>
-      </div>
-    );
-  }
-
-  if (question.type === "free_text") {
-    return <textarea name={fieldName} required={question.required} rows={4} />;
-  }
-
   return null;
 }
 
-function validateRequiredMultipleChoiceGroups(form: HTMLFormElement) {
-  const groups = form.querySelectorAll<HTMLElement>("[data-required-multiple-choice='true']");
+// ─── Sub-components ────────────────────────────────────────────────────────
 
-  groups.forEach((group) => {
-    const questionName = group.dataset.questionName;
-    if (!questionName) {
-      return;
-    }
-
-    const checkboxes = Array.from(
-      group.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][name="${questionName}"]`),
-    );
-    if (checkboxes.length === 0) {
-      return;
-    }
-
-    const hasSelection = checkboxes.some((checkbox) => checkbox.checked);
-    checkboxes[0].setCustomValidity(hasSelection ? "" : "Select at least one option.");
-  });
+function LanguagePickerScreen({
+  languages,
+  onSelect,
+  copy,
+}: {
+  languages: string[];
+  onSelect: (lang: string) => void;
+  copy: PublicSurveyCopy;
+}) {
+  return (
+    <div className="sf-lang-screen">
+      <div className="sf-lang-intro">
+        <h1 className="sf-lang-heading">{copy.languagePickerTitle}</h1>
+        <p className="sf-lang-sub">{copy.languagePickerSub}</p>
+      </div>
+      <div className="sf-lang-grid">
+        {languages.map((lang) => {
+          const { flag, nativeName } = getLangMeta(lang);
+          return (
+            <button
+              key={lang}
+              type="button"
+              className="sf-lang-card"
+              onClick={() => onSelect(lang)}
+            >
+              <span className="sf-lang-flag">{flag}</span>
+              <span className="sf-lang-name">{nativeName}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
+
+function ProgressBar({ progress }: { progress: number }) {
+  return (
+    <div className="sf-progress-bar" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+      <div className="sf-progress-fill" style={{ width: `${progress}%` }} />
+    </div>
+  );
+}
+
+function BlockDots({
+  count,
+  current,
+}: {
+  count: number;
+  current: number;
+}) {
+  if (count <= 1) return null;
+  return (
+    <div className="sf-block-dots" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={`sf-block-dot${i === current ? " sf-block-dot--active" : i < current ? " sf-block-dot--done" : ""}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ChoiceOptions({
+  fieldName,
+  options,
+  selectedValue,
+  onChange,
+  isMultiple = false,
+}: {
+  fieldName: string;
+  options: { key: string; label: string }[];
+  selectedValue: string | string[];
+  onChange: (value: string | string[]) => void;
+  isMultiple?: boolean;
+}) {
+  return (
+    <div className="sf-choices">
+      {options.map(({ key, label }) => {
+        const isSelected = isMultiple
+          ? Array.isArray(selectedValue) && selectedValue.includes(key)
+          : selectedValue === key;
+
+        return (
+          <label
+            key={key}
+            className={`sf-choice${isSelected ? " sf-choice--selected" : ""}${isMultiple ? " sf-choice--check" : ""}`}
+          >
+            <input
+              type={isMultiple ? "checkbox" : "radio"}
+              name={fieldName}
+              value={key}
+              checked={isSelected}
+              onChange={() => {
+                if (isMultiple) {
+                  const current = Array.isArray(selectedValue) ? selectedValue : [];
+                  onChange(
+                    isSelected
+                      ? current.filter((v) => v !== key)
+                      : [...current, key],
+                  );
+                } else {
+                  onChange(key);
+                }
+              }}
+            />
+            <span className="sf-choice__dot">
+              <span className="sf-choice__dot-inner" />
+            </span>
+            <span className="sf-choice__label">{label}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function RatingScale({
+  fieldName,
+  scale,
+  selectedValue,
+  onChange,
+}: {
+  fieldName: string;
+  scale: NonNullable<SurveyQuestionDefinition["scale"]>;
+  selectedValue: string;
+  onChange: (value: string) => void;
+}) {
+  const values = Array.from(
+    { length: scale.max - scale.min + 1 },
+    (_, i) => scale.min + i,
+  );
+  const hasLabels = scale.min_label || scale.max_label;
+
+  return (
+    <div className="sf-scale">
+      {hasLabels && (
+        <div className="sf-scale__labels">
+          <span>{scale.min_label ?? ""}</span>
+          <span>{scale.max_label ?? ""}</span>
+        </div>
+      )}
+      <div className="sf-scale__buttons">
+        {values.map((v) => {
+          const strV = String(v);
+          return (
+            <label
+              key={v}
+              className={`sf-scale__btn${selectedValue === strV ? " sf-scale__btn--selected" : ""}`}
+            >
+              <input
+                type="radio"
+                name={fieldName}
+                value={strV}
+                checked={selectedValue === strV}
+                onChange={() => onChange(strV)}
+              />
+              {v}
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function QuestionCard({
+  question,
+  bundle,
+  copy,
+  globalNumber,
+  totalQuestions,
+  selectedValue,
+  onChange,
+  cardRef,
+}: {
+  question: SurveyQuestionDefinition;
+  bundle: SurveyLanguageTranslations;
+  copy: PublicSurveyCopy;
+  globalNumber: number;
+  totalQuestions: number;
+  selectedValue: string | string[];
+  onChange: (value: string | string[]) => void;
+  cardRef: (el: HTMLElement | null) => void;
+}) {
+  const translation = bundle.questions[question.question_key] ?? {
+    title: question.question_key,
+  };
+  const fieldName = `question:${question.question_key}`;
+  const strValue = typeof selectedValue === "string" ? selectedValue : "";
+  const isAnswered = Array.isArray(selectedValue)
+    ? selectedValue.length > 0
+    : Boolean(selectedValue);
+
+  return (
+    <article
+      ref={cardRef}
+      className={`sf-question${isAnswered ? " sf-question--answered" : ""}`}
+    >
+      <p className="sf-question__index">
+        {globalNumber} / {totalQuestions}
+      </p>
+      <h2 className="sf-question__title">
+        {translation.title}
+        {question.required && (
+          <span className="sf-question__required" aria-label="required">
+            *
+          </span>
+        )}
+      </h2>
+      {translation.description && (
+        <p className="sf-question__desc">{translation.description}</p>
+      )}
+
+      {question.type === "rating_scale" && question.scale && (
+        <RatingScale
+          fieldName={fieldName}
+          scale={question.scale}
+          selectedValue={strValue}
+          onChange={onChange}
+        />
+      )}
+
+      {question.type === "single_choice" && question.options && (
+        <ChoiceOptions
+          fieldName={fieldName}
+          options={question.options.map((o) => ({
+            key: o.option_key,
+            label: translation.options?.[o.option_key] ?? o.option_key,
+          }))}
+          selectedValue={strValue}
+          onChange={onChange}
+        />
+      )}
+
+      {question.type === "multiple_choice" && question.options && (
+        <ChoiceOptions
+          fieldName={fieldName}
+          options={question.options.map((o) => ({
+            key: o.option_key,
+            label: translation.options?.[o.option_key] ?? o.option_key,
+          }))}
+          selectedValue={Array.isArray(selectedValue) ? selectedValue : []}
+          onChange={onChange}
+          isMultiple
+        />
+      )}
+
+      {question.type === "boolean" && (
+        <ChoiceOptions
+          fieldName={fieldName}
+          options={[
+            { key: "true", label: copy.yesLabel },
+            { key: "false", label: copy.noLabel },
+          ]}
+          selectedValue={strValue}
+          onChange={onChange}
+        />
+      )}
+
+      {question.type === "numeric" && (
+        <div className="sf-numeric">
+          <input
+            type="number"
+            name={fieldName}
+            value={strValue}
+            onChange={(e) => onChange(e.target.value)}
+            min={question.numeric?.min}
+            max={question.numeric?.max}
+            step="any"
+          />
+          {(question.numeric?.unit ||
+            (question.numeric?.min != null && question.numeric?.max != null)) && (
+            <p className="sf-numeric__meta">
+              {question.numeric.unit && <span>{question.numeric.unit}</span>}
+              {question.numeric.min != null && question.numeric.max != null && (
+                <span>
+                  {question.numeric.unit ? " · " : ""}
+                  {question.numeric.min}–{question.numeric.max}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
+      {question.type === "free_text" && (
+        <textarea
+          name={fieldName}
+          value={strValue}
+          onChange={(e) => onChange(e.target.value)}
+          rows={4}
+          className="sf-textarea"
+        />
+      )}
+    </article>
+  );
+}
+
+function ContextSection({
+  responseContext,
+  copy,
+  countryCode,
+  postalCode,
+  onCountryChange,
+  onPostalChange,
+}: {
+  responseContext: SurveyResponseContextConfig;
+  copy: PublicSurveyCopy;
+  countryCode: string;
+  postalCode: string;
+  onCountryChange: (v: string) => void;
+  onPostalChange: (v: string) => void;
+}) {
+  return (
+    <div className="sf-context-card">
+      <div>
+        <p className="sf-question__index">{copy.responseContextEyebrow}</p>
+        <h2 className="sf-question__title">{copy.responseContextTitle}</h2>
+        <p className="sf-question__desc">{copy.responseContextDescription}</p>
+      </div>
+
+      {responseContext.collect_country_code && (
+        <div className="sf-select">
+          <label>
+            <span className="sf-field-label">{copy.countryCodeLabel}</span>
+            <select
+              name="countryCode"
+              value={countryCode}
+              onChange={(e) => onCountryChange(e.target.value)}
+            >
+              <option value="">{copy.countryCodePlaceholder}</option>
+              {surveyCountryOptions.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label} ({c.code})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {responseContext.collect_postal_code && (
+        <div className="sf-postal-input">
+          <label>
+            <span className="sf-field-label">{copy.postalCodeLabel}</span>
+            <input
+              name="postalCode"
+              value={postalCode}
+              onChange={(e) => onPostalChange(e.target.value)}
+              placeholder={copy.postalCodePlaceholder}
+              maxLength={24}
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────
 
 export function PublicSurveyForm({
   linkToken,
-  selectedLanguage,
+  defaultLanguage,
+  initialLanguage,
+  hasExplicitLangParam,
+  supportedLanguages,
   questions,
-  bundle,
+  allBundles,
+  allCopy,
   responseContext,
-  copy,
   submitAction,
 }: PublicSurveyFormProps) {
-  const scrollToFirstInvalid = useCallback((form: HTMLFormElement) => {
-    const invalid = form.querySelector<HTMLElement>(":invalid");
-    const target = invalid?.closest(".survey-step") ?? invalid;
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
-    invalid?.focus();
-  }, []);
+  const formRef = useRef<HTMLFormElement>(null);
+  const questionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  return (
-    <form
-      action={submitAction}
-      className="survey-flow"
-      onSubmit={(event) => {
-        const form = event.currentTarget;
-        validateRequiredMultipleChoiceGroups(form);
+  const [language, setLanguage] = useState(initialLanguage);
+  const [phase, setPhase] = useState<"language" | "survey">(
+    supportedLanguages.length > 1 && !hasExplicitLangParam ? "language" : "survey",
+  );
+  const [currentBlock, setCurrentBlock] = useState(0);
+  const [selectedValues, setSelectedValues] = useState<AnswerValues>({});
+  const [countryCode, setCountryCode] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-        if (!form.checkValidity()) {
-          event.preventDefault();
-          scrollToFirstInvalid(form);
-          form.reportValidity();
-        }
-      }}
-      onChange={(event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLInputElement)) {
-          return;
-        }
+  const bundle = allBundles[language] ?? allBundles[defaultLanguage];
+  const copy = allCopy[language] ?? allCopy[defaultLanguage];
+  const blocks = computeBlocks(questions);
+  const totalQ = questions.length;
+  const isLastBlock = currentBlock === blocks.length - 1;
+  const progress =
+    blocks.length === 1 ? 100 : Math.round((currentBlock / (blocks.length - 1)) * 100);
 
-        if (target.type === "checkbox") {
-          const form = event.currentTarget;
-          validateRequiredMultipleChoiceGroups(form);
-        } else {
-          target.setCustomValidity("");
-        }
-      }}
-    >
-      <input type="hidden" name="linkToken" value={linkToken} />
-      <input type="hidden" name="submittedLanguage" value={selectedLanguage} />
+  function handleLanguageSelect(lang: string) {
+    setLanguage(lang);
+    setPhase("survey");
+  }
 
-      {questions.map((question, index) => {
-        const translation = getQuestionTranslation(bundle, question.question_key);
+  function handleAnswerChange(
+    questionKey: string,
+    value: string | string[],
+    shouldAutoScroll: boolean,
+  ) {
+    const wasAnswered =
+      selectedValues[questionKey] !== undefined && selectedValues[questionKey] !== "";
 
-        return (
-          <article key={question.question_key} className="surface-card survey-step">
-            <p className="section-header__eyebrow">
-              Step {index + 1} of {questions.length}
-            </p>
-            <h2>{translation.title}</h2>
-            {translation.description ? <p>{translation.description}</p> : null}
-            {renderQuestionInput(question, bundle, copy)}
-          </article>
-        );
-      })}
+    setSelectedValues((prev) => ({ ...prev, [questionKey]: value }));
+    setBlockError(null);
 
-      {(responseContext?.collect_country_code || responseContext?.collect_postal_code) && (
-        <section className="surface-card survey-step">
-          <p className="section-header__eyebrow">{copy.responseContextEyebrow}</p>
-          <h2>{copy.responseContextTitle}</h2>
-          <p>{copy.responseContextDescription}</p>
+    if (!shouldAutoScroll || wasAnswered) return;
 
-          {responseContext.collect_country_code ? (
-            <label className="field">
-              <span>{copy.countryCodeLabel}</span>
-              <select name="countryCode" defaultValue="" required>
-                <option value="" disabled>
-                  {copy.countryCodePlaceholder}
-                </option>
-                {surveyCountryOptions.map((country) => (
-                  <option key={country.code} value={country.code}>
-                    {country.label} ({country.code})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+    // Scroll to next unanswered question in the current block
+    const block = blocks[currentBlock];
+    const qIdx = block.findIndex((q) => q.question_key === questionKey);
+    if (qIdx === -1) return;
 
-          {responseContext.collect_postal_code ? (
-            <label className="field">
-              <span>{copy.postalCodeLabel}</span>
-              <input
-                name="postalCode"
-                placeholder={copy.postalCodePlaceholder}
-                maxLength={24}
-                required
-              />
-            </label>
-          ) : null}
-        </section>
-      )}
+    for (let i = qIdx + 1; i < block.length; i++) {
+      const nextQ = block[i];
+      const nextVal = selectedValues[nextQ.question_key];
+      const nextEmpty =
+        nextVal === undefined ||
+        nextVal === "" ||
+        (Array.isArray(nextVal) && nextVal.length === 0);
 
-      <div className="survey-submit">
-        <button type="submit" className="button button--primary">
-          {copy.submitLabel}
-        </button>
+      if (nextEmpty) {
+        setTimeout(() => {
+          questionRefs.current[nextQ.question_key]?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 360);
+        return;
+      }
+    }
+  }
+
+  function scrollToTop() {
+    setTimeout(() => {
+      containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 40);
+  }
+
+  function handleNext() {
+    const error = validateBlock(blocks[currentBlock], selectedValues);
+    if (error) {
+      setBlockError(error);
+      return;
+    }
+    setBlockError(null);
+    setCurrentBlock((b) => b + 1);
+    scrollToTop();
+  }
+
+  function handleBack() {
+    setBlockError(null);
+    setCurrentBlock((b) => Math.max(0, b - 1));
+    scrollToTop();
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    for (const block of blocks) {
+      const error = validateBlock(block, selectedValues);
+      if (error) {
+        setBlockError(error);
+        return;
+      }
+    }
+
+    if (responseContext?.collect_country_code && !countryCode) {
+      setBlockError(copy.countryCodeEmpty);
+      return;
+    }
+
+    setBlockError(null);
+    const formData = new FormData(e.currentTarget);
+
+    startTransition(async () => {
+      await submitAction(formData);
+    });
+  }
+
+  // ── Language picker phase ───────────────────────────────────────────────
+  if (phase === "language") {
+    return (
+      <div className="sf-shell">
+        <LanguagePickerScreen
+          languages={supportedLanguages}
+          onSelect={handleLanguageSelect}
+          copy={copy}
+        />
       </div>
-    </form>
+    );
+  }
+
+  // ── Survey phase ────────────────────────────────────────────────────────
+  return (
+    <div className="sf-shell">
+      <ProgressBar progress={progress} />
+
+      <div className="sf-container" ref={containerRef}>
+        <header className="sf-survey-header">
+          <p className="sf-survey-eyebrow">{copy.openSurveyEyebrow}</p>
+          <h1 className="sf-survey-title">
+            {bundle?.survey_title ?? ""}
+          </h1>
+          {bundle?.survey_description && (
+            <p className="sf-survey-desc">{bundle.survey_description}</p>
+          )}
+        </header>
+
+        <BlockDots count={blocks.length} current={currentBlock} />
+
+        <form ref={formRef} onSubmit={handleSubmit} noValidate>
+          <input type="hidden" name="linkToken" value={linkToken} />
+          <input type="hidden" name="submittedLanguage" value={language} />
+
+          {blocks.map((block, blockIdx) => (
+            <div
+              key={blockIdx}
+              className={`sf-block${blockIdx !== currentBlock ? " sf-block--hidden" : ""}`}
+              aria-hidden={blockIdx !== currentBlock ? true : undefined}
+            >
+              {block.map((question, qIdx) => {
+                const globalNum = getGlobalQuestionNumber(blocks, blockIdx, qIdx);
+                const value = selectedValues[question.question_key] ?? "";
+                const autoScroll =
+                  question.type === "single_choice" ||
+                  question.type === "rating_scale" ||
+                  question.type === "boolean";
+
+                return (
+                  <QuestionCard
+                    key={question.question_key}
+                    question={question}
+                    bundle={bundle}
+                    copy={copy}
+                    globalNumber={globalNum}
+                    totalQuestions={totalQ}
+                    selectedValue={value}
+                    onChange={(v) => handleAnswerChange(question.question_key, v, autoScroll)}
+                    cardRef={(el) => {
+                      questionRefs.current[question.question_key] = el;
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ))}
+
+          {isLastBlock && responseContext && (
+            <ContextSection
+              responseContext={responseContext}
+              copy={copy}
+              countryCode={countryCode}
+              postalCode={postalCode}
+              onCountryChange={setCountryCode}
+              onPostalChange={setPostalCode}
+            />
+          )}
+
+          {blockError && (
+            <div className="sf-error" role="alert">
+              {blockError}
+            </div>
+          )}
+
+          <div className="sf-nav">
+            <span className="sf-nav__progress-text">
+              {currentBlock + 1} / {blocks.length}
+            </span>
+            <div className="sf-nav-btns">
+              {currentBlock > 0 && (
+                <button
+                  type="button"
+                  className="sf-btn sf-btn--secondary"
+                  onClick={handleBack}
+                  disabled={isPending}
+                >
+                  {copy.backLabel}
+                </button>
+              )}
+              {!isLastBlock ? (
+                <button
+                  type="button"
+                  className="sf-btn sf-btn--primary"
+                  onClick={handleNext}
+                  disabled={isPending}
+                >
+                  {copy.nextLabel}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="sf-btn sf-btn--primary"
+                  disabled={isPending}
+                >
+                  {isPending ? "…" : copy.submitLabel}
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

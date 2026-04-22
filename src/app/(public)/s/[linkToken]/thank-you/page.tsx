@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/layout/page-header";
 import { getPublicSurveyCopy } from "@/features/surveys/public-copy";
 import { getPublicSurveyRuntimeByLinkToken } from "@/features/surveys/use-cases";
 
@@ -32,20 +31,20 @@ export default async function PublicSurveyThankYouPage({
   const copy = getPublicSurveyCopy(selectedLanguage);
 
   return (
-    <main className="public-survey-shell">
-      <section className="public-survey-container">
-        <PageHeader
-          eyebrow={copy.thankYouEyebrow}
-          title={copy.thankYouTitle}
-          description={copy.thankYouDescription}
-        />
-
-        <section className="surface-card public-thank-you">
-          <h2>{bundle?.survey_title ?? survey.name}</h2>
-          <p>{copy.thankYouBody}</p>
-          <p className="muted">{copy.thankYouProcessing}</p>
-        </section>
-      </section>
+    <main>
+      <div className="sf-shell">
+        <div className="sf-thankyou">
+          <div className="sf-thankyou__icon" aria-hidden="true">✓</div>
+          <p className="sf-thankyou__eyebrow">{copy.thankYouEyebrow}</p>
+          <h1 className="sf-thankyou__title">{copy.thankYouTitle}</h1>
+          <p className="sf-thankyou__sub">{copy.thankYouDescription}</p>
+          <div className="sf-thankyou__card">
+            <h3>{bundle?.survey_title ?? survey.name}</h3>
+            <p>{copy.thankYouBody}</p>
+            <p className="sf-thankyou__processing">{copy.thankYouProcessing}</p>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

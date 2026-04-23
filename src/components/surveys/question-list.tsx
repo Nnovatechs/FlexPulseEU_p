@@ -15,7 +15,7 @@ export function QuestionList({ questions }: QuestionListProps) {
               <h3>{question.title}</h3>
               <span className="meta-pill">{question.type}</span>
             </div>
-            <p>{question.description}</p>
+            <p>{question.description || "No description yet."}</p>
             <small>{question.required ? "Required" : "Optional"}</small>
           </div>
         </article>

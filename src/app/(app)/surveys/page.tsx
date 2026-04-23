@@ -11,10 +11,10 @@ export default async function SurveysPage() {
     <div className="page-stack">
       <PageHeader
         title="Survey library"
-        description="Draft, validated, and published surveys in a single structured view."
+        description="Draft, published, and archived surveys in one place."
         actions={
           <Link href={appRoutes.surveyNew} className="button button--primary">
-            Generate new survey
+            Create new survey
           </Link>
         }
       />

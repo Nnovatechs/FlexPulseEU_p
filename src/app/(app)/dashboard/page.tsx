@@ -15,7 +15,7 @@ export default async function DashboardPage() {
     <div className="page-stack">
       <PageHeader
         title="Surveys"
-        description="Created surveys, current status, and response activity in one place."
+        description="Created surveys, lifecycle status, and current draft inventory."
         actions={
           <Link href={appRoutes.surveyNew} className="button button--primary">
             Create new survey
@@ -33,25 +33,25 @@ export default async function DashboardPage() {
           {
             label: "Published",
             value: String(metrics.publishedSurveys),
-            hint: "Live survey links",
+            hint: "Published definitions",
           },
           {
             label: "Drafts",
             value: String(metrics.draftSurveys),
-            hint: "Pending refinement",
+            hint: "Editable surveys",
           },
           {
-            label: "Responses",
-            value: String(metrics.totalResponses),
-            hint: "Across all surveys",
+            label: "Questions",
+            value: String(metrics.totalQuestions),
+            hint: "Across all drafts and published surveys",
           },
         ]}
       />
 
       <section className="workspace-strip">
         <div className="workspace-strip__copy">
-          <h2>Survey operations</h2>
-          <p>Start a new survey or continue working across the existing portfolio.</p>
+          <h2>Survey workspace</h2>
+          <p>Create a new survey or continue refining an existing one.</p>
         </div>
         <div className="workspace-strip__actions">
           <Link href={appRoutes.surveyNew} className="button button--primary">

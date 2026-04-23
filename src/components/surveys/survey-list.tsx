@@ -8,6 +8,28 @@ type SurveyListProps = {
 };
 
 export function SurveyList({ surveys, title }: SurveyListProps) {
+  if (surveys.length === 0) {
+    return (
+      <section className="surface-card surface-card--dense">
+        {title ? (
+          <div className="list-header">
+            <div>
+              <h2>{title}</h2>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="empty-state">
+          <h3>No surveys yet</h3>
+          <p>Create the first survey to start shaping the workspace.</p>
+          <Link href={appRoutes.surveyNew} className="button button--primary">
+            Create new survey
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="surface-card surface-card--dense">
       {title ? (
@@ -25,9 +47,9 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
               <div className="survey-list__title">
                 <h3>{survey.title}</h3>
                 <p>
-                  {survey.stakeholderType} · {survey.sourceLanguage} ·{" "}
-                  {survey.targetLanguages.length} language
-                  {survey.targetLanguages.length > 1 ? "s" : ""}
+                  {survey.defaultLanguage} · {survey.supportedLanguages.length} language
+                  {survey.supportedLanguages.length > 1 ? "s" : ""} · {survey.questionCount} question
+                  {survey.questionCount === 1 ? "" : "s"}
                 </p>
               </div>
 
@@ -35,17 +57,18 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                 <span className={`status-pill status-pill--${survey.status.toLowerCase()}`}>
                   {survey.status}
                 </span>
-                <span className="meta-pill">{survey.responsesCount} responses</span>
+                <span className="meta-pill">{survey.mappingCount} mapping entries</span>
               </div>
             </div>
 
             <div className="survey-list__footer">
-              <div className="survey-card__concepts">
-                {survey.ontologyConcepts.map((concept) => (
-                  <span key={concept} className="tag">
-                    {concept}
+              <div className="survey-list__timestamps">
+                <span className="tag">Updated {new Date(survey.updatedAt).toLocaleDateString("en-GB")}</span>
+                {survey.publishedAt ? (
+                  <span className="tag">
+                    Published {new Date(survey.publishedAt).toLocaleDateString("en-GB")}
                   </span>
-                ))}
+                ) : null}
               </div>
 
               <div className="button-row">

@@ -30,3 +30,6 @@ pnpm-debug.log*
 
 # Internal development notes (never committed)
 docs/internal/
+
+# Local debug artifacts
+.tmp/

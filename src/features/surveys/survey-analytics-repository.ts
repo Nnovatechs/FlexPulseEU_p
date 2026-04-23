@@ -1,0 +1,191 @@
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getOwnedSurveyById } from "./generator-repository";
+import type { MapperOutput } from "./generator-types";
+import type { NormalizedLocationLevel } from "./response-enrichment";
+import type { SurveyAnalyticsRecord } from "./survey-analytics";
+
+type SurveyResponseRow = {
+  id: string;
+  responded_at: string;
+  survey_link_id: string | null;
+};
+
+type ResponseMappingRow = {
+  response_id: string;
+  mapper_output_json: MapperOutput;
+};
+
+type ResponseEnrichmentRow = {
+  response_id: string;
+  normalized_location_json: unknown;
+};
+
+type SurveyLinkLiteRow = {
+  id: string;
+  audience_token: string;
+  audience_label: string;
+};
+
+function isNormalizedLocationLevel(value: unknown): value is NormalizedLocationLevel {
+  return (
+    typeof value === "object" &&
+    value != null &&
+    typeof (value as { kind?: unknown }).kind === "string" &&
+    typeof (value as { code?: unknown }).code === "string" &&
+    typeof (value as { label?: unknown }).label === "string"
+  );
+}
+
+function parseLocationLevels(
+  normalizedLocationJson: unknown,
+  mapperOutput: MapperOutput,
+): NormalizedLocationLevel[] {
+  const levelsRaw =
+    typeof normalizedLocationJson === "object" && normalizedLocationJson != null
+      ? (normalizedLocationJson as { levels?: unknown }).levels
+      : null;
+
+  const levels = Array.isArray(levelsRaw)
+    ? levelsRaw.filter(isNormalizedLocationLevel)
+    : [];
+
+  if (levels.length > 0) {
+    return levels;
+  }
+
+  const fallbackLevels: NormalizedLocationLevel[] = [];
+  const countryCode = mapperOutput.context_metadata.country_code;
+  const bestLocation = mapperOutput.context_metadata.location;
+
+  if (countryCode) {
+    fallbackLevels.push({
+      kind: "country",
+      code: countryCode,
+      label: countryCode,
+      providerId: null,
+      centroidLat: bestLocation?.centroid_lat ?? null,
+      centroidLon: bestLocation?.centroid_lon ?? null,
+    });
+  }
+
+  if (
+    bestLocation?.agg_code &&
+    bestLocation.label &&
+    typeof bestLocation.granularity === "string"
+  ) {
+    const granularity = bestLocation.granularity as NormalizedLocationLevel["kind"];
+    fallbackLevels.push({
+      kind: granularity,
+      code: bestLocation.agg_code,
+      label: bestLocation.label,
+      providerId: null,
+      centroidLat: bestLocation.centroid_lat ?? null,
+      centroidLon: bestLocation.centroid_lon ?? null,
+    });
+  }
+
+  return fallbackLevels;
+}
+
+export async function loadOwnedSurveyAnalyticsRuntime(surveyId: string) {
+  const survey = await getOwnedSurveyById(surveyId);
+  const supabase = await createSupabaseServerClient();
+
+  const { data: responseRowsRaw, error: responseError } = await supabase
+    .from("survey_responses")
+    .select("id, responded_at, survey_link_id")
+    .eq("survey_id", surveyId)
+    .eq("pipeline_status", "ready")
+    .order("responded_at", { ascending: false });
+
+  if (responseError) {
+    throw new Error(`Failed to load survey analytics responses: ${responseError.message}`);
+  }
+
+  const responseRows = (responseRowsRaw ?? []) as SurveyResponseRow[];
+  if (responseRows.length === 0) {
+    return {
+      survey,
+      rows: [] as SurveyAnalyticsRecord[],
+    };
+  }
+
+  const responseIds = responseRows.map((row) => row.id);
+  const linkIds = Array.from(
+    new Set(
+      responseRows
+        .map((row) => row.survey_link_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+
+  const [{ data: mappingsRaw, error: mappingError }, { data: enrichmentsRaw, error: enrichmentError }] =
+    await Promise.all([
+      supabase
+        .from("response_mapping")
+        .select("response_id, mapper_output_json")
+        .in("response_id", responseIds),
+      supabase
+        .from("response_enrichment")
+        .select("response_id, normalized_location_json")
+        .in("response_id", responseIds),
+    ]);
+
+  if (mappingError) {
+    throw new Error(`Failed to load mapped responses: ${mappingError.message}`);
+  }
+
+  if (enrichmentError) {
+    throw new Error(`Failed to load enrichment records: ${enrichmentError.message}`);
+  }
+
+  const mappings = (mappingsRaw ?? []) as ResponseMappingRow[];
+  const enrichments = (enrichmentsRaw ?? []) as ResponseEnrichmentRow[];
+
+  let links: SurveyLinkLiteRow[] = [];
+  if (linkIds.length > 0) {
+    const { data: linksRaw, error: linkError } = await supabase
+      .from("survey_links")
+      .select("id, audience_token, audience_label")
+      .in("id", linkIds);
+
+    if (linkError) {
+      throw new Error(`Failed to load survey link metadata: ${linkError.message}`);
+    }
+
+    links = (linksRaw ?? []) as SurveyLinkLiteRow[];
+  }
+
+  const mappingsByResponseId = new Map(mappings.map((row) => [row.response_id, row.mapper_output_json]));
+  const enrichmentsByResponseId = new Map(
+    enrichments.map((row) => [row.response_id, row.normalized_location_json]),
+  );
+  const linksById = new Map(links.map((row) => [row.id, row]));
+
+  const rows = responseRows.flatMap((row) => {
+    const mapperOutput = mappingsByResponseId.get(row.id);
+    if (!mapperOutput) {
+      return [];
+    }
+
+    const link = row.survey_link_id ? linksById.get(row.survey_link_id) ?? null : null;
+    return [
+      {
+        response_id: row.id,
+        responded_at: row.responded_at,
+        audience_token: link?.audience_token ?? null,
+        audience_label: link?.audience_label ?? null,
+        mapper_output: mapperOutput,
+        location_levels: parseLocationLevels(
+          enrichmentsByResponseId.get(row.id) ?? null,
+          mapperOutput,
+        ),
+      } satisfies SurveyAnalyticsRecord,
+    ];
+  });
+
+  return {
+    survey,
+    rows,
+  };
+}

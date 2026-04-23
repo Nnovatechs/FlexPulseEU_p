@@ -7,6 +7,12 @@ import {
   listOwnedSurveys,
 } from "./generator-repository";
 import { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
+import {
+  buildSurveyAnalyticsSchema,
+  runSurveyAnalyticsQuery,
+  type SurveyAnalyticsQueryInput,
+} from "./survey-analytics";
+import { loadOwnedSurveyAnalyticsRuntime } from "./survey-analytics-repository";
 import { Survey } from "./types";
 
 function formatQuestionType(value: string) {
@@ -169,5 +175,30 @@ export async function getDashboardMetrics() {
       (accumulator, survey) => accumulator + survey.questionCount,
       0,
     ),
+  };
+}
+
+export async function getSurveyAnalyticsSchema(surveyId: string) {
+  const { survey, rows } = await loadOwnedSurveyAnalyticsRuntime(surveyId);
+  return buildSurveyAnalyticsSchema({
+    survey,
+    readyResponseCount: rows.length,
+  });
+}
+
+export async function runSurveyAnalytics(surveyId: string, query: SurveyAnalyticsQueryInput) {
+  const { survey, rows } = await loadOwnedSurveyAnalyticsRuntime(surveyId);
+  const schema = buildSurveyAnalyticsSchema({
+    survey,
+    readyResponseCount: rows.length,
+  });
+
+  return {
+    schema,
+    result: runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query,
+    }),
   };
 }

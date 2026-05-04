@@ -269,11 +269,19 @@ export function getGeneratorTargetConfig(
     (item) => item.ontology_target === ontologyTarget,
   );
 
-  if (!config) {
+  if (config) {
+    return config;
+  }
+
+  const concept = flexpulseBehaviouralSchemaV1.find(
+    (item) => item.schema_target === ontologyTarget,
+  );
+
+  if (!concept) {
     throw new Error(`Missing generator configuration for "${ontologyTarget}".`);
   }
 
-  return config;
+  return buildGeneratorTargetConfig(concept);
 }
 
 export function getGeneratorTargetConfigs(

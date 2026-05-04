@@ -72,4 +72,31 @@ describe("measurement planner prompt", () => {
     );
     expect(prompt.user).toContain("Fix those issues while preserving");
   });
+
+  it("allows context concepts to reach the planner as slot-free passthrough signals", () => {
+    const behaviouralConceptKeys = ["trust_in_automation", "country_code"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const prompt = buildMeasurementPlannerPrompt({
+      surveyName: "Context-aware trust survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      behaviouralConceptKeys,
+      schemaTargets,
+      configs,
+      baseMeasurementPlanBlueprint,
+    });
+
+    expect(prompt.user).toContain("country_code");
+    expect(prompt.user).toContain("evidence source: response_context");
+    expect(prompt.user).toContain("slot capacity max: 0");
+    expect(prompt.user).toContain("For context-only or quality-only concepts");
+  });
 });

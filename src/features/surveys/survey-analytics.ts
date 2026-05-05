@@ -61,6 +61,8 @@ export type SurveyAnalyticsFieldDefinition = {
   concept_key?: string;
   concept_role?: string;
   dimension?: string;
+  facet?: string;
+  evidence_level?: "interpretive_signal" | "facet_subscore";
 };
 
 export type SurveyAnalyticsSchema = {
@@ -182,6 +184,8 @@ function buildFieldDefinition(input: {
   concept_key?: string;
   concept_role?: string;
   dimension?: string;
+  facet?: string;
+  evidence_level?: "interpretive_signal" | "facet_subscore";
 }): SurveyAnalyticsFieldDefinition {
   return {
     key: input.key,
@@ -199,7 +203,19 @@ function buildFieldDefinition(input: {
     concept_key: input.concept_key,
     concept_role: input.concept_role,
     dimension: input.dimension,
+    facet: input.facet,
+    evidence_level: input.evidence_level,
   };
+}
+
+function getFacetEvidenceLevel(
+  entry: MeasurementPlanEntry,
+  facet: string,
+): "interpretive_signal" | "facet_subscore" {
+  const evidenceCount =
+    entry.question_intents?.filter((intent) => intent.facet === facet).length ?? 0;
+
+  return evidenceCount >= 2 ? "facet_subscore" : "interpretive_signal";
 }
 
 function buildProfileFieldDefinitions(survey: PersistedSurvey) {
@@ -231,8 +247,47 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
       dimension: concept.dimension,
     });
 
+    const facetFields = Array.from(
+      new Set((entry.question_intents ?? []).map((intent) => intent.facet)),
+    ).flatMap((facet) => {
+      const evidenceLevel = getFacetEvidenceLevel(entry, facet);
+      const descriptionPrefix =
+        evidenceLevel === "facet_subscore"
+          ? "Facet subscore"
+          : "Interpretive facet signal";
+
+      return [
+        buildFieldDefinition({
+          key: `profile.${entry.concept_key}.facets.${facet}.value`,
+          label: `${concept.label}: ${facet}`,
+          description: `${descriptionPrefix} for ${concept.label}. Concept scores remain canonical.`,
+          source: "profile",
+          valueType: entry.output_type as SurveyAnalyticsFieldType,
+          groupable: false,
+          concept_key: entry.concept_key,
+          concept_role: concept.concept_role,
+          dimension: concept.dimension,
+          facet,
+          evidence_level: evidenceLevel,
+        }),
+        buildFieldDefinition({
+          key: `profile.${entry.concept_key}.facets.${facet}.evidence_level`,
+          label: `${concept.label}: ${facet} evidence level`,
+          description:
+            "Whether this facet is a single interpretive signal or has enough planned evidence for a subscore.",
+          source: "profile",
+          valueType: "string",
+          concept_key: entry.concept_key,
+          concept_role: concept.concept_role,
+          dimension: concept.dimension,
+          facet,
+          evidence_level: evidenceLevel,
+        }),
+      ];
+    });
+
     if (!supportsTagField(entry)) {
-      return [valueField];
+      return [valueField, ...facetFields];
     }
 
     return [
@@ -247,6 +302,7 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
         concept_role: concept.concept_role,
         dimension: concept.dimension,
       }),
+      ...facetFields,
     ];
   });
 }
@@ -397,14 +453,26 @@ function getGeoLevel(
 }
 
 function parseProfileFieldKey(field: string) {
-  const match = /^profile\.([a-z0-9_]+)\.(value|tag)$/i.exec(field);
-  if (!match) {
+  const conceptMatch = /^profile\.([a-z0-9_]+)\.(value|tag)$/i.exec(field);
+  if (conceptMatch) {
+    return {
+      conceptKey: conceptMatch[1],
+      property: conceptMatch[2] as "value" | "tag",
+      facet: null,
+    };
+  }
+
+  const facetMatch = /^profile\.([a-z0-9_]+)\.facets\.([a-z0-9_]+)\.(value|evidence_level)$/i.exec(
+    field,
+  );
+  if (!facetMatch) {
     return null;
   }
 
   return {
-    conceptKey: match[1],
-    property: match[2] as "value" | "tag",
+    conceptKey: facetMatch[1],
+    facet: facetMatch[2],
+    property: facetMatch[3] as "value" | "evidence_level",
   };
 }
 
@@ -415,7 +483,10 @@ function getFieldValue(
   const profileField = parseProfileFieldKey(field);
   if (profileField) {
     const entry = record.mapper_output.profile[profileField.conceptKey];
-    return entry?.[profileField.property];
+    if (profileField.facet) {
+      return entry?.facets?.[profileField.facet]?.[profileField.property];
+    }
+    return entry?.[profileField.property as "value" | "tag"];
   }
 
   switch (field) {

@@ -143,6 +143,7 @@ export function buildMeasurementPlannerOutputJsonSchema(
                       facet: {
                         type: "string",
                         minLength: 1,
+                        pattern: "^[a-z][a-z0-9_]*$",
                       },
                       intent: {
                         type: "string",

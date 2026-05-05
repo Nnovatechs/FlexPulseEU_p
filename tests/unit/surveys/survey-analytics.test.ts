@@ -33,6 +33,22 @@ function buildSurveyFixture(): PersistedSurvey {
         minimum_answer_count: 2,
         question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
         required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+        question_intents: [
+          {
+            slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+            question_key: "Q_TRUST_01",
+            facet: "reliability",
+            intent: "Measure reliability trust.",
+            polarity: "positive",
+          },
+          {
+            slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+            question_key: "Q_TRUST_02",
+            facet: "delegation",
+            intent: "Measure willingness to delegate.",
+            polarity: "positive",
+          },
+        ],
       },
       {
         concept_key: "owned_der_assets",
@@ -83,6 +99,13 @@ function buildMapperOutput(input: {
       trust_in_automation: {
         value: input.trust,
         tag: input.trustTag,
+        facets: {
+          reliability: {
+            value: input.trust,
+            evidence_count: 1,
+            evidence_level: "interpretive_signal",
+          },
+        },
       },
       owned_der_assets: {
         value: input.assets,
@@ -190,6 +213,12 @@ describe("survey analytics", () => {
           source: "profile",
         }),
         expect.objectContaining({
+          key: "profile.trust_in_automation.facets.reliability.value",
+          value_type: "number",
+          evidence_level: "interpretive_signal",
+          source: "profile",
+        }),
+        expect.objectContaining({
           key: "profile.owned_der_assets.value",
           value_type: "string[]",
           source: "profile",
@@ -294,6 +323,11 @@ describe("survey analytics", () => {
           { key: "responses", kind: "count" },
           { key: "avg_trust", kind: "average", field: "profile.trust_in_automation.value" },
           {
+            key: "avg_reliability_signal",
+            kind: "average",
+            field: "profile.trust_in_automation.facets.reliability.value",
+          },
+          {
             key: "share_high_trust",
             kind: "share_equals",
             field: "profile.trust_in_automation.tag",
@@ -310,6 +344,11 @@ describe("survey analytics", () => {
         metrics: {
           responses: { kind: "count", value: 2, sample_size: 2 },
           avg_trust: { kind: "average", value: 4.25, sample_size: 2 },
+          avg_reliability_signal: {
+            kind: "average",
+            value: 4.25,
+            sample_size: 2,
+          },
           share_high_trust: {
             kind: "share_equals",
             value: 1,
@@ -324,6 +363,11 @@ describe("survey analytics", () => {
         metrics: {
           responses: { kind: "count", value: 1, sample_size: 1 },
           avg_trust: { kind: "average", value: 2, sample_size: 1 },
+          avg_reliability_signal: {
+            kind: "average",
+            value: 2,
+            sample_size: 1,
+          },
           share_high_trust: {
             kind: "share_equals",
             value: 0,

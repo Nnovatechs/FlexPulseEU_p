@@ -87,7 +87,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure awareness as more than self-confidence when possible: distinguish perceived understanding, recognition of grid/load-shifting concepts, and ability to explain personal relevance. Avoid drifting into trust, acceptance, or environmental motivation.",
+      "Measure awareness as more than self-confidence when possible: distinguish perceived understanding, concrete recognition of shiftable household loads, and applied understanding of what automation can or cannot change. Avoid using ability to explain as a proxy for awareness when explainability_need is also selected. Avoid drifting into trust, acceptance, or environmental motivation.",
   },
   flexibility_willingness: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
@@ -115,7 +115,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure trust in system competence and delegation under realistic safeguards. Distinguish reliability, predictability, willingness to delegate, oversight need, and trust after minor mistakes. Avoid contaminating this with thermal comfort, incentives, savings, or general technology enthusiasm.",
+      "Measure trust in system competence and delegation under realistic safeguards. Distinguish reliability, predictability, willingness to delegate, oversight need, and trust after minor mistakes. Keep each slot single-focus: do not merge predictability with understandability, delegation with boundary-setting, or mistake tolerance with ease of correction unless that trade-off is explicitly the slot intent. Avoid contaminating this with thermal comfort, incentives, savings, or general technology enthusiasm.",
   },
   der_engagement: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],

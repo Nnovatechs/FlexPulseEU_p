@@ -204,6 +204,18 @@ describe("response mapper", () => {
       trust_in_automation: {
         value: 4.5,
         tag: "high",
+        facets: {
+          reliability: {
+            value: 4,
+            evidence_count: 1,
+            evidence_level: "interpretive_signal",
+          },
+          delegation: {
+            value: 5,
+            evidence_count: 1,
+            evidence_level: "interpretive_signal",
+          },
+        },
       },
       owned_der_assets: {
         value: ["heat_pump", "ev"],

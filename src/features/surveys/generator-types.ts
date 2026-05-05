@@ -223,6 +223,14 @@ export type MapperProfileTag = "low" | "medium" | "high";
 export type MapperProfileEntry = {
   value: string | number | boolean | string[] | number[] | null;
   tag?: MapperProfileTag;
+  facets?: Record<
+    string,
+    {
+      value: string | number | boolean | string[] | number[] | null;
+      evidence_count: number;
+      evidence_level: "interpretive_signal" | "facet_subscore";
+    }
+  >;
 };
 
 export type MapperContextMetadata = {

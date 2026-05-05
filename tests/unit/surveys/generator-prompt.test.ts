@@ -45,6 +45,8 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain("Application context:");
     expect(prompt.user).toContain("Server-provided planning envelope:");
     expect(prompt.user).toContain("slot_count");
+    expect(prompt.user).toContain("Concept scores remain canonical downstream");
+    expect(prompt.user).toContain("interpretive signal");
     expect(prompt.user).not.toContain("Recommended visible question budget");
     expect(prompt.user).not.toContain("target 3");
   });

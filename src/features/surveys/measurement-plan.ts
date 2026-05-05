@@ -304,6 +304,11 @@ export function applyMeasurementPlannerOutput(
             `Planner returned an empty slot intent for concept "${entry.concept_key}".`,
           );
         }
+        if (!/^[a-z][a-z0-9_]*$/.test(slotIntent.facet)) {
+          throw new Error(
+            `Planner returned invalid facet label "${slotIntent.facet}" for concept "${entry.concept_key}".`,
+          );
+        }
       }
       assertMeasurementTypeAllowed(
         entry.concept_key,

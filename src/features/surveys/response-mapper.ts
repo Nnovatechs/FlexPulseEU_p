@@ -163,20 +163,35 @@ function applyQuestionPolarity(
   return min + max - value;
 }
 
-function aggregateQuestionValues(
+function getQuestionValues(
   concept: MeasurementPlanEntry,
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
 ) {
-  const values = concept.question_keys
+  return concept.question_keys
     .map((questionKey) => {
       const mapping = compiledMapping.by_question_key[questionKey];
       const value = applyTransformStrategy(answers[questionKey], mapping);
 
-      return applyQuestionPolarity(questionKey, value, concept, mapping);
+      return {
+        questionKey,
+        value: applyQuestionPolarity(questionKey, value, concept, mapping),
+      };
     })
-    .filter((value): value is string | number | boolean | string[] | number[] => value != null);
+    .filter(
+      (
+        item,
+      ): item is {
+        questionKey: string;
+        value: string | number | boolean | string[] | number[];
+      } => item.value != null,
+    );
+}
 
+function aggregateValues(
+  values: Array<string | number | boolean | string[] | number[]>,
+  concept: MeasurementPlanEntry,
+) {
   if (values.length < concept.minimum_answer_count) {
     return null;
   }
@@ -216,6 +231,67 @@ function aggregateQuestionValues(
   }
 }
 
+function aggregateQuestionValues(
+  concept: MeasurementPlanEntry,
+  compiledMapping: CompiledMappingContract,
+  answers: Record<string, SubmittedSurveyAnswer>,
+) {
+  const values = getQuestionValues(concept, compiledMapping, answers).map(
+    (item) => item.value,
+  );
+
+  return aggregateValues(values, concept);
+}
+
+function buildFacetSignals(
+  concept: MeasurementPlanEntry,
+  compiledMapping: CompiledMappingContract,
+  answers: Record<string, SubmittedSurveyAnswer>,
+): MapperOutput["profile"][string]["facets"] {
+  const questionValues = getQuestionValues(concept, compiledMapping, answers);
+  const intentsByQuestion = new Map(
+    (concept.question_intents ?? []).map((intent) => [intent.question_key, intent]),
+  );
+  const valuesByFacet = new Map<
+    string,
+    Array<string | number | boolean | string[] | number[]>
+  >();
+
+  for (const item of questionValues) {
+    const intent = intentsByQuestion.get(item.questionKey);
+    if (!intent?.facet.trim()) {
+      continue;
+    }
+
+    const values = valuesByFacet.get(intent.facet) ?? [];
+    values.push(item.value);
+    valuesByFacet.set(intent.facet, values);
+  }
+
+  if (valuesByFacet.size === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Array.from(valuesByFacet.entries()).map(([facet, values]) => {
+      const evidenceLevel: "interpretive_signal" | "facet_subscore" =
+        values.length >= 2 ? "facet_subscore" : "interpretive_signal";
+
+      return [
+        facet,
+        {
+          value:
+            values.length >= 2
+              ? aggregateValues(values, { ...concept, minimum_answer_count: values.length })
+              : values[0],
+          evidence_count: values.length,
+          evidence_level: evidenceLevel,
+        },
+      ];
+    }),
+  );
+}
+
 function buildProfile(
   input: ResponseMapperInput,
   compiledMapping: CompiledMappingContract,
@@ -239,12 +315,17 @@ function buildProfile(
       .map((concept) => {
         const value = aggregateQuestionValues(concept, compiledMapping, input.answers);
         const tag = deriveTag(value, concept.threshold_profile);
+        const facets =
+          value == null
+            ? undefined
+            : buildFacetSignals(concept, compiledMapping, input.answers);
 
         return [
           concept.concept_key,
           {
             value,
             ...(tag ? { tag } : {}),
+            ...(facets ? { facets } : {}),
           },
         ];
       }),

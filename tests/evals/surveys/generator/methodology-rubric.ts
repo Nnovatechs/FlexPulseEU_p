@@ -94,6 +94,7 @@ function summarizeProposal(proposal: GeneratedSurveyDraftProposal) {
       concept_key: concept.concept_key,
       measurement_type: concept.measurement_type,
       question_keys: concept.question_keys,
+      question_intents: concept.question_intents ?? [],
       aggregation_rule: concept.aggregation_rule,
     })),
   };

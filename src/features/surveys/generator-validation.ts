@@ -243,6 +243,16 @@ function validateMeasurementPlanAlignment(
       );
     }
 
+    const questionIntents = concept.question_intents ?? [];
+    if (questionIntents.length > 0 && questionIntents.length !== concept.question_keys.length) {
+      addIssue(
+        issues,
+        "question_intents_mismatch",
+        `${basePath}.question_intents`,
+        `Concept "${concept.concept_key}" must carry one question intent per materialized question.`,
+      );
+    }
+
     const compatibleQuestionTypes = getCompatibleQuestionTypes(concept.measurement_type);
 
     for (const questionKey of concept.question_keys) {

@@ -6,6 +6,14 @@ import {
   materializeMeasurementPlan,
 } from "@/features/surveys/measurement-plan";
 
+function slotIntents(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    facet: `facet_${index + 1}`,
+    intent: `Measure facet ${index + 1}.`,
+    polarity: "positive" as const,
+  }));
+}
+
 describe("measurement plan", () => {
   it("creates survey-question slots for primary profile axes", () => {
     const blueprint = createMeasurementPlanBlueprint(["trust_in_automation"]);
@@ -57,6 +65,7 @@ describe("measurement plan", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 4,
+            slot_intents: slotIntents(4),
           },
         ],
       },
@@ -83,6 +92,24 @@ describe("measurement plan", () => {
         "Q_FLEXIBILITY_WILLINGNESS_04",
       ],
       minimum_answer_count: 4,
+      question_intents: [
+        expect.objectContaining({
+          question_key: "Q_FLEXIBILITY_WILLINGNESS_01",
+          facet: "facet_1",
+        }),
+        expect.objectContaining({
+          question_key: "Q_FLEXIBILITY_WILLINGNESS_02",
+          facet: "facet_2",
+        }),
+        expect.objectContaining({
+          question_key: "Q_FLEXIBILITY_WILLINGNESS_03",
+          facet: "facet_3",
+        }),
+        expect.objectContaining({
+          question_key: "Q_FLEXIBILITY_WILLINGNESS_04",
+          facet: "facet_4",
+        }),
+      ],
     });
   });
 
@@ -96,6 +123,7 @@ describe("measurement plan", () => {
           aggregation_rule: "median",
           threshold_profile: "likert_1_5_low_mid_high",
           slot_count: 2,
+          slot_intents: slotIntents(2),
         },
       ],
     });
@@ -106,9 +134,15 @@ describe("measurement plan", () => {
       question_slots: [
         {
           slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+          facet: "facet_1",
+          intent: "Measure facet 1.",
+          polarity: "positive",
         },
         {
           slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+          facet: "facet_2",
+          intent: "Measure facet 2.",
+          polarity: "positive",
         },
       ],
     });
@@ -129,6 +163,7 @@ describe("measurement plan", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
+            slot_intents: slotIntents(2),
           },
         ],
       }),
@@ -147,6 +182,7 @@ describe("measurement plan", () => {
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
+            slot_intents: slotIntents(2),
           },
         ],
       }),

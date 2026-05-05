@@ -141,6 +141,13 @@ export type MeasurementPlanEntry = {
   minimum_answer_count: number;
   question_keys: string[];
   required_question_keys: string[];
+  question_intents?: {
+    slot_key: string;
+    question_key: string;
+    facet: string;
+    intent: string;
+    polarity: "positive" | "negative" | "neutral";
+  }[];
   source_paths?: string[];
 };
 

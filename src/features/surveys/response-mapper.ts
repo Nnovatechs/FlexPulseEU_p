@@ -137,15 +137,44 @@ function deriveTag(
   return undefined;
 }
 
+function applyQuestionPolarity(
+  questionKey: string,
+  value: string | number | boolean | string[] | number[] | null,
+  concept: MeasurementPlanEntry,
+  mapping: SurveyMappingDefinition,
+) {
+  const questionIntent = concept.question_intents?.find(
+    (intent) => intent.question_key === questionKey,
+  );
+
+  if (
+    questionIntent?.polarity !== "negative" ||
+    typeof value !== "number" ||
+    mapping.transform_strategy.kind !== "numeric_range"
+  ) {
+    return value;
+  }
+
+  const { min, max } = mapping.transform_strategy;
+  if (typeof min !== "number" || typeof max !== "number") {
+    return value;
+  }
+
+  return min + max - value;
+}
+
 function aggregateQuestionValues(
   concept: MeasurementPlanEntry,
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
 ) {
   const values = concept.question_keys
-    .map((questionKey) =>
-      applyTransformStrategy(answers[questionKey], compiledMapping.by_question_key[questionKey]),
-    )
+    .map((questionKey) => {
+      const mapping = compiledMapping.by_question_key[questionKey];
+      const value = applyTransformStrategy(answers[questionKey], mapping);
+
+      return applyQuestionPolarity(questionKey, value, concept, mapping);
+    })
     .filter((value): value is string | number | boolean | string[] | number[] => value != null);
 
   if (values.length < concept.minimum_answer_count) {

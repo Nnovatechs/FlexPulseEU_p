@@ -6,6 +6,14 @@ import {
 import { createInitialSurveyDefinition } from "@/features/surveys/generator-types";
 import { transformGeneratedSurvey } from "@/features/surveys/generator-transform";
 
+function slotIntents(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    facet: `facet_${index + 1}`,
+    intent: `Measure facet ${index + 1}.`,
+    polarity: "positive" as const,
+  }));
+}
+
 describe("generator transform", () => {
   it("creates unique question keys when multiple questions share the same ontology target", () => {
     const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
@@ -19,6 +27,7 @@ describe("generator transform", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
+            slot_intents: slotIntents(2),
           },
         ],
       },
@@ -102,6 +111,7 @@ describe("generator transform", () => {
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 1,
+            slot_intents: slotIntents(1),
           },
         ],
       },

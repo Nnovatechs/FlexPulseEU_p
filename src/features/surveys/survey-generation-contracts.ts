@@ -64,6 +64,11 @@ export type MeasurementPlannerLLMConcept = {
     | "enum_identity"
     | "asset_inventory";
   slot_count: number;
+  slot_intents: {
+    facet: string;
+    intent: string;
+    polarity: "positive" | "negative" | "neutral";
+  }[];
 };
 
 export type MeasurementPlannerLLMOutput = {
@@ -95,6 +100,7 @@ export function buildMeasurementPlannerOutputJsonSchema(
                 "aggregation_rule",
                 "threshold_profile",
                 "slot_count",
+                "slot_intents",
               ],
               properties: {
                 concept_key: {
@@ -124,6 +130,30 @@ export function buildMeasurementPlannerOutputJsonSchema(
                   type: "integer",
                   minimum: 0,
                   maximum: concept.slot_capacity_max,
+                },
+                slot_intents: {
+                  type: "array",
+                  minItems: 0,
+                  maxItems: concept.slot_capacity_max,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["facet", "intent", "polarity"],
+                    properties: {
+                      facet: {
+                        type: "string",
+                        minLength: 1,
+                      },
+                      intent: {
+                        type: "string",
+                        minLength: 1,
+                      },
+                      polarity: {
+                        type: "string",
+                        enum: ["positive", "negative", "neutral"],
+                      },
+                    },
+                  },
                 },
               },
             })),

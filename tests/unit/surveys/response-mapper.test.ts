@@ -58,6 +58,22 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         minimum_answer_count: 2,
         question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
         required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+        question_intents: [
+          {
+            slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+            question_key: "Q_TRUST_01",
+            facet: "reliability",
+            intent: "Measure trust in reliability.",
+            polarity: "positive",
+          },
+          {
+            slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+            question_key: "Q_TRUST_02",
+            facet: "delegation",
+            intent: "Measure willingness to delegate.",
+            polarity: "positive",
+          },
+        ],
       },
       {
         concept_key: "owned_der_assets",
@@ -69,6 +85,7 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         minimum_answer_count: 1,
         question_keys: ["Q_DER_01"],
         required_question_keys: ["Q_DER_01"],
+        question_intents: [],
       },
       {
         concept_key: "country_code",
@@ -80,6 +97,7 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         minimum_answer_count: 0,
         question_keys: [],
         required_question_keys: [],
+        question_intents: [],
         source_paths: ["response_context.country_code"],
       },
       {
@@ -92,6 +110,7 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         minimum_answer_count: 0,
         question_keys: [],
         required_question_keys: [],
+        question_intents: [],
         source_paths: ["response_enrichment.outdoor_temperature_c"],
       },
     ],
@@ -234,5 +253,37 @@ describe("response mapper", () => {
     expect(output.context_metadata.country_code).toBe("HR");
     expect(output.context_metadata.location).toBeNull();
     expect(output.context_metadata.climate).toBeNull();
+  });
+
+  it("reverse-codes negative-polarity numeric items before aggregation", () => {
+    const survey = buildPublishedSurveyFixture();
+    const trustConcept =
+      survey.definition_json.survey_meta.measurement_plan_json?.concepts.find(
+        (concept) => concept.concept_key === "trust_in_automation",
+      );
+
+    if (!trustConcept?.question_intents) {
+      throw new Error("Missing trust question intents in fixture.");
+    }
+
+    trustConcept.question_intents[1].polarity = "negative";
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_01: 5,
+        Q_TRUST_02: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation).toMatchObject({
+      value: 3,
+      tag: "medium",
+    });
   });
 });

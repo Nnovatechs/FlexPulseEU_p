@@ -29,6 +29,13 @@ export type MeasurementType =
 
 export type MeasurementPlanQuestionSlot = {
   slot_key: string;
+  facet: string;
+  intent: string;
+  polarity: "positive" | "negative" | "neutral";
+};
+
+export type MeasurementPlanQuestionIntent = MeasurementPlanQuestionSlot & {
+  question_key: string;
 };
 
 export type MeasurementPlanBaseBlueprintEntry = {
@@ -70,6 +77,7 @@ export type MeasurementPlanEntry = {
   minimum_answer_count: number;
   question_keys: string[];
   required_question_keys: string[];
+  question_intents: MeasurementPlanQuestionIntent[];
   source_paths?: string[];
 };
 
@@ -203,15 +211,20 @@ function deriveSourcePaths(
 
 function buildQuestionSlots(
   conceptKey: string,
-  slotCount: number,
+  slotIntents: MeasurementPlannerLLMOutput["concepts"][number]["slot_intents"],
 ): MeasurementPlanQuestionSlot[] {
+  const slotCount = slotIntents.length;
+
   if (slotCount === 0) {
     return [];
   }
 
   const prefix = toSlotPrefix(conceptKey);
-  return Array.from({ length: slotCount }, (_, index) => ({
+  return slotIntents.map((slotIntent, index) => ({
     slot_key: `SLOT_${prefix}_${String(index + 1).padStart(2, "0")}`,
+    facet: slotIntent.facet.trim(),
+    intent: slotIntent.intent.trim(),
+    polarity: slotIntent.polarity,
   }));
 }
 
@@ -280,6 +293,18 @@ export function applyMeasurementPlannerOutput(
           `Planner exceeded slot capacity for concept "${entry.concept_key}".`,
         );
       }
+      if (planned.slot_intents.length !== planned.slot_count) {
+        throw new Error(
+          `Planner must return exactly one slot intent per planned question slot for concept "${entry.concept_key}".`,
+        );
+      }
+      for (const slotIntent of planned.slot_intents) {
+        if (!slotIntent.facet.trim() || !slotIntent.intent.trim()) {
+          throw new Error(
+            `Planner returned an empty slot intent for concept "${entry.concept_key}".`,
+          );
+        }
+      }
       assertMeasurementTypeAllowed(
         entry.concept_key,
         planned.measurement_type,
@@ -298,7 +323,7 @@ export function applyMeasurementPlannerOutput(
         threshold_profile: planned.threshold_profile,
         minimum_answer_count:
           entry.evidence_source === "survey_questions" ? planned.slot_count : 0,
-        question_slots: buildQuestionSlots(entry.concept_key, planned.slot_count),
+        question_slots: buildQuestionSlots(entry.concept_key, planned.slot_intents),
       };
     }),
   };
@@ -319,6 +344,10 @@ export function materializeMeasurementPlan(
         }
         return boundQuestionKey;
       });
+      const question_intents = entry.question_slots.map((slot) => ({
+        ...slot,
+        question_key: questionKeyBindings[slot.slot_key],
+      }));
 
       return {
         concept_key: entry.concept_key,
@@ -330,6 +359,7 @@ export function materializeMeasurementPlan(
         minimum_answer_count: entry.minimum_answer_count,
         question_keys,
         required_question_keys: question_keys,
+        question_intents,
         source_paths: entry.source_paths,
       };
     }),
@@ -362,6 +392,7 @@ export function createMeasurementPlanFromMappings(
           minimum_answer_count: 0,
           question_keys: [],
           required_question_keys: [],
+          question_intents: [],
           source_paths: entry.source_paths,
         };
       }
@@ -409,6 +440,7 @@ export function createMeasurementPlanFromMappings(
         minimum_answer_count,
         question_keys,
         required_question_keys: question_keys,
+        question_intents: [],
         source_paths: entry.source_paths,
       };
     }),

@@ -137,10 +137,10 @@ function getPreferredTariffOptionLabel(option: SurveyGeneratorLLMQuestion["optio
   if (hasAny(["time_of_use", "tou", "off_peak", "cheaper", "certain_times"])) {
     return "Cheaper electricity at certain times of day";
   }
-  if (hasAny(["shift_reward", "shift_rewards", "reward", "flexibility_reward"])) {
+  if (hasAny(["shift", "shift_reward", "shift_rewards", "reward", "flexibility_reward"])) {
     return "Rewards for shifting use when asked";
   }
-  if (hasAny(["dynamic", "variable", "market", "risk"])) {
+  if (hasAny(["dynamic", "variable", "market", "risk", "frequent", "changing"])) {
     return "Prices change often, with more risk and possible savings";
   }
   if (hasAny(["not_sure", "unsure", "dont_know", "need_more_information"])) {

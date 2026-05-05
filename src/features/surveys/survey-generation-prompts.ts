@@ -97,7 +97,7 @@ export function buildSurveyGeneratorPrompt(
     "Write from the household respondent's point of view: decisions, routines, comfort, control, money, effort, and willingness.",
     "Prefer concrete household actions over system abstractions, such as delaying laundry, running the dishwasher later, charging a device later, or allowing a short heating/cooling adjustment.",
     "Every item must have a plain respondent meaning: a household subject, a concrete action or judgement, and a reason, condition, or trade-off when the concept needs one.",
-    "Before returning an item, check that it can be paraphrased naturally in simple Spanish; if the literal paraphrase sounds awkward or unclear, rewrite the English.",
+    "Before returning an item, check that it sounds natural, direct, and unambiguous in the selected canonical language.",
     "Use one primary domain per item. Do not combine appliance delays, temperature changes, tariffs, bills, and automation control in the same question unless the slot intent explicitly asks for that trade-off.",
     "Avoid bureaucratic, vague, or system-first phrases such as 'some electricity use', 'certain uses', 'when needed', 'normal home life', 'a programme asked us', 'provide flexibility', 'positively affect the grid', or 'operational adjustments'.",
     "Optimize wording quality while preserving the planner's measurement intent; if an intent is abstract, realize it as the clearest concrete household scenario that still measures the same construct.",

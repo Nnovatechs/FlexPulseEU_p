@@ -150,14 +150,14 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
     prompt_notes:
-      "Measure tolerance for repeated requests or automated adjustments. The core signal is frequency, so every item should include a frequency anchor such as several times per week or a few times per month. Duration can be mentioned only as a condition inside a repeated-event item, not as a standalone duration-tolerance item. Distinguish frequency and cumulative disruption. Do not use advance notice or predictability as a proxy for frequency tolerance unless the slot intent explicitly asks for predictability.",
+      "Measure tolerance for repeated requests or automated adjustments. When this concept is selected with comfort or override concepts, prefer 3 distinct items if capacity allows: acceptable weekly frequency, cumulative annoyance over time, and a negative-polarity item about repeated events becoming too disruptive. The core signal is frequency, so every item should include a frequency anchor such as several times per week or a few times per month. Duration can be mentioned only as a condition inside a repeated-event item, not as a standalone duration-tolerance item. Do not use advance notice or predictability as a proxy for frequency tolerance unless the slot intent explicitly asks for predictability.",
   },
   savings_motivation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
     prompt_notes:
-      "Measure motivation to save money on household energy. Use one decision context per item: lower bill, euro savings, reward, discount, switching plan for savings, or accepting a delay for savings. Do not combine choosing a tariff with shifting usage in the same item. When this is a central economic concept, prefer 3 distinct items if capacity allows: importance of savings, active effort to reduce costs, and acceptable inconvenience for savings. Avoid measuring generic flexibility willingness, tariff preference, or bill predictability.",
+      "Measure motivation to save money on household energy. Use one decision context per item: lower bill, euro savings, reward, discount, switching plan for savings, monitoring usage for savings, or accepting a delay for savings. Do not combine choosing a tariff with shifting usage in the same item. Do not combine monitoring usage with changing routines in the same item. When this is a central economic concept, prefer 3 distinct items if capacity allows: importance of savings, active effort to reduce costs, and one clean trade-off item. Avoid measuring generic flexibility willingness, tariff preference, or bill predictability.",
   },
   routine_dependency: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],

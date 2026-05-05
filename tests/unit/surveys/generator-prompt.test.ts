@@ -178,7 +178,7 @@ describe("measurement planner prompt", () => {
       "Write from the household respondent's point of view",
     );
     expect(writerPrompt.system).toContain(
-      "paraphrased naturally in simple Spanish",
+      "selected canonical language",
     );
     expect(writerPrompt.system).toContain("Use one primary domain per item");
     expect(writerPrompt.system).toContain(

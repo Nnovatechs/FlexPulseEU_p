@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getOpenAIEnv } from "@/lib/llm/env";
+import { getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
 import type { GeneratedSurveyDraftProposal } from "@/features/surveys/survey-generation-flow";
 import type { GeneratorEvalFixture } from "../../../fixtures/surveys/generator/generator-eval-fixtures";
 
@@ -92,6 +93,7 @@ function summarizeProposal(proposal: GeneratedSurveyDraftProposal) {
     })),
     measurement_plan: proposal.measurementPlan.concepts.map((concept) => ({
       concept_key: concept.concept_key,
+      concept_role: getFlexpulseBehaviouralConcept(concept.concept_key)?.concept_role,
       measurement_type: concept.measurement_type,
       question_keys: concept.question_keys,
       question_intents: concept.question_intents ?? [],
@@ -154,9 +156,9 @@ export async function evaluateGeneratedSurveyMethodology(input: {
               constructAlignment:
                 "Do items measure the intended construct rather than adjacent constructs?",
               measurementDepthAdequacy:
-                "Does each behavioural or psychological construct have enough distinct items for a defensible profiling signal, considering the fixture purpose?",
+                "Does each behavioural or psychological construct have enough distinct items for a defensible profiling signal, considering the fixture purpose? Do not penalize a factual applicability_factor or enum preference for being single-item if the option wording is clear and analyzable.",
               questionClarity:
-                "Are respondent-facing items concrete, clear, non-technical, naturally worded, and answerable? Penalize vague phrases like 'some electricity use', 'certain uses', 'when needed', or items that would sound awkward if paraphrased into plain Spanish.",
+                "Are respondent-facing items concrete, clear, non-technical, naturally worded in the canonical language, and answerable? Penalize vague phrases like 'some electricity use', 'certain uses', 'when needed', or items whose measurement purpose is not obvious to a non-expert respondent.",
               doubleBarrelSafety:
                 "High score means low double-barrel risk; each item asks one thing.",
               responseFormatFit:

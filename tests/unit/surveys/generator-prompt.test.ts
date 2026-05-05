@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { getGeneratorTargetConfigs } from "@/features/surveys/generator-config";
-import { buildMeasurementPlannerPrompt } from "@/features/surveys/survey-generation-prompts";
+import {
+  buildMeasurementPlannerPrompt,
+  buildSurveyGeneratorPrompt,
+} from "@/features/surveys/survey-generation-prompts";
 import { createMeasurementPlanBlueprint } from "@/features/surveys/measurement-plan";
 
 describe("measurement planner prompt", () => {
@@ -35,6 +38,9 @@ describe("measurement planner prompt", () => {
     expect(prompt.system).toContain("Completion criterion:");
     expect(prompt.system).toContain(
       "the system is not providing a recommended total question budget",
+    );
+    expect(prompt.user).toContain(
+      "explicitly protect their boundaries when choosing slot_count",
     );
     expect(prompt.user).toContain("Application context:");
     expect(prompt.user).toContain("Server-provided planning envelope:");
@@ -98,5 +104,65 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain("evidence source: response_context");
     expect(prompt.user).toContain("slot capacity max: 0");
     expect(prompt.user).toContain("For context-only or quality-only concepts");
+  });
+
+  it("passes concept-specific boundaries to planner and writer prompts", () => {
+    const behaviouralConceptKeys = ["savings_motivation", "bill_stability_need"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const plannerPrompt = buildMeasurementPlannerPrompt({
+      surveyName: "Economic flexibility survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      behaviouralConceptKeys,
+      schemaTargets,
+      configs,
+      baseMeasurementPlanBlueprint,
+    });
+
+    expect(plannerPrompt.user).toContain(
+      "Avoid measuring generic flexibility willingness, tariff preference, or bill predictability",
+    );
+    expect(plannerPrompt.user).toContain(
+      "Avoid measuring pure savings motivation or tariff-model familiarity",
+    );
+
+    const writerPrompt = buildSurveyGeneratorPrompt({
+      surveyName: "Economic flexibility survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      schemaTargets,
+      configs,
+      measurementPlanBlueprint: {
+        schema_version: 1,
+        schema_namespace: "flexpulse_behavioural_schema",
+        concepts: baseMeasurementPlanBlueprint.concepts.map((concept) => ({
+          ...concept,
+          measurement_type: "multi_item_likert_median",
+          aggregation_rule: "median",
+          threshold_profile: "likert_1_5_low_mid_high",
+          minimum_answer_count: 2,
+          question_slots: [
+            { slot_key: `${concept.concept_key}_slot_1` },
+            { slot_key: `${concept.concept_key}_slot_2` },
+          ],
+        })),
+      },
+    });
+
+    expect(writerPrompt.system).toContain(
+      "write items that cover distinct facets rather than paraphrases",
+    );
+    expect(writerPrompt.user).toContain(
+      "Do not borrow content from neighboring constructs",
+    );
   });
 });

@@ -86,73 +86,85 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure awareness as more than self-confidence when possible: distinguish perceived understanding, recognition of grid/load-shifting concepts, and ability to explain personal relevance. Avoid drifting into trust, acceptance, or environmental motivation.",
   },
   flexibility_willingness: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure willingness to adapt electricity use under concrete household conditions. Distinguish general openness, inconvenience tolerance, routine disruption, and boundary conditions. Avoid contaminating this construct with trust in automation, savings motivation, or tariff preference unless the survey brief explicitly asks for that trade-off.",
   },
   thermal_comfort_norms: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure comfort expectations and tolerance for temporary temperature deviation. Distinguish stability preference, acceptable deviation, and recovery expectations. Avoid turning this into general flexibility willingness or environmental support.",
   },
   tariff_preference_orientation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure orientation toward tariff structure: stable pricing, time-varying pricing, active management, and predictability versus potential savings. Avoid measuring pure savings motivation, generic flexibility willingness, or technical tariff knowledge unless used as a clearly separated facet.",
   },
   trust_in_automation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure trust in system competence and delegation under realistic safeguards. Distinguish reliability, predictability, willingness to delegate, oversight need, and trust after minor mistakes. Avoid contaminating this with thermal comfort, incentives, savings, or general technology enthusiasm.",
   },
   der_engagement: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure engagement with distributed energy resources as interest, readiness to use, and perceived relevance. Avoid collapsing it into asset ownership, environmental motivation, or general technology openness.",
   },
   manual_override_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure need for human control over automated actions. Distinguish desire for immediate override, prior notice, permission before action, and comfort with temporary autonomous control. Avoid treating low trust, thermal discomfort, or technology rejection as the same construct.",
   },
   explainability_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure desire to understand automated decisions. Distinguish explanations before acceptance, explanations after actions, simple summaries versus detailed reasoning, and explanations after unexpected outcomes. Avoid measuring general awareness or trust directly.",
   },
   bill_stability_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure need for predictable energy costs. When this is a central economic concept, prefer 3 distinct items if capacity allows: importance of predictability, discomfort with bill volatility, and willingness to trade lower expected savings for stable bills. Avoid measuring pure savings motivation or tariff-model familiarity.",
   },
   event_frequency_tolerance: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure tolerance for repeated flexibility events. Distinguish frequency, duration, predictability, and cumulative disruption. Avoid combining event frequency with comfort impact in the same item unless the construct is explicitly about that trade-off.",
   },
   savings_motivation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure economic motivation to reduce energy costs. When this is a central economic concept, prefer 3 distinct items if capacity allows: importance of savings, active effort to reduce costs, and acceptable inconvenience for savings. Avoid measuring generic flexibility willingness, tariff preference, or bill predictability.",
   },
   routine_dependency: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure dependence on stable household routines. Distinguish scheduling rigidity, difficulty moving activities, and need for predictability. Avoid measuring comfort norms or general unwillingness to support flexibility.",
   },
   owned_der_assets: {
     allowed_measurement_types: ["multi_choice_tag_set"],
@@ -182,7 +194,8 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_measurement_types: ["single_choice_enum"],
     allowed_question_types: ["single_choice"],
     slot_capacity_max: 1,
-    prompt_notes: "",
+    prompt_notes:
+      "Measure stated tariff-model preference as a factual categorical choice. Keep this to one clear item and use plain-language option descriptions. Do not expand it into a latent economic scale; use savings_motivation and bill_stability_need for that.",
   },
   country_code: {
     allowed_measurement_types: ["context_passthrough"],

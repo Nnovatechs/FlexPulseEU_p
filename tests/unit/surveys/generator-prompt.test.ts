@@ -151,8 +151,18 @@ describe("measurement planner prompt", () => {
           threshold_profile: "likert_1_5_low_mid_high",
           minimum_answer_count: 2,
           question_slots: [
-            { slot_key: `${concept.concept_key}_slot_1` },
-            { slot_key: `${concept.concept_key}_slot_2` },
+            {
+              slot_key: `${concept.concept_key}_slot_1`,
+              facet: "importance",
+              intent: "Measure importance of the construct.",
+              polarity: "positive",
+            },
+            {
+              slot_key: `${concept.concept_key}_slot_2`,
+              facet: "boundary_condition",
+              intent: "Measure the limiting side of the construct.",
+              polarity: "negative",
+            },
           ],
         })),
       },
@@ -161,8 +171,23 @@ describe("measurement planner prompt", () => {
     expect(writerPrompt.system).toContain(
       "write items that cover distinct facets rather than paraphrases",
     );
+    expect(writerPrompt.system).toContain(
+      "Write from the household respondent's point of view",
+    );
+    expect(writerPrompt.system).toContain(
+      "delaying laundry",
+    );
     expect(writerPrompt.user).toContain(
       "Do not borrow content from neighboring constructs",
     );
+    expect(writerPrompt.user).toContain("realistic household decision");
+    expect(writerPrompt.user).toContain("willingness to delay");
+    expect(writerPrompt.user).toContain(
+      "reducing demand at busy times",
+    );
+    expect(writerPrompt.user).toContain("several times per week");
+    expect(writerPrompt.user).toContain("plain-language option labels");
+    expect(writerPrompt.user).toContain("facet: importance");
+    expect(writerPrompt.user).toContain("polarity: negative");
   });
 });

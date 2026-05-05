@@ -72,7 +72,10 @@ export function buildSurveyGeneratorPrompt(
         `   - slots: ${
           entry.question_slots.length > 0
             ? entry.question_slots
-                .map((slot) => slot.slot_key)
+                .map(
+                  (slot) =>
+                    `${slot.slot_key} [facet: ${slot.facet}; polarity: ${slot.polarity}; intent: ${slot.intent}]`,
+                )
                 .join("; ")
             : "(no survey question slots)"
         }`,
@@ -91,6 +94,9 @@ export function buildSurveyGeneratorPrompt(
     "Avoid duplicate or near-duplicate questions.",
     "For multiple slots under the same concept, write items that cover distinct facets rather than paraphrases.",
     "Preserve construct boundaries from the target-specific notes; do not improve depth by drifting into neighboring concepts.",
+    "Write from the household respondent's point of view: decisions, routines, comfort, control, money, effort, and willingness.",
+    "Prefer concrete household actions over system abstractions, such as delaying laundry, running the dishwasher later, charging a device later, or allowing a short heating/cooling adjustment.",
+    "Avoid bureaucratic or system-first phrases such as 'some electricity use', 'a programme asked us', 'provide flexibility', 'positively affect the grid', or 'operational adjustments'.",
     "Optimize wording quality without changing the planner's semantic intent or burden logic.",
     "Use only these question types: single_choice, multiple_choice, rating_scale, numeric.",
     "For single_choice and multiple_choice questions, include options with ontology_value and is_truthy fields.",
@@ -105,6 +111,7 @@ export function buildSurveyGeneratorPrompt(
     "For numeric questions, include sensible bounds when possible.",
     "Generate one question for each slot in the measurement blueprint that comes from survey_questions.",
     "Reuse the exact slot_key provided for each generated question.",
+    "Follow each slot's facet, intent and polarity when writing the question.",
     "Every respondent-facing question generated from the blueprint is mandatory by system design.",
     "Do not return a required field for questions; the system applies obligatoriness automatically.",
   ].join(" ");
@@ -128,6 +135,21 @@ export function buildSurveyGeneratorPrompt(
     "- Use only the selected behavioural schema targets.",
     "- Every generated question must point to exactly one ontology_target.",
     "- Every generated question must keep the slot_key from the blueprint.",
+    "- Every generated question must realize the slot's facet and intent.",
+    "- For positive-polarity slots, write an item where higher agreement indicates more of the target construct.",
+    "- For negative-polarity slots, write an item where higher agreement indicates the opposite or limiting side of the construct.",
+    "- For neutral-polarity slots, use factual or categorical wording without implying high/low construct direction.",
+    "- Each item should feel like a realistic household decision, concern, motivation, or limit, not like a description of the energy system.",
+    "- Use concrete household examples when they make the item clearer: laundry, dishwasher, EV charging, device charging, heating, cooling, routines, bills, rewards, or manual override.",
+    "- Only mention the grid or energy system when the slot intent requires prosocial/system motivation; explain it as reducing demand at busy times or helping keep electricity reliable.",
+    "- For flexibility willingness, ask about a concrete willingness to delay, move, accept, or refuse a household action.",
+    "- For savings motivation, ask about money, bills, rewards, or willingness to accept inconvenience for savings.",
+    "- For bill stability, ask about predictable bills, month-to-month changes, or lower savings in exchange for certainty.",
+    "- For automation trust, ask about delegating a concrete task to an automated system under understandable household limits.",
+    "- For comfort and override, prioritize the respondent's comfort/control judgement and avoid turning the item into support for a programme.",
+    "- For event-frequency tolerance, prefer anchored wording such as several times per week or a few times per month instead of vague words like often, frequent, or a small number.",
+    "- For tariff single-choice options, use plain-language option labels or short descriptions rather than technical labels alone.",
+    "- Do not use phrases like 'some household electricity use', 'a programme asked us', 'provide flexibility', 'operational adjustments', or 'positively affect the grid'.",
     "- Treat the blueprint as the accepted measurement design. Your job is to realize it faithfully.",
     "- The title must be the actual question or statement shown to the respondent.",
     "- The description must never carry the main semantic burden of the item.",
@@ -193,6 +215,7 @@ export function buildMeasurementPlannerPrompt(
     "Limits:",
     "- You are not a survey writer.",
     "- You do not produce final question wording.",
+    "- You do decide the measurement intent for each planned question slot.",
     "- You do not produce mapping_contract_json directly.",
     "- You do not compute participant scores from real responses.",
     "",
@@ -218,6 +241,7 @@ export function buildMeasurementPlannerPrompt(
     "- Cover every selected concept.",
     "- Use only the provided concept_key values and supported system measurement types.",
     "- Keep the plan specific enough for downstream compilation.",
+    "- For every planned question slot, return one slot_intent with facet, intent and polarity.",
     "",
     "Completion criterion:",
     "The task is complete only when every selected concept has one valid planning entry and the output satisfies the required schema.",
@@ -263,6 +287,10 @@ export function buildMeasurementPlannerPrompt(
     "The concept_key field in the JSON output must exactly match one of the selected behavioural concept keys.",
     "Do not use schema targets such as flexpulse_behavioural_schema.* as concept_key values.",
     "For each concept decide the measurement_type, aggregation_rule, threshold_profile and slot_count yourself.",
+    "For each planned survey question slot, provide one slot_intent. slot_intents.length must equal slot_count.",
+    "Use short stable facet labels such as reliability, inconvenience_tolerance, cost_vs_convenience_tradeoff or bill_volatility_aversion.",
+    "The intent must explain what evidence that slot should collect, not final respondent-facing wording.",
+    "Use polarity positive when higher agreement means more of the construct, negative when higher agreement means less/opposite/limiting evidence, and neutral for factual categories.",
     "The system will generate deterministic slot_key names later. You must not plan concrete slot identifiers yourself.",
     "Question obligatoriness is decided by the system. All respondent-facing survey questions are treated as required.",
     "For context-only or quality-only concepts, return slot_count 0.",

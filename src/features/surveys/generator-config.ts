@@ -129,7 +129,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
     prompt_notes:
-      "Measure need for human control over automated actions. Distinguish desire for immediate override, prior notice, permission before action, and comfort with temporary autonomous control. Avoid treating low trust, thermal discomfort, or technology rejection as the same construct.",
+      "Measure need for human control over automated actions. Distinguish desire for immediate override, ability to intervene after an action starts, and comfort with temporary autonomous control. Do not use prior notice or permission-before-action as a proxy for override need unless the slot intent explicitly asks for consent. Avoid treating low trust, thermal discomfort, or technology rejection as the same construct.",
   },
   explainability_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],
@@ -150,7 +150,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
     prompt_notes:
-      "Measure tolerance for repeated flexibility events. Distinguish frequency, duration, predictability, and cumulative disruption. Avoid combining event frequency with comfort impact in the same item unless the construct is explicitly about that trade-off.",
+      "Measure tolerance for repeated flexibility events. Use concrete frequency anchors when possible, such as several times per week or a few times per month. Distinguish frequency, duration, and cumulative disruption. Do not use advance notice or predictability as a proxy for frequency tolerance unless the slot intent explicitly asks for predictability.",
   },
   savings_motivation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_median"],

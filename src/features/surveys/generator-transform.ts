@@ -127,6 +127,29 @@ function normalizeQuestionCopy(question: SurveyGeneratorLLMQuestion) {
   };
 }
 
+function getPreferredTariffOptionLabel(option: SurveyGeneratorLLMQuestion["options"][number]) {
+  const key = slugify(`${option.ontology_value} ${option.label}`);
+  const hasAny = (tokens: string[]) => tokens.some((token) => key.includes(token));
+
+  if (hasAny(["fixed", "flat", "stable", "same_price"])) {
+    return "Same price most of the time";
+  }
+  if (hasAny(["time_of_use", "tou", "off_peak", "cheaper", "certain_times"])) {
+    return "Cheaper electricity at certain times of day";
+  }
+  if (hasAny(["shift_reward", "shift_rewards", "reward", "flexibility_reward"])) {
+    return "Rewards for shifting use when asked";
+  }
+  if (hasAny(["dynamic", "variable", "market", "risk"])) {
+    return "Prices change often, with more risk and possible savings";
+  }
+  if (hasAny(["not_sure", "unsure", "dont_know", "need_more_information"])) {
+    return "Not sure / I would need more information";
+  }
+
+  return option.label.trim();
+}
+
 function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
   const baseKeys = question.options.map((option) =>
     slugify(option.ontology_value || option.label || "option"),
@@ -136,7 +159,10 @@ function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
   return question.options.map((option, index) => ({
     option_key: uniqueKeys[index] || `option_${index + 1}`,
     value: option.ontology_value.trim(),
-    label: option.label.trim(),
+    label:
+      question.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model"
+        ? getPreferredTariffOptionLabel(option)
+        : option.label.trim(),
     is_truthy: option.is_truthy,
   }));
 }

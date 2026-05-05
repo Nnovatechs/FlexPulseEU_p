@@ -130,6 +130,7 @@ export async function evaluateGeneratedSurveyMethodology(input: {
           "Score each category from 1 to 5.",
           "The survey is evaluated in its canonical language only; do not score translation or multicultural adaptation in this rubric.",
           "Do not reward structural validity alone; focus on whether the survey items are good enough to support a defensible profiling workflow.",
+          "Penalize vague pseudo-technical wording, circular 'I understand the idea' items, and questions whose purpose is not obvious to a non-expert respondent.",
           "Return JSON only.",
         ].join(" "),
       },
@@ -155,7 +156,7 @@ export async function evaluateGeneratedSurveyMethodology(input: {
               measurementDepthAdequacy:
                 "Does each behavioural or psychological construct have enough distinct items for a defensible profiling signal, considering the fixture purpose?",
               questionClarity:
-                "Are respondent-facing items concrete, clear, non-technical, and answerable?",
+                "Are respondent-facing items concrete, clear, non-technical, naturally worded, and answerable? Penalize vague phrases like 'some electricity use', 'certain uses', 'when needed', or items that would sound awkward if paraphrased into plain Spanish.",
               doubleBarrelSafety:
                 "High score means low double-barrel risk; each item asks one thing.",
               responseFormatFit:

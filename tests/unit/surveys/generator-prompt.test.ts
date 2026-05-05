@@ -47,6 +47,7 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain("slot_count");
     expect(prompt.user).toContain("Concept scores remain canonical downstream");
     expect(prompt.user).toContain("interpretive signal");
+    expect(prompt.user).toContain("naming the mechanism, action, or trade-off");
     expect(prompt.user).not.toContain("Recommended visible question budget");
     expect(prompt.user).not.toContain("target 3");
   });
@@ -177,6 +178,10 @@ describe("measurement planner prompt", () => {
       "Write from the household respondent's point of view",
     );
     expect(writerPrompt.system).toContain(
+      "paraphrased naturally in simple Spanish",
+    );
+    expect(writerPrompt.system).toContain("Use one primary domain per item");
+    expect(writerPrompt.system).toContain(
       "delaying laundry",
     );
     expect(writerPrompt.user).toContain(
@@ -185,10 +190,14 @@ describe("measurement planner prompt", () => {
     expect(writerPrompt.user).toContain("realistic household decision");
     expect(writerPrompt.user).toContain("willingness to delay");
     expect(writerPrompt.user).toContain(
-      "reducing demand at busy times",
+      "network reliability",
     );
-    expect(writerPrompt.user).toContain("several times per week");
-    expect(writerPrompt.user).toContain("plain-language option labels");
+    expect(writerPrompt.user).toContain("lower-demand times");
+    expect(writerPrompt.user).toContain("what the respondent needs to know");
+    expect(writerPrompt.user).toContain("duration-only item");
+    expect(writerPrompt.system).toContain("respondent-facing label");
+    expect(writerPrompt.user).toContain("Same price most of the time");
+    expect(writerPrompt.user).toContain("Not sure / I would need more information");
     expect(writerPrompt.user).toContain("facet: importance");
     expect(writerPrompt.user).toContain("polarity: negative");
   });

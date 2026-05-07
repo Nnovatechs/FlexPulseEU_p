@@ -7,10 +7,9 @@ import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontolo
 import { runContentValidation, computeContentHash } from "./content-validator";
 import { generateSurveyDraftProposal } from "./survey-generation-flow";
 import { createMeasurementPlanFromMappings } from "./measurement-plan";
-import { translateSurveyLanguage } from "./translation-service";
+import { generateAndValidateTranslatedLanguage } from "./translation-loop";
 import {
   computeMultilingualTranslationHash,
-  validateTranslatedSurveyLanguage,
 } from "./translation-validation";
 import {
   createSurveyDraft,
@@ -25,8 +24,6 @@ import type {
   SurveyLanguageTranslations,
 } from "./generator-types";
 import { normalizeSurveyResponseContextConfig } from "./generator-types";
-
-const MULTILINGUAL_TRANSLATION_MAX_RETRIES = 2;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -91,61 +88,6 @@ function buildMultilingualValidationResult(
       };
     }),
   };
-}
-
-async function generateAndValidateTranslatedLanguage(params: {
-  surveyName: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  sourceTranslations: SurveyLanguageTranslations;
-  questions: SurveyDefinition["questions"];
-  mappings: Awaited<ReturnType<typeof getOwnedSurveyById>>["mapping_contract_json"]["mappings"];
-}) {
-  let translatedBundle = await translateSurveyLanguage({
-    surveyName: params.surveyName,
-    sourceLanguage: params.sourceLanguage,
-    targetLanguage: params.targetLanguage,
-    sourceTranslations: params.sourceTranslations,
-    questions: params.questions,
-    mappings: params.mappings,
-  });
-
-  let issues = await validateTranslatedSurveyLanguage({
-    sourceLanguage: params.sourceLanguage,
-    targetLanguage: params.targetLanguage,
-    sourceTranslations: params.sourceTranslations,
-    targetTranslations: translatedBundle,
-    questions: params.questions,
-    mappings: params.mappings,
-  });
-
-  for (
-    let attempt = 0;
-    attempt < MULTILINGUAL_TRANSLATION_MAX_RETRIES && issues.length > 0;
-    attempt += 1
-  ) {
-    translatedBundle = await translateSurveyLanguage({
-      surveyName: params.surveyName,
-      sourceLanguage: params.sourceLanguage,
-      targetLanguage: params.targetLanguage,
-      sourceTranslations: params.sourceTranslations,
-      questions: params.questions,
-      mappings: params.mappings,
-      previousTranslation: translatedBundle,
-      validationIssues: issues,
-    });
-
-    issues = await validateTranslatedSurveyLanguage({
-      sourceLanguage: params.sourceLanguage,
-      targetLanguage: params.targetLanguage,
-      sourceTranslations: params.sourceTranslations,
-      targetTranslations: translatedBundle,
-      questions: params.questions,
-      mappings: params.mappings,
-    });
-  }
-
-  return { targetLanguage: params.targetLanguage, translatedBundle, issues };
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +316,7 @@ export async function validateSurveyContentAction(
     mappings,
     translations,
     survey.default_language,
+    survey.definition_json.survey_meta.measurement_plan_json,
   );
 
   const nextDefinition = structuredClone(survey.definition_json);

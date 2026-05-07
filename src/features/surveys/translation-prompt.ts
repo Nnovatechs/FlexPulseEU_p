@@ -64,8 +64,9 @@ export function buildSurveyTranslationPrompt(
     "Preserve meaning, measurement intent, question order, register, polarity, and question_key and option_key mapping exactly.",
     "Do not add or remove questions, options or explanations.",
     "Do not introduce personal-data requests, semantic drift, false friends or casual wording.",
+    "Avoid culturally loaded examples, market-specific assumptions, patriotic or moralizing phrasing, or social-pressure cues that could bias how respondents answer in the target locale.",
     "When the most natural target-language wording differs from the source syntax, prefer the natural publishable wording while keeping the same measurement intent.",
-    "Keep the final text publishable, culturally natural and institutionally professional.",
+    "Keep the final text publishable, culturally natural, response-neutral and institutionally professional.",
     input.validationIssues?.length
       ? "You may receive validator feedback on a previous draft. Use it to fix only genuine problems while preserving question_key and option_key mapping."
       : "",

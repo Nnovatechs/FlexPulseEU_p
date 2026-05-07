@@ -1,6 +1,7 @@
 import {
   createInitialMappingContract,
   createInitialSurveyDefinition,
+  type MeasurementPlan,
   type SurveyMappingDefinition,
   type SurveyQuestionDefinition,
 } from "@/features/surveys/generator-types";
@@ -16,6 +17,11 @@ type BuildValidationSurveyInput = {
   description?: string;
   optionLabels?: string[];
   ontologyTarget?: string;
+  questionIntent?: {
+    facet: string;
+    intent: string;
+    polarity: "positive" | "negative" | "neutral";
+  };
 };
 
 export function buildValidationSurveyFixture({
@@ -25,6 +31,7 @@ export function buildValidationSurveyFixture({
   description,
   optionLabels = [],
   ontologyTarget = "flexpulse_behavioural_schema.trust_in_automation",
+  questionIntent,
 }: BuildValidationSurveyInput) {
   // We intentionally reuse the real domain factories so tests evolve together
   // with the application contract instead of maintaining a fake parallel shape.
@@ -71,11 +78,41 @@ export function buildValidationSurveyFixture({
   const mappingContract = createInitialMappingContract();
   mappingContract.mappings = [mapping];
 
+  const measurementPlan: MeasurementPlan = {
+    schema_version: 1,
+    schema_namespace: "flexpulse_behavioural_schema",
+    concepts: [
+      {
+        concept_key: ontologyTarget.replace("flexpulse_behavioural_schema.", ""),
+        evidence_source: "survey_questions",
+        measurement_type: "single_item_direct",
+        output_type: "string",
+        aggregation_rule: "identity",
+        threshold_profile: "none",
+        minimum_answer_count: 1,
+        question_keys: [questionKey],
+        required_question_keys: [questionKey],
+        question_intents: questionIntent
+          ? [
+              {
+                slot_key: `${questionKey}_slot`,
+                question_key: questionKey,
+                facet: questionIntent.facet,
+                intent: questionIntent.intent,
+                polarity: questionIntent.polarity,
+              },
+            ]
+          : undefined,
+      },
+    ],
+  };
+
   return {
     language,
     definition,
     translations: definition.translations[language],
     questions: definition.questions,
     mappings: mappingContract.mappings,
+    measurementPlan,
   };
 }

@@ -88,6 +88,7 @@ describe("survey validation actions", () => {
       fixture.mappings,
       fixture.translations,
       fixture.language,
+      fixture.definition.survey_meta.measurement_plan_json,
     );
     expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
     expect(updateSurveyDraft.mock.calls[0]?.[0]).toMatchObject({

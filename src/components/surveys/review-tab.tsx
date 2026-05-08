@@ -29,11 +29,11 @@ const VALIDATION_STEPS = [
 
 const VALIDATION_STEP_MS = 6000;
 const TRANSLATION_STEPS = [
-  "Preparing translation bundles...",
-  "Translating target languages...",
+  "Preparing multicultural versions...",
+  "Adapting target languages...",
   "Checking semantic parity...",
   "Checking cultural phrasing...",
-  "Validating multilingual output...",
+  "Validating multicultural output...",
 ];
 
 function ValidationOverlay() {
@@ -71,7 +71,7 @@ function TranslationOverlay() {
     <div className="generate-overlay" role="status" aria-live="polite">
       <div className="generate-overlay__card">
         <div className="generate-overlay__spinner" aria-hidden="true" />
-        <p className="generate-overlay__title">Generating translations</p>
+        <p className="generate-overlay__title">Generating multicultural versions</p>
         <p className="generate-overlay__step">{TRANSLATION_STEPS[stepIndex]}</p>
       </div>
     </div>
@@ -118,11 +118,6 @@ export function ReviewTab({
   );
   const contentPassed =
     validationResult?.passed === true && !isStale && !validatePending;
-  const multilingualPassed =
-    !hasSecondaryLanguages ||
-    (multilingualValidationResult?.passed === true &&
-      !isMultilingualStale &&
-      !translatePending);
   const canOpenPreview = hasQuestions && !translatePending && !validatePending;
 
   function handleOpenPreview() {
@@ -158,7 +153,7 @@ export function ReviewTab({
         setTranslateError(
           err instanceof Error
             ? err.message
-            : "Translation generation failed. Please try again.",
+            : "Generation of multicultural versions failed. Please try again.",
         );
       }
     });
@@ -355,10 +350,10 @@ export function ReviewTab({
         <div className="review-step__header">
           <span className="review-step__number">2</span>
           <div className="review-step__meta">
-            <span className="review-step__title">Multilingual validation</span>
+            <span className="review-step__title">Multicultural validation</span>
             <span className="review-step__desc muted">
-              Generates the selected language versions and validates semantic parity,
-              cultural fit and publishable quality before publication.
+              Creates culturally adapted language versions and validates semantic
+              parity, cultural fit and publishable quality before publication.
             </span>
           </div>
           <span
@@ -383,8 +378,8 @@ export function ReviewTab({
 
         {multilingualStatusState === "locked" && (
           <p className="review-notice review-notice--warning">
-            Complete content validation first. Translations are only generated from
-            a validated canonical survey.
+            Complete content validation first. Multicultural versions are only
+            generated from a validated canonical survey.
           </p>
         )}
 
@@ -457,7 +452,7 @@ export function ReviewTab({
                       </div>
                     ) : (
                       <p className="review-notice review-notice--success">
-                        Translation passed semantic and cultural validation.
+                        Multicultural version passed semantic and cultural validation.
                       </p>
                     )}
                   </div>
@@ -468,7 +463,8 @@ export function ReviewTab({
 
         {multilingualStatusState === "passed" && hasSecondaryLanguages && (
           <p className="review-notice review-notice--success">
-            All selected language versions passed parity, cultural and quality checks.
+            All selected multicultural versions passed parity, cultural and quality
+            checks.
           </p>
         )}
 
@@ -493,14 +489,14 @@ export function ReviewTab({
                 ? "Pass content validation first"
                 : multilingualStatusState === "not_required"
                   ? "No additional languages selected"
-                  : "Generate and validate multilingual versions"
+                  : "Generate and validate multicultural versions"
             }
           >
             {translatePending
-              ? "Generating translations…"
+              ? "Generating multicultural versions…"
               : multilingualStatusState === "none"
-                ? "Generate translations"
-                : "Re-run multilingual validation"}
+                ? "Generate multicultural versions"
+                : "Re-run multicultural validation"}
           </button>
         </form>
       </div>

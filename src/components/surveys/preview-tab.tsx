@@ -234,8 +234,8 @@ export function PreviewTab({
 
       {!multilingualPassed && hasSecondaryLanguages && (
         <p className="review-notice review-notice--warning">
-          Preview remains available, but publication is blocked until multilingual
-          blocking flags are cleared and the translated versions pass validation
+          Preview remains available, but publication is blocked until multicultural
+          blocking flags are cleared and the adapted language versions pass validation
           {isMultilingualValidationStale ? " again" : ""}.
         </p>
       )}
@@ -243,9 +243,9 @@ export function PreviewTab({
         hasSecondaryLanguages &&
         multilingualBlockingIssueCount === 0 &&
         (multilingualValidationResult?.issues.length ?? 0) > 0 && (
-          <p className="review-notice review-notice--warning">
-            Publication is allowed. Review the non-blocking translation recommendations
-            before publishing.
+          <p className="review-notice review-notice--success">
+            Publication is allowed. Non-blocking multicultural recommendations are
+            available for review before publishing.
           </p>
         )}
 
@@ -264,7 +264,7 @@ export function PreviewTab({
           title={
             canPublish
               ? "Publish survey"
-              : "Publishing stays blocked until validation and multilingual blocking flags are resolved"
+              : "Publishing stays blocked until validation and multicultural blocking flags are resolved"
           }
         >
           {publishPending ? "Publishing…" : "Publish survey"}

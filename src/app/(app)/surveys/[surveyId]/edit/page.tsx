@@ -235,13 +235,6 @@ export default async function SurveyEditPage({
         ) !== storedMultilingualValidation.translation_hash
       : false;
 
-  const hasSecondaryLanguages = survey.supported_languages.some(
-    (lang) => lang !== survey.default_language,
-  );
-  const contentPassed = storedValidation?.passed === true && !isValidationStale;
-  const multilingualPassed =
-    !hasSecondaryLanguages ||
-    (storedMultilingualValidation?.passed === true && !isMultilingualValidationStale);
   const previewUnlocked = hasQuestions;
 
   const reviewTab = (

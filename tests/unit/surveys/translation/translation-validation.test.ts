@@ -92,10 +92,25 @@ describe("translation validation prompt", () => {
       "Do not flag parity for harmless changes in syntax, register, idiom, or close paraphrase",
     );
     expect(prompt.system).toContain(
-      "Do not fail an item just because you can imagine a more literal or slightly cleaner wording.",
+      "A translation can fail quality even when parity is mostly preserved.",
+    );
+    expect(prompt.system).toContain(
+      "Treat native clarity, respondent-facing framing, idiomaticity, and publishability as mandatory quality checks for every item.",
+    );
+    expect(prompt.system).toContain(
+      "Do not use parity for slight wording imprecision, translationese, or awkward phrasing",
+    );
+    expect(prompt.system).toContain(
+      "Do not emit survey-level quality issues for ordinary survey title or survey description style problems.",
+    );
+    expect(prompt.system).toContain(
+      "Do not pass an item just because its meaning can be recovered.",
     );
     expect(prompt.user).toContain(
       "Pass natural paraphrases when the survey meaning and measurement intent are still preserved.",
+    );
+    expect(prompt.user).toContain(
+      "Ask yourself whether the target item sounds like it was originally written by a native survey author",
     );
   });
 

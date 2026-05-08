@@ -27,15 +27,15 @@ function getDefaultTargetSurveyTitle(language: string) {
 
 function getDefaultTargetSurveyDescription(language: string) {
   if (language === "Spanish") {
-    return "Un cuestionario breve sobre preferencias de flexibilidad del hogar.";
+    return "Un breve cuestionario sobre cómo su hogar podría desplazar algunas tareas que consumen electricidad a otras horas.";
   }
   if (language === "Croatian") {
-    return "Kratak upitnik o preferencijama fleksibilnosti kućanstva.";
+    return "Kratak upitnik o tome kako bi vaše kućanstvo moglo prebaciti dio potrošnje električne energije na druga doba dana.";
   }
   if (language === "French") {
-    return "Un court questionnaire sur les préférences de flexibilité du foyer.";
+    return "Un court questionnaire sur la manière dont votre foyer pourrait déplacer certaines consommations d'électricité à d'autres moments de la journée.";
   }
-  return "A short questionnaire about household flexibility preferences.";
+  return "A short questionnaire about how your household might move some electricity use to different times of day.";
 }
 
 function getDefaultSurveyTitle(language: string) {
@@ -47,15 +47,15 @@ function getDefaultSurveyTitle(language: string) {
 
 function getDefaultSurveyDescription(language: string) {
   if (language === "Spanish") {
-    return "Un cuestionario breve sobre preferencias de flexibilidad del hogar.";
+    return "Un breve cuestionario sobre cómo su hogar podría desplazar algunas tareas que consumen electricidad a otras horas.";
   }
   if (language === "Croatian") {
-    return "Kratak upitnik o preferencijama fleksibilnosti kućanstva.";
+    return "Kratak upitnik o tome kako bi vaše kućanstvo moglo prebaciti dio potrošnje električne energije na druga doba dana.";
   }
   if (language === "French") {
-    return "Un court questionnaire sur les préférences de flexibilité du foyer.";
+    return "Un court questionnaire sur la manière dont votre foyer pourrait déplacer certaines consommations d'électricité à d'autres moments de la journée.";
   }
-  return "A short questionnaire about household flexibility preferences.";
+  return "A short questionnaire about how your household might move some electricity use to different times of day.";
 }
 
 export function buildTranslationSurveyFixture({

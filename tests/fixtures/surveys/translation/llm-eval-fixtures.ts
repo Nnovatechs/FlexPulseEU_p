@@ -37,7 +37,7 @@ export const translationEvalFixtures: TranslationEvalFixture[] = [
     sourceTitle:
       "How comfortable are you with your home's energy system automatically shifting consumption to cheaper hours?",
     targetTitle:
-      "Dans quelle mesure vous sentez-vous à l'aise avec le fait que le système énergétique de votre domicile déplace automatiquement la consommation vers les heures les moins chères ?",
+      "Dans quelle mesure seriez-vous à l'aise si certains usages électriques de votre logement étaient automatiquement déplacés vers les heures les moins chères ?",
     sourceDescription:
       "Please answer according to your current household preferences.",
     targetDescription:
@@ -85,7 +85,7 @@ export const translationEvalFixtures: TranslationEvalFixture[] = [
     sourceTitle:
       "I would consider adopting a home energy technology if it offered practical benefits for my household.",
     targetTitle:
-      "Consideraría adoptar una tecnología energética para el hogar si ofreciera beneficios prácticos para mi hogar.",
+      "Me plantearía adoptar una tecnología energética en casa si aportara beneficios prácticos a mi hogar.",
     sourceDescription:
       "Please answer according to your current household preferences.",
     targetDescription:
@@ -93,6 +93,25 @@ export const translationEvalFixtures: TranslationEvalFixture[] = [
     optionLabels: ["No", "Maybe", "Yes"],
     translatedOptionLabels: ["No", "Quizás", "Sí"],
     expectedOverall: "pass",
+  },
+  {
+    id: "es-translationese-awareness-calque",
+    purpose:
+      "Control negativo de quality: una redaccion en espanol que conserva el meaning general pero suena calcada, abstracta y poco publicable debe fallar.",
+    sourceLanguage: "English",
+    targetLanguage: "Spanish",
+    sourceTitle:
+      "Some household tasks can be moved away from peak electricity demand periods to later lower-demand times without skipping them altogether.",
+    targetTitle:
+      "Algunas tareas del hogar pueden trasladarse de los momentos de mayor demanda eléctrica a otros momentos posteriores de menor demanda, sin dejar de realizarlas.",
+    sourceDescription:
+      "Please answer according to your current household preferences.",
+    targetDescription:
+      "Responde según las preferencias actuales de tu hogar.",
+    optionLabels: ["Strongly disagree", "Neutral", "Strongly agree"],
+    translatedOptionLabels: ["Totalmente en desacuerdo", "Neutral", "Totalmente de acuerdo"],
+    expectedOverall: "fail",
+    expectedIssueTypes: ["quality"],
   },
   {
     id: "es-false-friend-drift",

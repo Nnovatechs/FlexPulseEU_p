@@ -144,12 +144,18 @@ export function buildTranslationValidationPrompt(
     "Judge parity at the level of likely respondent interpretation and measurement intent, not word-for-word correspondence.",
     "Do not flag parity for harmless changes in syntax, register, idiom, or close paraphrase when a reasonable native respondent would answer the item the same way.",
     "Only use issue_type = parity when the target wording materially changes the likely interpretation, referent, agency, polarity, timeframe, or expected answer.",
-    "Use issue_type = quality only for wording that is clearly awkward, broken, misleading, or not publishable to native speakers.",
+    "Do not use parity for slight wording imprecision, translationese, or awkward phrasing when the same respondent would still answer for the same construct in the same direction; use quality for those cases if they are not publishable.",
+    "Reserve parity for issues that would make the answer unmappable or materially different from the source measurement intent.",
+    "Use issue_type = quality for wording that is awkward, overly literal, clearly translated-sounding, bureaucratic, abstract in the wrong way, hard to understand on first read, misleading, or not publishable to native speakers.",
+    "A translation can fail quality even when parity is mostly preserved.",
+    "Fail quality when a native respondent would likely need to reread the item, when the wording sounds like internal technical documentation instead of a public-facing survey, or when the phrasing uses unnatural calques rather than idiomatic native survey language.",
+    "Treat native clarity, respondent-facing framing, idiomaticity, and publishability as mandatory quality checks for every item.",
     "Use issue_type = cultural when the core construct is still recognizable but the localization adds culturally loaded framing, social desirability pressure, country-specific market assumptions, non-equivalent household examples, or institutional cues that could systematically bias how respondents answer.",
     "Reserve issue_type = cultural for localization bias or cultural non-equivalence, not for simple wording errors and not for direct meaning reversals that belong under parity.",
     "Use issue_type = pii if the translated text introduces or strengthens personal-data collection.",
-    "Do not fail an item just because you can imagine a more literal or slightly cleaner wording.",
-    "If the target text is understandable, natural enough, and publishable, pass it.",
+    "Do not emit survey-level quality issues for ordinary survey title or survey description style problems. Use the survey title and description as context, but report quality issues at question or option level unless the survey-level text introduces PII or a severe cross-survey semantic mismatch.",
+    "Do not fail an item merely because you can imagine a slightly cleaner alternative when the current wording is already native, clear, and publishable.",
+    "Do not pass an item just because its meaning can be recovered. Pass it only if it reads like something a native-speaking survey author would genuinely publish.",
     "For any failing item, write a concise explanation.",
     "If you propose a rewrite, provide exactly one high-confidence, minimal, idiomatic alternative in the target language.",
     "Do not provide multiple speculative alternatives, and do not suggest awkward literal rewrites.",
@@ -165,6 +171,8 @@ export function buildTranslationValidationPrompt(
     "Use a conservative threshold for failures: fail only on clear semantic drift, clear quality problems, cultural mismatch or localization bias, or added PII.",
     "Pass natural paraphrases when the survey meaning and measurement intent are still preserved.",
     "Treat this as localization review, not literal translation review.",
+    "Ask yourself whether the target item sounds like it was originally written by a native survey author for real respondents in that language.",
+    "If the item sounds translated, abstract in an unnatural way, or harder to process than a native survey item should be, fail it as quality.",
     "",
     `Source survey title: ${input.sourceTranslations.survey_title}`,
     `Source survey description: ${input.sourceTranslations.survey_description ?? ""}`,
@@ -246,7 +254,15 @@ export async function validateTranslatedSurveyLanguage(
   }
 
   return parsed.results
-    .filter((result) => !result.passes)
+    .filter((result) => {
+      if (result.passes) {
+        return false;
+      }
+
+      // Title and survey-description quality can be useful context while tuning,
+      // but it should not block review or publishing by itself.
+      return !(result.scope === "survey" && result.issue_type === "quality");
+    })
     .map((result) => ({
       language: input.targetLanguage,
       ...(result.question_key ? { question_key: result.question_key } : {}),

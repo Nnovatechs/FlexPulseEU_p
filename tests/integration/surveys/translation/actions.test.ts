@@ -11,6 +11,7 @@ const {
   updateSurveyDraft,
   publishSurvey,
   translateSurveyLanguage,
+  polishSurveyLanguage,
   validateTranslatedSurveyLanguage,
 } = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
@@ -19,6 +20,7 @@ const {
   updateSurveyDraft: vi.fn(),
   publishSurvey: vi.fn(),
   translateSurveyLanguage: vi.fn(),
+  polishSurveyLanguage: vi.fn(),
   validateTranslatedSurveyLanguage: vi.fn(),
 }));
 
@@ -39,6 +41,10 @@ vi.mock("@/features/surveys/generator-repository", () => ({
 
 vi.mock("@/features/surveys/translation-service", () => ({
   translateSurveyLanguage,
+}));
+
+vi.mock("@/features/surveys/translation-polish", () => ({
+  polishSurveyLanguage,
 }));
 
 vi.mock("@/features/surveys/translation-validation", async () => {
@@ -82,6 +88,7 @@ describe("survey translation actions", () => {
     });
 
     translateSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
     validateTranslatedSurveyLanguage.mockResolvedValue([]);
 
     const { generateSurveyTranslationsAction } = await import(
@@ -94,6 +101,7 @@ describe("survey translation actions", () => {
     await generateSurveyTranslationsAction(formData);
 
     expect(translateSurveyLanguage).toHaveBeenCalledTimes(1);
+    expect(polishSurveyLanguage).toHaveBeenCalledTimes(1);
     expect(validateTranslatedSurveyLanguage).toHaveBeenCalledTimes(1);
     expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
 
@@ -144,7 +152,8 @@ describe("survey translation actions", () => {
       mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
     });
 
-    translateSurveyLanguage
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage
       .mockResolvedValueOnce(fixture.targetTranslations)
       .mockResolvedValueOnce(revisedTranslation);
     validateTranslatedSurveyLanguage
@@ -167,16 +176,16 @@ describe("survey translation actions", () => {
 
     await generateSurveyTranslationsAction(formData);
 
-    expect(translateSurveyLanguage).toHaveBeenCalledTimes(2);
+    expect(translateSurveyLanguage).toHaveBeenCalledTimes(1);
+    expect(polishSurveyLanguage).toHaveBeenCalledTimes(2);
     expect(validateTranslatedSurveyLanguage).toHaveBeenCalledTimes(2);
-    expect(translateSurveyLanguage.mock.calls[1]?.[0]).toMatchObject({
-      previousTranslation: fixture.targetTranslations,
+    expect(polishSurveyLanguage.mock.calls[1]?.[0]).toMatchObject({
+      draftTranslations: fixture.targetTranslations,
       validationIssues: [
         {
           language: fixture.targetLanguage,
           question_key: "Q_TEST_01",
           type: "quality",
-          message: "La formulacion suena poco natural.",
         },
       ],
     });
@@ -214,10 +223,8 @@ describe("survey translation actions", () => {
       mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
     });
 
-    translateSurveyLanguage
-      .mockResolvedValueOnce(fixture.targetTranslations)
-      .mockResolvedValueOnce(fixture.targetTranslations)
-      .mockResolvedValueOnce(fixture.targetTranslations);
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
     validateTranslatedSurveyLanguage.mockResolvedValue([
       {
         language: fixture.targetLanguage,
@@ -236,7 +243,8 @@ describe("survey translation actions", () => {
 
     await generateSurveyTranslationsAction(formData);
 
-    expect(translateSurveyLanguage).toHaveBeenCalledTimes(3);
+    expect(translateSurveyLanguage).toHaveBeenCalledTimes(1);
+    expect(polishSurveyLanguage).toHaveBeenCalledTimes(3);
     expect(validateTranslatedSurveyLanguage).toHaveBeenCalledTimes(3);
 
     const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];

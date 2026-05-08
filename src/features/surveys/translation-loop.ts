@@ -1,4 +1,5 @@
 import { translateSurveyLanguage } from "./translation-service";
+import { polishSurveyLanguage } from "./translation-polish";
 import { validateTranslatedSurveyLanguage } from "./translation-validation";
 import type {
   MultilingualValidationIssue,
@@ -30,13 +31,19 @@ export type GenerateAndValidateTranslatedLanguageResult = {
 export async function generateAndValidateTranslatedLanguage(
   params: GenerateAndValidateTranslatedLanguageInput,
 ): Promise<GenerateAndValidateTranslatedLanguageResult> {
-  let translatedBundle = await translateSurveyLanguage({
+  const firstDraft = await translateSurveyLanguage({
     surveyName: params.surveyName,
     sourceLanguage: params.sourceLanguage,
     targetLanguage: params.targetLanguage,
     sourceTranslations: params.sourceTranslations,
     questions: params.questions,
-    mappings: params.mappings,
+  });
+  let translatedBundle = await polishSurveyLanguage({
+    sourceLanguage: params.sourceLanguage,
+    targetLanguage: params.targetLanguage,
+    sourceTranslations: params.sourceTranslations,
+    draftTranslations: firstDraft,
+    questions: params.questions,
   });
 
   let issues = await validateTranslatedSurveyLanguage({
@@ -55,14 +62,12 @@ export async function generateAndValidateTranslatedLanguage(
     retry < MULTILINGUAL_TRANSLATION_MAX_RETRIES && issues.length > 0;
     retry += 1
   ) {
-    translatedBundle = await translateSurveyLanguage({
-      surveyName: params.surveyName,
+    translatedBundle = await polishSurveyLanguage({
       sourceLanguage: params.sourceLanguage,
       targetLanguage: params.targetLanguage,
       sourceTranslations: params.sourceTranslations,
+      draftTranslations: translatedBundle,
       questions: params.questions,
-      mappings: params.mappings,
-      previousTranslation: translatedBundle,
       validationIssues: issues,
     });
 

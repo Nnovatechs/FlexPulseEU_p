@@ -4,7 +4,6 @@ import type {
   MultilingualValidationIssue,
   SurveyLanguageCode,
   SurveyLanguageTranslations,
-  SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
 import { buildSurveyTranslationPrompt } from "./translation-prompt";
@@ -15,7 +14,6 @@ type TranslateSurveyLanguageInput = {
   targetLanguage: SurveyLanguageCode;
   sourceTranslations: SurveyLanguageTranslations;
   questions: SurveyQuestionDefinition[];
-  mappings: SurveyMappingDefinition[];
   previousTranslation?: SurveyLanguageTranslations;
   validationIssues?: MultilingualValidationIssue[];
 };

@@ -89,7 +89,7 @@ export function SurveyEditorTabs({
           onClick={() => goToTab("preview")}
           title={
             !previewUnlocked
-              ? "Complete content and multilingual validation first"
+              ? "Add questions first to open the preview"
               : "Preview all language versions"
           }
         >

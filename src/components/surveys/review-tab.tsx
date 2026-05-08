@@ -123,8 +123,7 @@ export function ReviewTab({
     (multilingualValidationResult?.passed === true &&
       !isMultilingualStale &&
       !translatePending);
-  const canOpenPreview =
-    contentPassed && multilingualPassed && !translatePending && !validatePending;
+  const canOpenPreview = hasQuestions && !translatePending && !validatePending;
 
   function handleOpenPreview() {
     const next = new URLSearchParams(searchParams.toString());
@@ -280,7 +279,7 @@ export function ReviewTab({
           >
             {statusState === "pending" && "Validating…"}
             {statusState === "stale" && "Outdated"}
-            {statusState === "failed" && "Issues found"}
+            {statusState === "failed" && "Flags found"}
             {statusState === "passed" && "Passed"}
             {statusState === "none" && "Not run"}
           </span>
@@ -363,7 +362,7 @@ export function ReviewTab({
           >
             {multilingualStatusState === "pending" && "Running…"}
             {multilingualStatusState === "stale" && "Outdated"}
-            {multilingualStatusState === "failed" && "Issues found"}
+            {multilingualStatusState === "failed" && "Flags found"}
             {multilingualStatusState === "passed" && "Passed"}
             {multilingualStatusState === "none" && "Not run"}
             {multilingualStatusState === "locked" && "Locked"}
@@ -502,7 +501,7 @@ export function ReviewTab({
           onClick={handleOpenPreview}
           title={
             !canOpenPreview
-              ? "Complete content and multilingual validation first"
+              ? "Add questions first to open the preview"
               : "Open read-only preview for all languages"
           }
         >

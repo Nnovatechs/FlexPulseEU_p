@@ -1943,6 +1943,42 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   gap: 0.5rem;
 }
 
+.preview-tab__survey-flags,
+.preview-tab__question-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.2rem;
+}
+
+.preview-tab__flag {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.preview-tab__flag-badge {
+  flex-shrink: 0;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--warning);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.preview-tab__flag-message {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--foreground);
+}
+
 .qov-card--preview {
   pointer-events: none;
   user-select: text;

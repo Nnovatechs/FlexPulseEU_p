@@ -251,14 +251,83 @@ describe("survey translation actions", () => {
     expect(
       updatePayload.definition_json.survey_meta.multilingual_validation_result,
     ).toMatchObject({
-      passed: false,
+      passed: true,
       issues: [
         {
           language: fixture.targetLanguage,
           question_key: "Q_TEST_01",
           type: "quality",
-          message: "Sigue sonando poco natural.",
+          severity: "advisory",
+          message: "This wording may be worth reviewing for respondent clarity.",
         },
+      ],
+    });
+  });
+
+  it("uses advisory translation findings for retries but stores product-safe recommendations", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-advisory-1",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "quality",
+        severity: "advisory",
+        message: "The option labels could be clearer for respondents.",
+        recommendation: "Use simpler household wording.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-advisory-1");
+
+    await generateSurveyTranslationsAction(formData);
+
+    expect(translateSurveyLanguage).toHaveBeenCalledTimes(1);
+    expect(polishSurveyLanguage).toHaveBeenCalledTimes(3);
+    expect(validateTranslatedSurveyLanguage).toHaveBeenCalledTimes(3);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: true,
+      issues: [
+        {
+          language: fixture.targetLanguage,
+          question_key: "Q_TEST_01",
+          type: "quality",
+          severity: "advisory",
+          message: "This wording may be worth reviewing for respondent clarity.",
+        },
+      ],
+      language_statuses: [
+        { language: fixture.sourceLanguage, passed: true, issue_count: 0 },
+        { language: fixture.targetLanguage, passed: true, issue_count: 0 },
       ],
     });
   });

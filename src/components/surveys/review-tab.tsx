@@ -249,6 +249,11 @@ export function ReviewTab({
     return "Parity";
   }
 
+  function getMultilingualIssueDisplayLabel(issue: MultilingualValidationIssue) {
+    if (issue.severity === "advisory") return "Recommendation";
+    return getMultilingualIssueLabel(issue.type);
+  }
+
   function getMultilingualIssueClass(type: "parity" | "quality" | "pii" | "cultural") {
     if (type === "pii") return "review-issue__badge--pii";
     if (type === "quality") return "review-issue__badge--quality";
@@ -411,7 +416,11 @@ export function ReviewTab({
                           languageStatus?.passed ? "passed" : "failed"
                         }`}
                       >
-                        {languageStatus?.passed ? "Passed" : "Issues found"}
+                        {languageStatus?.passed
+                          ? issues.length > 0
+                            ? "Recommendations"
+                            : "Passed"
+                          : "Issues found"}
                       </span>
                     </div>
 
@@ -424,7 +433,7 @@ export function ReviewTab({
                                 issue.type,
                               )}`}
                             >
-                              {getMultilingualIssueLabel(issue.type)}
+                              {getMultilingualIssueDisplayLabel(issue)}
                             </span>
                             <div className="review-issue__body">
                               <span className="review-issue__question">
@@ -438,6 +447,9 @@ export function ReviewTab({
                               </span>
                               <span className="review-issue__message muted">
                                 {issue.message}
+                                {issue.recommendation
+                                  ? ` Recommendation: ${issue.recommendation}`
+                                  : ""}
                               </span>
                             </div>
                           </div>

@@ -92,7 +92,19 @@ describe("translation validation prompt", () => {
       "Do not flag parity for harmless changes in syntax, register, idiom, or close paraphrase",
     );
     expect(prompt.system).toContain(
-      "A translation can fail quality even when parity is mostly preserved.",
+      "A translation can receive a quality finding even when parity is mostly preserved.",
+    );
+    expect(prompt.system).toContain(
+      "Use severity = advisory when the item is understandable but noticeably translated-sounding",
+    );
+    expect(prompt.system).toContain(
+      "Do not emit advisory findings for pure style preferences",
+    );
+    expect(prompt.system).toContain(
+      "Return at most 3 advisory findings for the target language.",
+    );
+    expect(prompt.system).toContain(
+      "Most acceptable items should pass with no finding.",
     );
     expect(prompt.system).toContain(
       "Treat native clarity, respondent-facing framing, idiomaticity, and publishability as mandatory quality checks for every item.",
@@ -130,10 +142,10 @@ describe("translation validation prompt", () => {
     });
 
     expect(prompt.system).toContain(
-      "If you propose a rewrite, provide exactly one high-confidence, minimal, idiomatic alternative in the target language.",
+      "Put suggested wording in recommendation only when you have one clearly better, idiomatic alternative.",
     );
     expect(prompt.system).toContain(
-      "Do not provide multiple speculative alternatives, and do not suggest awkward literal rewrites.",
+      "Do not include proposed rewrites inside issue.",
     );
   });
 });

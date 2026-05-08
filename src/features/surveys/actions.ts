@@ -73,14 +73,18 @@ function buildMultilingualValidationResult(
   translationHash: string,
   issues: MultilingualValidationIssue[],
 ): MultilingualValidationResult {
+  const blockingIssues = issues.filter((issue) => issue.severity !== "advisory");
+
   return {
     validated_at: new Date().toISOString(),
     translation_hash: translationHash,
     validated_languages: validatedLanguages,
-    passed: issues.length === 0,
+    passed: blockingIssues.length === 0,
     issues,
     language_statuses: validatedLanguages.map((language) => {
-      const issueCount = issues.filter((issue) => issue.language === language).length;
+      const issueCount = blockingIssues.filter(
+        (issue) => issue.language === language,
+      ).length;
       return {
         language,
         passed: issueCount === 0,
@@ -88,6 +92,57 @@ function buildMultilingualValidationResult(
       };
     }),
   };
+}
+
+function getProductAdvisoryMessage(type: MultilingualValidationIssue["type"]): string {
+  if (type === "parity") {
+    return "This wording may be worth reviewing for interpretation.";
+  }
+
+  if (type === "cultural") {
+    return "This wording may be worth reviewing for local context.";
+  }
+
+  if (type === "pii") {
+    return "This wording may be worth reviewing for personal-data risk.";
+  }
+
+  return "This wording may be worth reviewing for respondent clarity.";
+}
+
+function toProductMultilingualIssues(
+  issues: MultilingualValidationIssue[],
+): MultilingualValidationIssue[] {
+  const blockingIssues = issues.filter((issue) => (
+    issue.type === "pii" ||
+    issue.type === "parity" ||
+    issue.type === "cultural"
+  )).map((issue) => ({
+    ...issue,
+    severity: "blocking" as const,
+  }));
+
+  const advisoryByLanguage = new Map<string, MultilingualValidationIssue>();
+
+  for (const issue of issues) {
+    if (issue.type !== "quality") {
+      continue;
+    }
+
+    if (advisoryByLanguage.has(issue.language)) {
+      continue;
+    }
+
+    advisoryByLanguage.set(issue.language, {
+      language: issue.language,
+      ...(issue.question_key ? { question_key: issue.question_key } : {}),
+      type: issue.type,
+      severity: "advisory",
+      message: getProductAdvisoryMessage(issue.type),
+    });
+  }
+
+  return [...blockingIssues, ...advisoryByLanguage.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +437,7 @@ export async function generateSurveyTranslationsAction(
 
   for (const run of translationRuns) {
     nextDefinition.translations[run.targetLanguage] = run.translatedBundle;
-    multilingualIssues.push(...run.issues);
+    multilingualIssues.push(...toProductMultilingualIssues(run.issues));
   }
 
   nextDefinition.survey_meta.multilingual_validation_result =

@@ -22,6 +22,14 @@ const TYPE_LABELS: Record<string, string> = {
   boolean: "Boolean",
 };
 
+function getMultilingualFlagLabel(flag: MultilingualValidationIssue) {
+  if (flag.severity === "advisory") return "Recommendation";
+  if (flag.type === "pii") return "PII";
+  if (flag.type === "quality") return "Flag";
+  if (flag.type === "cultural") return "Culture";
+  return "Parity";
+}
+
 function getReadableOntologyTargetLabel(ontologyTarget: string) {
   const concept = getFlexpulseBehaviouralConceptByTarget(ontologyTarget);
   if (concept) {
@@ -67,15 +75,12 @@ function ReadOnlyQuestionCard({
             {languageFlags.map((flag, index) => (
               <div key={`${question.question_key}-${index}`} className="preview-tab__flag">
                 <span className="preview-tab__flag-badge">
-                  {flag.type === "pii"
-                    ? "PII"
-                    : flag.type === "quality"
-                      ? "Flag"
-                      : flag.type === "cultural"
-                        ? "Culture"
-                        : "Parity"}
+                  {getMultilingualFlagLabel(flag)}
                 </span>
-                <span className="preview-tab__flag-message">{flag.message}</span>
+                <span className="preview-tab__flag-message">
+                  {flag.message}
+                  {flag.recommendation ? ` Recommendation: ${flag.recommendation}` : ""}
+                </span>
               </div>
             ))}
           </div>
@@ -177,6 +182,9 @@ export function PreviewTab({
     !hasSecondaryLanguages ||
     (multilingualValidationResult?.passed === true && !isMultilingualValidationStale);
   const canPublish = contentPassed && multilingualPassed;
+  const multilingualBlockingIssueCount = (
+    multilingualValidationResult?.issues ?? []
+  ).filter((issue) => issue.severity !== "advisory").length;
   const surveyTitleForLanguage =
     activeTranslations?.survey_title || surveyTitle;
   const surveyDescriptionForLanguage =
@@ -227,10 +235,19 @@ export function PreviewTab({
       {!multilingualPassed && hasSecondaryLanguages && (
         <p className="review-notice review-notice--warning">
           Preview remains available, but publication is blocked until multilingual
-          flags are cleared and the translated versions pass validation
+          blocking flags are cleared and the translated versions pass validation
           {isMultilingualValidationStale ? " again" : ""}.
         </p>
       )}
+      {multilingualPassed &&
+        hasSecondaryLanguages &&
+        multilingualBlockingIssueCount === 0 &&
+        (multilingualValidationResult?.issues.length ?? 0) > 0 && (
+          <p className="review-notice review-notice--warning">
+            Publication is allowed. Review the non-blocking translation recommendations
+            before publishing.
+          </p>
+        )}
 
       {publishError && (
         <p className="review-notice review-notice--error" role="alert">
@@ -247,7 +264,7 @@ export function PreviewTab({
           title={
             canPublish
               ? "Publish survey"
-              : "Publishing stays blocked until validation and multilingual flags are resolved"
+              : "Publishing stays blocked until validation and multilingual blocking flags are resolved"
           }
         >
           {publishPending ? "Publishing…" : "Publish survey"}
@@ -302,15 +319,12 @@ export function PreviewTab({
             {surveyLevelFlags.map((flag, index) => (
               <div key={`${activeLanguage}-survey-${index}`} className="preview-tab__flag">
                 <span className="preview-tab__flag-badge">
-                  {flag.type === "pii"
-                    ? "PII"
-                    : flag.type === "quality"
-                      ? "Flag"
-                      : flag.type === "cultural"
-                        ? "Culture"
-                        : "Parity"}
+                  {getMultilingualFlagLabel(flag)}
                 </span>
-                <span className="preview-tab__flag-message">{flag.message}</span>
+                <span className="preview-tab__flag-message">
+                  {flag.message}
+                  {flag.recommendation ? ` Recommendation: ${flag.recommendation}` : ""}
+                </span>
               </div>
             ))}
           </div>

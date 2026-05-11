@@ -37,12 +37,39 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         { option_key: "ev", value: "ev" },
       ],
     },
+    {
+      question_key: "Q_FLEX_01",
+      type: "rating_scale",
+      required: false,
+      order: 4,
+      scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+    },
+    {
+      question_key: "Q_FLEX_02",
+      type: "rating_scale",
+      required: false,
+      order: 5,
+      scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+    },
+    {
+      question_key: "Q_OVERRIDE_PERMISSION",
+      type: "single_choice",
+      required: false,
+      order: 6,
+      options: [
+        { option_key: "yes", value: "Yes" },
+        { option_key: "no", value: "No" },
+      ],
+    },
   ];
   definition.translations.English.survey_title = "Baseline survey";
   definition.translations.English.questions = {
     Q_TRUST_01: { title: "I trust automation for home energy scheduling." },
     Q_TRUST_02: { title: "I trust automation to adjust some devices automatically." },
     Q_DER_01: { title: "Which flexible energy assets do you already have?" },
+    Q_FLEX_01: { title: "I can delay some household tasks to another time." },
+    Q_FLEX_02: { title: "I can accept small changes in energy timings." },
+    Q_OVERRIDE_PERMISSION: { title: "I want an explicit manual override available." },
   };
   definition.survey_meta.measurement_plan_json = {
     schema_version: 1,
@@ -85,6 +112,45 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         minimum_answer_count: 1,
         question_keys: ["Q_DER_01"],
         required_question_keys: ["Q_DER_01"],
+        question_intents: [],
+      },
+      {
+        concept_key: "flexibility_willingness",
+        evidence_source: "survey_questions",
+        measurement_type: "multi_item_likert_median",
+        output_type: "number",
+        aggregation_rule: "mean",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 2,
+        question_keys: ["Q_FLEX_01", "Q_FLEX_02"],
+        required_question_keys: ["Q_FLEX_01", "Q_FLEX_02"],
+        question_intents: [
+          {
+            slot_key: "SLOT_FLEXIBILITY_01",
+            question_key: "Q_FLEX_01",
+            facet: "delay_tolerance",
+            intent: "Measure willingness to delay household tasks.",
+            polarity: "positive",
+          },
+          {
+            slot_key: "SLOT_FLEXIBILITY_02",
+            question_key: "Q_FLEX_02",
+            facet: "timing_adaptability",
+            intent: "Measure willingness to adapt timings.",
+            polarity: "positive",
+          },
+        ],
+      },
+      {
+        concept_key: "manual_override_need",
+        evidence_source: "survey_questions",
+        measurement_type: "single_item_direct",
+        output_type: "boolean",
+        aggregation_rule: "identity",
+        threshold_profile: "none",
+        minimum_answer_count: 1,
+        question_keys: ["Q_OVERRIDE_PERMISSION"],
+        required_question_keys: ["Q_OVERRIDE_PERMISSION"],
         question_intents: [],
       },
       {
@@ -143,6 +209,30 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
           heat_pump: "heat_pump",
           ev: "ev",
         },
+      },
+    },
+    {
+      question_key: "Q_FLEX_01",
+      ontology_target: "flexpulse_behavioural_schema.flexibility_willingness",
+      expected_type: "number",
+      required_for_mapping: false,
+      transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+    },
+    {
+      question_key: "Q_FLEX_02",
+      ontology_target: "flexpulse_behavioural_schema.flexibility_willingness",
+      expected_type: "number",
+      required_for_mapping: false,
+      transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+    },
+    {
+      question_key: "Q_OVERRIDE_PERMISSION",
+      ontology_target: "flexpulse_behavioural_schema.manual_override_need",
+      expected_type: "string",
+      required_for_mapping: false,
+      transform_strategy: {
+        kind: "boolean_lookup",
+        truthy_option_keys: ["yes"],
       },
     },
   ];
@@ -296,6 +386,71 @@ describe("response mapper", () => {
     expect(output.profile.trust_in_automation).toMatchObject({
       value: 3,
       tag: "medium",
+    });
+  });
+
+  it("uses mean aggregation for planned concepts and derives the expected tag", () => {
+    const output = mapSurveyResponseToOutput({
+      survey: buildPublishedSurveyFixture(),
+      answers: {
+        Q_FLEX_01: 4,
+        Q_FLEX_02: 2,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.flexibility_willingness).toMatchObject({
+      value: 3,
+      tag: "medium",
+      facets: {
+        delay_tolerance: {
+          value: 4,
+          evidence_count: 1,
+          evidence_level: "interpretive_signal",
+        },
+        timing_adaptability: {
+          value: 2,
+          evidence_count: 1,
+          evidence_level: "interpretive_signal",
+        },
+      },
+    });
+  });
+
+  it("maps boolean lookup answers before identity aggregation", () => {
+    const survey = buildPublishedSurveyFixture();
+    const accepted = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_OVERRIDE_PERMISSION: "yes",
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+    const declined = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_OVERRIDE_PERMISSION: "no",
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(accepted.profile.manual_override_need).toEqual({
+      value: true,
+    });
+    expect(declined.profile.manual_override_need).toEqual({
+      value: false,
     });
   });
 });

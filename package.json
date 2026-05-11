@@ -19,6 +19,11 @@
     "eval:translation-validator": "vitest run tests/evals/surveys/translation/translation.eval.test.ts",
     "eval:multicultural-pipeline": "vitest run tests/evals/surveys/translation/translation-production-loop.eval.test.ts",
     "eval:translation": "vitest run tests/evals/surveys/translation",
+    "eval:mapper": "vitest run tests/evals/surveys/mapper",
+    "eval:profiling": "vitest run tests/evals/surveys/profiling/profiling.eval.test.ts",
+    "eval:synthetic-cohorts": "vitest run tests/evals/surveys/profiling/synthetic-cohort.eval.test.ts",
+    "eval:mapper-profiling:report": "node tests/evals/surveys/mapper-profiling/generate-report.mjs",
+    "eval:mapper-profiling": "npm run eval:mapper && npm run eval:profiling && npm run eval:synthetic-cohorts && npm run eval:mapper-profiling:report",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "keywords": [],

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
-import { MetricGrid } from "@/components/surveys/metric-grid";
 import { FLEXPULSE_DER_ASSET_VALUES } from "@/features/ontology/flexpulse-behavioural-schema";
 import type {
   SurveyAnalyticsFieldDefinition,
@@ -22,9 +21,16 @@ type SurveyAnalyticsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
+type ProfileCondition = {
+  fieldKey: string;
+  tag: string;
+};
+
 const TAG_VALUES = ["low", "medium", "high"] as const;
 const MAX_PROFILE_CONCEPTS = 6;
 const MAX_BREAKDOWN_ROWS = 6;
+const MAX_INTELLIGENCE_AXES = 4;
+const MAX_RADAR_AXES = 6;
 
 function formatMetricValue(metric: SurveyAnalyticsMetricResult) {
   if (metric.value == null) {
@@ -58,6 +64,14 @@ function formatPlainValue(value: number | null | undefined, kind: "number" | "sh
   return value.toFixed(2);
 }
 
+function formatCompactCount(value: number | null | undefined) {
+  if (value == null) {
+    return "0";
+  }
+
+  return Number.isInteger(value) ? String(value) : value.toFixed(0);
+}
+
 function getGroupLabel(row: SurveyAnalyticsQueryRow, fieldKey: string) {
   const value = row.group[fieldKey];
   if (value == null || value === "") {
@@ -80,6 +94,222 @@ function getConceptShortLabel(field: SurveyAnalyticsFieldDefinition) {
     .replace(/\s+value$/i, "")
     .replace(/\s+tag$/i, "")
     .replace(/: .+$/, "");
+}
+
+function getConceptTitle(field: SurveyAnalyticsFieldDefinition) {
+  return getConceptShortLabel(field)
+    .replace(/\bDER\b/g, "DER")
+    .replace(/\bDr\b/g, "DR");
+}
+
+function getRadarAxisLabel(field: SurveyAnalyticsFieldDefinition) {
+  const title = getConceptTitle(field);
+  if (title.length <= 12) {
+    return title;
+  }
+
+  return title
+    .split(/\s+/)
+    .slice(0, 2)
+    .join(" ")
+    .replace(/\bWillingness\b/i, "Will.")
+    .replace(/\bPreference\b/i, "Pref.");
+}
+
+function getPrimaryProfileFields(fields: SurveyAnalyticsFieldDefinition[]) {
+  const primary = fields.filter((field) => field.concept_role === "primary_profile_axis");
+  return primary.length > 0 ? primary : fields;
+}
+
+function findConceptField(
+  fields: SurveyAnalyticsFieldDefinition[],
+  candidates: string[],
+) {
+  return (
+    fields.find((field) =>
+      candidates.some((candidate) =>
+        `${field.key} ${field.label} ${field.concept_key ?? ""}`
+          .toLowerCase()
+          .includes(candidate),
+      ),
+    ) ?? null
+  );
+}
+
+function getSegmentEntries(
+  rows: SurveyAnalyticsQueryRow[],
+  segmentField: SurveyAnalyticsFieldDefinition | null,
+  conceptField: SurveyAnalyticsFieldDefinition | null,
+) {
+  if (!segmentField || !conceptField) {
+    return [];
+  }
+
+  const key = metricKeyFor("avg", conceptField);
+  return rows
+    .map((row) => ({
+      label: getGroupLabel(row, segmentField.key),
+      value: getMetricValue(row, key),
+      sampleSize: row.metrics[key]?.sample_size ?? row.response_count,
+    }))
+    .filter((entry): entry is { label: string; value: number; sampleSize: number } => entry.value != null)
+    .sort((left, right) => right.value - left.value);
+}
+
+function getScoreRange(
+  rows: SurveyAnalyticsQueryRow[],
+  segmentField: SurveyAnalyticsFieldDefinition | null,
+  field: SurveyAnalyticsFieldDefinition,
+) {
+  const entries = getSegmentEntries(rows, segmentField, field);
+  if (entries.length === 0) {
+    return { low: null, high: null };
+  }
+
+  return {
+    low: entries[entries.length - 1].value,
+    high: entries[0].value,
+  };
+}
+
+function getSegmentFieldLabel(field: SurveyAnalyticsFieldDefinition | null) {
+  if (!field) {
+    return "segment";
+  }
+
+  return field.label.toLowerCase();
+}
+
+function getScoreBarWidth(value: number | null | undefined) {
+  if (value == null) {
+    return "0%";
+  }
+
+  return `${Math.max(0, Math.min(100, (value / 5) * 100))}%`;
+}
+
+function polarPoint(cx: number, cy: number, radius: number, angle: number) {
+  return {
+    x: cx + radius * Math.cos(angle),
+    y: cy + radius * Math.sin(angle),
+  };
+}
+
+function buildRadarPolygon(
+  values: number[],
+  cx: number,
+  cy: number,
+  radius: number,
+) {
+  const axisCount = values.length;
+  return values
+    .map((value, index) => {
+      const ratio = Math.max(0, Math.min(1, value / 5));
+      const angle = -Math.PI / 2 + (index / axisCount) * Math.PI * 2;
+      const point = polarPoint(cx, cy, radius * ratio, angle);
+      return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function buildRadarGridPolygon(axisCount: number, cx: number, cy: number, radius: number) {
+  return Array.from({ length: axisCount }, (_, index) => {
+    const angle = -Math.PI / 2 + (index / axisCount) * Math.PI * 2;
+    const point = polarPoint(cx, cy, radius, angle);
+    return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }).join(" ");
+}
+
+function formatDateShort(value: string | null) {
+  if (!value) {
+    return "Not published";
+  }
+
+  return new Date(value).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getSearchParamList(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  if (!value) {
+    return [] as string[];
+  }
+
+  return Array.isArray(value) ? value : [value];
+}
+
+function getActiveProfileConditions(
+  searchParams: Record<string, string | string[] | undefined>,
+) {
+  const fields = getSearchParamList(searchParams, "profileField");
+  const tags = getSearchParamList(searchParams, "profileTag");
+  const maxLength = Math.max(fields.length, tags.length);
+  const conditions: ProfileCondition[] = [];
+
+  for (let index = 0; index < maxLength; index += 1) {
+    conditions.push({
+      fieldKey: fields[index] ?? "",
+      tag: tags[index] ?? "",
+    });
+  }
+
+  return conditions.filter((condition) => condition.fieldKey && condition.tag);
+}
+
+function getVisibleProfileConditions(
+  searchParams: Record<string, string | string[] | undefined>,
+  tagFields: SurveyAnalyticsFieldDefinition[],
+) {
+  const active = getActiveProfileConditions(searchParams);
+  if (active.length > 0) {
+    return active;
+  }
+
+  return tagFields[0] ? [{ fieldKey: tagFields[0].key, tag: "high" }] : [];
+}
+
+function buildHrefWithProfileConditions(
+  searchParams: Record<string, string | string[] | undefined>,
+  conditions: ProfileCondition[],
+) {
+  const next = new URLSearchParams();
+
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (key === "profileField" || key === "profileTag") {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((entry) => {
+        if (entry) {
+          next.append(key, entry);
+        }
+      });
+      return;
+    }
+
+    if (value) {
+      next.set(key, value);
+    }
+  });
+
+  conditions.forEach((condition) => {
+    if (!condition.fieldKey || !condition.tag) {
+      return;
+    }
+
+    next.append("profileField", condition.fieldKey);
+    next.append("profileTag", condition.tag);
+  });
+
+  const query = next.toString();
+  return query ? `?${query}` : "?";
 }
 
 function getSearchParam(
@@ -209,12 +439,14 @@ function buildSelectedFilters(input: {
   audienceField: SurveyAnalyticsFieldDefinition | null;
   languageField: SurveyAnalyticsFieldDefinition | null;
   tagField: SurveyAnalyticsFieldDefinition | null;
+  tagFields: SurveyAnalyticsFieldDefinition[];
   assetField: SurveyAnalyticsFieldDefinition | null;
   selectedCountry: string | null;
   selectedAudience: string | null;
   selectedLanguage: string | null;
   selectedTag: string | null;
   selectedAsset: string | null;
+  profileConditions: ProfileCondition[];
 }): SurveyAnalyticsFilter[] {
   const filters: SurveyAnalyticsFilter[] = [];
 
@@ -233,6 +465,15 @@ function buildSelectedFilters(input: {
   if (input.assetField && input.selectedAsset) {
     filters.push({ field: input.assetField.key, op: "contains", value: input.selectedAsset });
   }
+
+  input.profileConditions.forEach((condition) => {
+    const field = input.tagFields.find((candidate) => candidate.key === condition.fieldKey);
+    if (!field) {
+      return;
+    }
+
+    filters.push({ field: field.key, op: "eq", value: condition.tag });
+  });
 
   return filters;
 }
@@ -299,7 +540,8 @@ function RenderFieldTags({
 function AnalyticsTabs() {
   return (
     <nav className="analytics-tabs" aria-label="Analytics sections">
-      <a href="#profile-overview">Profile overview</a>
+      <a href="#profile-overview">Survey intelligence</a>
+      <a href="#segment-finder">Segment finder</a>
       <a href="#cohort-explorer">Cohort explorer</a>
       <a href="#compare-segments">Compare segments</a>
       <a href="#distributions">Distributions</a>
@@ -381,6 +623,149 @@ function SegmentFilterPanel({
           </Link>
         </div>
       </form>
+    </section>
+  );
+}
+
+function SegmentOpportunityFinder({
+  searchParams,
+  tagFields,
+  conditions,
+  activeConditions,
+  selectedRow,
+  countryRows,
+  countryField,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+  tagFields: SurveyAnalyticsFieldDefinition[];
+  conditions: ProfileCondition[];
+  activeConditions: ProfileCondition[];
+  selectedRow: SurveyAnalyticsQueryRow | null;
+  countryRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
+}) {
+  if (tagFields.length === 0) {
+    return (
+      <section id="segment-finder" className="surface-card segment-finder">
+        <h2>Segment Opportunity Finder</h2>
+        <div className="empty-state empty-state--inline">
+          <h3>No profile tags available</h3>
+          <p>This builder needs tagged profile axes (`low` / `medium` / `high`) in the measurement plan.</p>
+        </div>
+      </section>
+    );
+  }
+
+  const nextCondition: ProfileCondition = {
+    fieldKey: tagFields[0]?.key ?? "",
+    tag: "high",
+  };
+  const addConditionHref = buildHrefWithProfileConditions(searchParams, [...conditions, nextCondition]);
+  const matchedRespondents = getMetricValue(selectedRow, "responses");
+  const countryDistribution = activeConditions.length > 0 && countryField
+    ? countryRows
+        .map((row) => ({
+          label: getGroupLabel(row, countryField.key),
+          value: row.metrics.responses.value,
+          unit: "count" as const,
+        }))
+        .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
+    : [];
+
+  return (
+    <section id="segment-finder" className="surface-card segment-finder">
+      <div>
+        <h2>Segment Opportunity Finder</h2>
+        <p>
+          Build a behavioural filter using profile bands. The segment includes respondents that
+          satisfy all selected conditions.
+        </p>
+      </div>
+
+      <form className="segment-condition-list" action="">
+        {conditions.map((condition, index) => {
+          const removeHref = buildHrefWithProfileConditions(
+            searchParams,
+            conditions.filter((_, conditionIndex) => conditionIndex !== index),
+          );
+
+          return (
+            <div key={`${condition.fieldKey}-${condition.tag}-${index}`} className="segment-condition-row">
+              <span>{index + 1}</span>
+              <select name="profileField" defaultValue={condition.fieldKey}>
+                {tagFields.map((field) => (
+                  <option key={field.key} value={field.key}>
+                    {getConceptShortLabel(field).replace(/\s+tag$/i, "")}
+                  </option>
+                ))}
+              </select>
+              <small>is</small>
+              <select name="profileTag" defaultValue={condition.tag}>
+                {TAG_VALUES.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                  </option>
+                ))}
+              </select>
+              {conditions.length > 1 ? (
+                <Link href={removeHref} className="segment-condition-remove" aria-label="Remove condition">
+                  ×
+                </Link>
+              ) : (
+                <span className="segment-condition-remove segment-condition-remove--disabled">×</span>
+              )}
+            </div>
+          );
+        })}
+
+        <div className="segment-condition-actions">
+          <Link href={addConditionHref} className="button button--secondary">
+            + Add condition
+          </Link>
+          <button type="submit" className="button button--primary">
+            Find segment
+          </button>
+        </div>
+      </form>
+
+      <div className="segment-opportunity-output">
+        <article className="segment-opportunity-card">
+          <div className="segment-opportunity-card__header">
+            <p>Current segment</p>
+            <strong>
+              {activeConditions.length > 0
+                ? activeConditions
+                .map((condition) => {
+                  const field = tagFields.find((candidate) => candidate.key === condition.fieldKey);
+                  return field
+                    ? `${getConceptShortLabel(field).replace(/\s+tag$/i, "")} = ${condition.tag}`
+                    : null;
+                })
+                .filter(Boolean)
+                .join(" + ")
+                : "No behavioural segment applied yet"}
+            </strong>
+          </div>
+          {activeConditions.length > 0 ? (
+            <p>
+              Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. This block is
+              intentionally descriptive, not prescriptive: it reports the size and geographic mix of
+              the selected cohort without inventing a deployment recommendation.
+            </p>
+          ) : (
+            <p>
+              Choose one or more conditions and press <strong>Find segment</strong>. Until then, no
+              behavioural filter is applied to the survey.
+            </p>
+          )}
+        </article>
+
+        <ProgressListCard
+          title="Countries inside this segment"
+          description="Count of respondents matching all current behavioural conditions."
+          rows={countryDistribution}
+        />
+      </div>
     </section>
   );
 }
@@ -703,6 +1088,327 @@ function AssetDistributionCard({
   );
 }
 
+function SurveyIntelligenceHero({
+  responseCount,
+  countryCount,
+  publishedAt,
+  profileFields,
+  baselineRow,
+  segmentRows,
+  segmentField,
+}: {
+  responseCount: number;
+  countryCount: number;
+  publishedAt: string | null;
+  profileFields: SurveyAnalyticsFieldDefinition[];
+  baselineRow: SurveyAnalyticsQueryRow | null;
+  segmentRows: SurveyAnalyticsQueryRow[];
+  segmentField: SurveyAnalyticsFieldDefinition | null;
+}) {
+  const trustField = findConceptField(profileFields, ["trust"]);
+  const flexibilityField = findConceptField(profileFields, ["flexibility"]);
+  const comfortField = findConceptField(profileFields, ["comfort", "thermal"]);
+  const flexibilityLeaders = getSegmentEntries(segmentRows, segmentField, flexibilityField);
+  const comfortLeaders = getSegmentEntries(segmentRows, segmentField, comfortField);
+  const trustAverage = trustField
+    ? getMetricValue(baselineRow, metricKeyFor("avg", trustField))
+    : null;
+  const activationLeader = flexibilityLeaders[0]?.label ?? "the strongest cohort";
+  const comfortBarrier = comfortLeaders[0]?.label ?? "comfort-protective cohorts";
+
+  const headline =
+    flexibilityField && comfortField
+      ? `Highest flexibility average: ${activationLeader}. Highest comfort-preservation average: ${comfortBarrier}.`
+      : `This survey currently exposes ${profileFields.length} primary behavioural axes.`;
+  const description =
+    trustAverage != null
+      ? `Baseline trust in automation is ${formatPlainValue(
+          trustAverage,
+        )}/5 across mapped respondents. Values shown below are direct averages of mapped profile scores on a 1-5 scale.`
+      : `Values shown below are direct averages of mapped profile scores on a 1-5 scale, grouped by the strongest available segment field when ranges are displayed.`;
+
+  return (
+    <section className="intelligence-hero">
+      <p>
+        Survey intelligence · {responseCount} respondents · {countryCount || "No"} countries ·{" "}
+        {formatDateShort(publishedAt)}
+      </p>
+      <h2>{headline}</h2>
+      <span>{description}</span>
+    </section>
+  );
+}
+
+function IntelligenceAxisCards({
+  fields,
+  baselineRow,
+  segmentRows,
+  segmentField,
+}: {
+  fields: SurveyAnalyticsFieldDefinition[];
+  baselineRow: SurveyAnalyticsQueryRow | null;
+  segmentRows: SurveyAnalyticsQueryRow[];
+  segmentField: SurveyAnalyticsFieldDefinition | null;
+}) {
+  const segmentLabel = getSegmentFieldLabel(segmentField);
+
+  return (
+    <section className="intelligence-axis-grid">
+      {fields.slice(0, MAX_INTELLIGENCE_AXES).map((field) => {
+        const key = metricKeyFor("avg", field);
+        const value = getMetricValue(baselineRow, key);
+        const range = getScoreRange(segmentRows, segmentField, field);
+
+        return (
+          <article key={field.key} className="intelligence-axis-card">
+            <p>{getConceptTitle(field)}</p>
+            <strong>{formatPlainValue(value)}</strong>
+            <span>Average mapped score across respondents · /5.0</span>
+            <div className="intelligence-score-bar">
+              <div style={{ width: getScoreBarWidth(value) }} />
+            </div>
+            <small>
+              Lowest {segmentLabel} avg {formatPlainValue(range.low)} · Highest {segmentLabel} avg{" "}
+              {formatPlainValue(range.high)}
+            </small>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
+function IntelligenceInsights({
+  baselineRow,
+  segmentRows,
+  segmentField,
+  profileFields,
+}: {
+  baselineRow: SurveyAnalyticsQueryRow | null;
+  segmentRows: SurveyAnalyticsQueryRow[];
+  segmentField: SurveyAnalyticsFieldDefinition | null;
+  profileFields: SurveyAnalyticsFieldDefinition[];
+}) {
+  const trustField = findConceptField(profileFields, ["trust"]);
+  const flexibilityField = findConceptField(profileFields, ["flexibility"]);
+  const comfortField = findConceptField(profileFields, ["comfort", "thermal"]);
+  const trustLeaders = getSegmentEntries(segmentRows, segmentField, trustField);
+  const flexibilityLeaders = getSegmentEntries(segmentRows, segmentField, flexibilityField);
+  const comfortLeaders = getSegmentEntries(segmentRows, segmentField, comfortField);
+  const trustBaseline = trustField ? getMetricValue(baselineRow, metricKeyFor("avg", trustField)) : null;
+  const flexibilityBaseline = flexibilityField
+    ? getMetricValue(baselineRow, metricKeyFor("avg", flexibilityField))
+    : null;
+  const comfortBaseline = comfortField
+    ? getMetricValue(baselineRow, metricKeyFor("avg", comfortField))
+    : null;
+  const activationLeader = flexibilityLeaders[0] ?? trustLeaders[0] ?? null;
+  const comfortBarrier = comfortLeaders[0] ?? null;
+
+  return (
+    <section className="surface-card">
+      <h2>Key intelligence</h2>
+      <div className="intelligence-insight-list">
+        {activationLeader ? (
+          <article className="intelligence-insight">
+            <strong>Highest flexibility score: {activationLeader.label}</strong>
+            <p>
+              Average flexibility willingness for this segment is{" "}
+              {formatPlainValue(activationLeader.value)} / 5 versus a survey average of{" "}
+              {formatPlainValue(flexibilityBaseline ?? trustBaseline)} / 5.
+            </p>
+          </article>
+        ) : null}
+        {comfortBarrier ? (
+          <article className="intelligence-insight">
+            <strong>Highest comfort-preservation score: {comfortBarrier.label}</strong>
+            <p>
+              Average thermal comfort norms for this segment is {formatPlainValue(
+                comfortBarrier.value,
+              )} / 5 versus a survey average of {formatPlainValue(comfortBaseline)} / 5.
+            </p>
+          </article>
+        ) : null}
+        {!activationLeader && !comfortBarrier ? (
+          <div className="empty-state empty-state--inline">
+            <h3>No deterministic insight yet</h3>
+            <p>Insights appear when at least one profile axis can be compared across segments.</p>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function RadarViewCard({
+  fields,
+  baselineRow,
+  segmentRows,
+  segmentField,
+}: {
+  fields: SurveyAnalyticsFieldDefinition[];
+  baselineRow: SurveyAnalyticsQueryRow | null;
+  segmentRows: SurveyAnalyticsQueryRow[];
+  segmentField: SurveyAnalyticsFieldDefinition | null;
+}) {
+  const visibleFields = fields.slice(0, MAX_RADAR_AXES);
+  const series = [
+    baselineRow
+      ? {
+          label: "Baseline",
+          colorClass: "radar-series--baseline",
+          row: baselineRow,
+          responses: getMetricValue(baselineRow, "responses") ?? 0,
+        }
+      : null,
+    ...segmentRows
+      .slice()
+      .sort((left, right) => (right.response_count ?? 0) - (left.response_count ?? 0))
+      .slice(0, 2)
+      .map((row, index) => ({
+        label: getGroupLabel(row, segmentField?.key ?? ""),
+        colorClass: index === 0 ? "radar-series--accent" : "radar-series--secondary",
+        row,
+        responses: row.response_count ?? 0,
+      })),
+  ].filter(
+    (
+      entry,
+    ): entry is {
+      label: string;
+      colorClass: string;
+      row: SurveyAnalyticsQueryRow;
+      responses: number;
+    } => Boolean(entry),
+  );
+
+  const cx = 180;
+  const cy = 190;
+  const radius = 118;
+  const levels = [0.25, 0.5, 0.75, 1];
+
+  if (visibleFields.length < 3 || series.length < 2) {
+    return (
+      <article className="surface-card radar-card">
+        <h2>Radar view</h2>
+        <div className="empty-state empty-state--inline">
+          <h3>Not enough comparable axes yet</h3>
+          <p>This chart appears when the survey exposes at least 3 primary profile axes and one segment cut.</p>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="surface-card radar-card">
+      <div className="radar-card__header">
+        <div>
+          <h2>Radar view</h2>
+          <p>
+            Baseline vs top {Math.min(2, series.length - 1)} {getSegmentFieldLabel(segmentField)} groups
+            across the main profile axes.
+            {fields.length > MAX_RADAR_AXES ? ` Showing first ${MAX_RADAR_AXES} axes.` : ""}
+          </p>
+        </div>
+      </div>
+
+      <div className="radar-chart-shell">
+        <svg viewBox="0 0 360 380" role="img" aria-label="Radar comparison of baseline and top segments">
+          {levels.map((level) => (
+            <polygon
+              key={level}
+              points={buildRadarGridPolygon(visibleFields.length, cx, cy, radius * level)}
+              className="radar-grid"
+            />
+          ))}
+
+          {visibleFields.map((field, index) => {
+            const angle = -Math.PI / 2 + (index / visibleFields.length) * Math.PI * 2;
+            const axisPoint = polarPoint(cx, cy, radius, angle);
+            const labelPoint = polarPoint(cx, cy, radius + 28, angle);
+
+            return (
+              <g key={field.key}>
+                <line x1={cx} y1={cy} x2={axisPoint.x} y2={axisPoint.y} className="radar-axis" />
+                <text x={labelPoint.x} y={labelPoint.y} className="radar-label" textAnchor="middle">
+                  {getRadarAxisLabel(field)}
+                </text>
+              </g>
+            );
+          })}
+
+          {series.map((entry) => {
+            const values = visibleFields.map((field) => {
+              const key = metricKeyFor("avg", field);
+              return getMetricValue(entry.row, key) ?? 0;
+            });
+
+            return (
+              <g key={entry.label}>
+                <polygon
+                  points={buildRadarPolygon(values, cx, cy, radius)}
+                  className={`radar-area ${entry.colorClass}`}
+                />
+                <polyline
+                  points={buildRadarPolygon(values, cx, cy, radius)}
+                  className={`radar-line ${entry.colorClass}`}
+                />
+              </g>
+            );
+          })}
+        </svg>
+
+        <div className="radar-legend">
+          {series.map((entry) => (
+            <div key={entry.label} className="radar-legend__item">
+              <span className={`radar-dot ${entry.colorClass}`} />
+              <strong>{entry.label}</strong>
+              <small>{formatCompactCount(entry.responses)} respondents</small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ProgressListCard({
+  title,
+  description,
+  rows,
+}: {
+  title: string;
+  description: string;
+  rows: Array<{ label: string; value: number; unit: "count" | "share" }>;
+}) {
+  const maxValue = Math.max(...rows.map((row) => row.value), 1);
+
+  return (
+    <article className="surface-card intelligence-widget">
+      <h2>{title}</h2>
+      <p>{description}</p>
+      {rows.length > 0 ? (
+        <div className="intelligence-progress-list">
+          {rows.map((row) => (
+            <div key={row.label} className="intelligence-progress-row">
+              <span>{row.label}</span>
+              <strong>{row.unit === "share" ? formatPlainValue(row.value, "share") : row.value}</strong>
+              <div>
+                <i style={{ width: `${Math.max(2, (row.value / maxValue) * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state empty-state--inline">
+          <h3>No widget data yet</h3>
+          <p>This widget appears when the survey exposes the required mapped fields.</p>
+        </div>
+      )}
+    </article>
+  );
+}
+
 export default async function SurveyAnalyticsPage({
   params,
   searchParams,
@@ -721,6 +1427,7 @@ export default async function SurveyAnalyticsPage({
   const profileValueFields = fieldsBySource.profile.filter(
     (field) => field.value_type === "number" && /^profile\.[^.]+\.value$/i.test(field.key),
   );
+  const mainProfileFields = getPrimaryProfileFields(profileValueFields);
   const tagFields = fieldsBySource.profile.filter((field) => field.value_type === "tag");
   const tagProfileField = tagFields[0] ?? null;
   const assetField =
@@ -739,17 +1446,21 @@ export default async function SurveyAnalyticsPage({
   const selectedLanguage = getSearchParam(resolvedSearchParams, "language") ?? "";
   const selectedTag = getSearchParam(resolvedSearchParams, "tag") ?? "";
   const selectedAsset = getSearchParam(resolvedSearchParams, "asset") ?? "";
+  const activeProfileConditions = getActiveProfileConditions(resolvedSearchParams);
+  const profileConditions = getVisibleProfileConditions(resolvedSearchParams, tagFields);
   const selectedFilters = buildSelectedFilters({
     countryField,
     audienceField,
     languageField,
     tagField: tagProfileField,
+    tagFields,
     assetField,
     selectedCountry,
     selectedAudience,
     selectedLanguage,
     selectedTag,
     selectedAsset,
+    profileConditions: activeProfileConditions,
   });
   const hasActiveFilters = selectedFilters.length > 0;
 
@@ -761,6 +1472,7 @@ export default async function SurveyAnalyticsPage({
     audienceBreakdown,
     profileBySegment,
     tagDistribution,
+    selectedCountryBreakdown,
   ] = schema.ready_response_count > 0
     ? await Promise.all([
         runSurveyAnalytics(surveyId, {
@@ -800,8 +1512,15 @@ export default async function SurveyAnalyticsPage({
               metrics: [{ key: "responses", kind: "count" }],
             })
           : Promise.resolve(null),
+        countryField
+          ? runSurveyAnalytics(surveyId, {
+              filters: selectedFilters,
+              group_by: [countryField.key],
+              metrics: [{ key: "responses", kind: "count" }],
+            })
+          : Promise.resolve(null),
       ])
-    : [null, null, null, null, null, null, null];
+    : [null, null, null, null, null, null, null, null];
 
   const baselineRow = getSingleGroup(baselineProfile);
   const selectedRow = getSingleGroup(selectedProfile);
@@ -821,6 +1540,38 @@ export default async function SurveyAnalyticsPage({
         label: asset.replaceAll("_", " "),
       }))
     : [];
+  const assetWidgetRows = assetField
+    ? FLEXPULSE_DER_ASSET_VALUES.slice(0, 8)
+        .map((asset) => ({
+          label: asset.replaceAll("_", " "),
+          value: getMetricValue(baselineRow, `asset_${asset}`),
+          unit: "share" as const,
+        }))
+        .filter((row): row is { label: string; value: number; unit: "share" } => row.value != null)
+        .sort((left, right) => right.value - left.value)
+    : [];
+  const countryWidgetRows =
+    countryField && countryBreakdown
+      ? countryBreakdown.result.groups
+          .map((row) => ({
+            label: getGroupLabel(row, countryField.key),
+            value: row.metrics.responses.value,
+            unit: "count" as const,
+          }))
+          .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
+          .slice(0, MAX_BREAKDOWN_ROWS)
+      : [];
+  const tagWidgetRows =
+    tagProfileField && tagDistribution
+      ? tagDistribution.result.groups
+          .map((row) => ({
+            label: getGroupLabel(row, tagProfileField.key),
+            value: row.metrics.responses.value,
+            unit: "count" as const,
+          }))
+          .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
+          .slice(0, MAX_BREAKDOWN_ROWS)
+      : [];
 
   return (
     <div className="page-stack">
@@ -844,45 +1595,6 @@ export default async function SurveyAnalyticsPage({
 
       <AnalyticsTabs />
 
-      <SegmentFilterPanel
-        countryOptions={countryOptions}
-        audienceOptions={audienceOptions}
-        languageOptions={languageOptions}
-        assetOptions={assetOptions}
-        selectedCountry={selectedCountry}
-        selectedAudience={selectedAudience}
-        selectedLanguage={selectedLanguage}
-        selectedTag={selectedTag}
-        selectedAsset={selectedAsset}
-      />
-
-      <MetricGrid
-        metrics={[
-          {
-            label: "Mapped responses",
-            value: String(schema.ready_response_count),
-            hint: "Ready profile records",
-          },
-          {
-            label: "Profile concepts",
-            value: String(profileValueFields.length),
-            hint: "Numerical profile axes",
-          },
-          {
-            label: "Segment fields",
-            value: String(
-              [countryField, languageField, audienceField].filter(Boolean).length,
-            ),
-            hint: "Country, language, audience",
-          },
-          {
-            label: "Geo levels",
-            value: String(fieldsBySource.geo.length > 0 ? schema.supported_geo_levels.length : 0),
-            hint: "Supported hierarchy levels for future drill-down",
-          },
-        ]}
-      />
-
       {schema.ready_response_count === 0 ? (
         <section className="surface-card">
           <div className="empty-state">
@@ -895,7 +1607,85 @@ export default async function SurveyAnalyticsPage({
         </section>
       ) : (
         <>
-          <section id="profile-overview" className="content-grid analytics-section-grid">
+          <section id="profile-overview" className="analytics-intelligence-tab">
+            <SurveyIntelligenceHero
+              responseCount={schema.ready_response_count}
+              countryCount={countryOptions.length}
+              publishedAt={survey.publishedAt}
+              profileFields={mainProfileFields}
+              baselineRow={baselineRow}
+              segmentRows={segmentRows}
+              segmentField={primarySegmentField}
+            />
+            <IntelligenceAxisCards
+              fields={mainProfileFields}
+              baselineRow={baselineRow}
+              segmentRows={segmentRows}
+              segmentField={primarySegmentField}
+            />
+            <RadarViewCard
+              fields={mainProfileFields}
+              baselineRow={baselineRow}
+              segmentRows={segmentRows}
+              segmentField={primarySegmentField}
+            />
+
+            <div className="analytics-intelligence-layout">
+              <IntelligenceInsights
+                baselineRow={baselineRow}
+                segmentRows={segmentRows}
+                segmentField={primarySegmentField}
+                profileFields={mainProfileFields}
+              />
+              <div className="analytics-widget-stack">
+                {assetField ? (
+                  <ProgressListCard
+                    title="DER asset penetration"
+                    description="Share of respondents reporting each mapped DER asset."
+                    rows={assetWidgetRows}
+                  />
+                ) : null}
+                {countryField ? (
+                  <ProgressListCard
+                    title="Respondents by country"
+                    description="Respondent concentration across the strongest geographic cuts."
+                    rows={countryWidgetRows}
+                  />
+                ) : null}
+                {tagProfileField ? (
+                  <ProgressListCard
+                    title={`${getConceptShortLabel(tagProfileField)} distribution`}
+                    description="Low, medium and high bands generated by the mapping contract."
+                    rows={tagWidgetRows}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </section>
+
+          <SegmentOpportunityFinder
+            searchParams={resolvedSearchParams}
+            tagFields={tagFields}
+            conditions={profileConditions}
+            activeConditions={activeProfileConditions}
+            selectedRow={selectedRow}
+            countryRows={selectedCountryBreakdown?.result.groups ?? []}
+            countryField={countryField}
+          />
+
+          <SegmentFilterPanel
+            countryOptions={countryOptions}
+            audienceOptions={audienceOptions}
+            languageOptions={languageOptions}
+            assetOptions={assetOptions}
+            selectedCountry={selectedCountry}
+            selectedAudience={selectedAudience}
+            selectedLanguage={selectedLanguage}
+            selectedTag={selectedTag}
+            selectedAsset={selectedAsset}
+          />
+
+          <section className="content-grid analytics-section-grid">
             <ProfileOverviewCard
               selectedRow={selectedRow}
               baselineRow={baselineRow}

@@ -12,6 +12,7 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
+    "test:open-meteo:live": "OPEN_METEO_LIVE_TESTS=true vitest run tests/integration/surveys/response-enrichment-open-meteo.test.ts",
     "test:watch": "vitest",
     "eval:generator": "vitest run tests/evals/surveys/generator",
     "eval:planner": "vitest run tests/evals/surveys/planner",

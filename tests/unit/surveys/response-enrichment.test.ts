@@ -78,4 +78,26 @@ describe("response enrichment helpers", () => {
       bestAvailableKind: "postal_area",
     });
   });
+
+  it("falls back to country-only context when no postal code or geocoding result exists", () => {
+    const location = deriveNormalizedSurveyLocation({
+      countryCode: "IE",
+      postalCode: null,
+      geocodedLocation: null,
+    });
+
+    expect(location).toMatchObject({
+      normalizedCountryCode: "IE",
+      locationAggCode: "IE:country:ie",
+      locationAggLabel: "IE",
+      locationGranularity: "country",
+      centroidLat: null,
+      centroidLon: null,
+    });
+    expect(location.normalizedLocationJson).toMatchObject({
+      provider: "fallback",
+      postalAreaMask: null,
+      bestAvailableKind: "country",
+    });
+  });
 });

@@ -851,6 +851,131 @@ textarea {
   border-bottom: none;
 }
 
+.analytics-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.analytics-tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 0.85rem;
+  border-radius: var(--radius-sm);
+  color: var(--muted-strong);
+  font-weight: 600;
+}
+
+.analytics-tabs a:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border-color: rgba(36, 84, 197, 0.18);
+  background:
+    linear-gradient(135deg, rgba(36, 84, 197, 0.07), transparent 42%),
+    var(--surface);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.analytics-section-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+}
+
+.profile-panel {
+  background:
+    radial-gradient(circle at top right, rgba(36, 84, 197, 0.08), transparent 34%),
+    var(--surface);
+}
+
+.profile-score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.profile-score-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.profile-score-card span,
+.profile-score-card small {
+  display: block;
+  color: var(--muted);
+}
+
+.profile-score-card strong {
+  display: block;
+  margin: 0.3rem 0;
+  font-size: 1.7rem;
+  letter-spacing: -0.05em;
+}
+
+.surface-card--wide {
+  width: 100%;
+}
+
+.analytics-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.analytics-table th,
+.analytics-table td {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.analytics-table th {
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.analytics-table td strong,
+.analytics-table td small {
+  display: block;
+}
+
+.analytics-table td small {
+  color: var(--muted);
+}
+
 .content-grid--narrow {
   grid-template-columns: minmax(0, 480px);
   justify-content: center;

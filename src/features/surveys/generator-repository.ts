@@ -1,4 +1,5 @@
 import { requireCurrentSession } from "@/lib/auth/session";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CreateSurveyDraftInput,
@@ -327,7 +328,7 @@ export async function getOwnedDefaultSurveyLink(
 export async function getPublicSurveyLinkByToken(
   linkToken: string,
 ): Promise<PersistedSurveyLink | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
     .from("survey_links")
@@ -346,7 +347,7 @@ export async function getPublicSurveyLinkByToken(
 export async function getPublishedSurveyByIdPublic(
   surveyId: string,
 ): Promise<PersistedSurvey | null> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
     .from("surveys")

@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { FLEXPULSE_DER_ASSET_VALUES } from "@/features/ontology/flexpulse-behavioural-schema";
-import type {
-  SurveyAnalyticsFieldDefinition,
-  SurveyAnalyticsFilter,
-  SurveyAnalyticsMetric,
-  SurveyAnalyticsMetricResult,
-  SurveyAnalyticsQueryRow,
+import {
+  classifySurveyAnalyticsEvidence,
+  type SurveyAnalyticsFieldDefinition,
+  type SurveyAnalyticsFilter,
+  type SurveyAnalyticsMetric,
+  type SurveyAnalyticsMetricResult,
+  type SurveyAnalyticsQueryRow,
 } from "@/features/surveys/survey-analytics";
 import {
   getSurveyAnalyticsSchema,
@@ -349,6 +350,31 @@ function describeAverage(value: number | null | undefined) {
   return "medio";
 }
 
+function getEvidenceLabel(label: SurveyAnalyticsQueryRow["evidence"]["label"]) {
+  switch (label) {
+    case "hidden":
+      return "Hidden";
+    case "very_low":
+      return "Very low evidence";
+    case "low":
+      return "Low evidence";
+    case "directional":
+      return "Directional";
+    case "usable":
+      return "Usable";
+  }
+}
+
+function getEvidenceTone(label: SurveyAnalyticsQueryRow["evidence"]["label"]) {
+  if (label === "hidden" || label === "very_low") {
+    return "critical";
+  }
+  if (label === "low") {
+    return "warning";
+  }
+  return "ok";
+}
+
 function metricKeyFor(prefix: string, field: SurveyAnalyticsFieldDefinition) {
   return `${prefix}_${field.key.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "")}`;
 }
@@ -501,6 +527,18 @@ function FilterSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function EvidenceBadge({
+  evidence,
+}: {
+  evidence: SurveyAnalyticsQueryRow["evidence"];
+}) {
+  return (
+    <span className={`evidence-badge evidence-badge--${getEvidenceTone(evidence.label)}`}>
+      {getEvidenceLabel(evidence.label)} · n={evidence.response_count}
+    </span>
   );
 }
 
@@ -662,7 +700,8 @@ function SegmentOpportunityFinder({
   };
   const addConditionHref = buildHrefWithProfileConditions(searchParams, [...conditions, nextCondition]);
   const matchedRespondents = getMetricValue(selectedRow, "responses");
-  const countryDistribution = activeConditions.length > 0 && countryField
+  const suppressSegmentDetail = Boolean(selectedRow?.evidence.suppress_detail);
+  const countryDistribution = activeConditions.length > 0 && countryField && !suppressSegmentDetail
     ? countryRows
         .map((row) => ({
           label: getGroupLabel(row, countryField.key),
@@ -747,11 +786,26 @@ function SegmentOpportunityFinder({
             </strong>
           </div>
           {activeConditions.length > 0 ? (
-            <p>
-              Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. This block is
-              intentionally descriptive, not prescriptive: it reports the size and geographic mix of
-              the selected cohort without inventing a deployment recommendation.
-            </p>
+            <>
+              {selectedRow ? <EvidenceBadge evidence={selectedRow.evidence} /> : null}
+              <p>
+                Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. This block is
+                intentionally descriptive, not prescriptive: it reports the size and geographic mix of
+                the selected cohort without inventing a deployment recommendation.
+              </p>
+              {selectedRow?.evidence.suppress_detail ? (
+                <p className="evidence-warning">
+                  Segment details are suppressed because fewer than 5 respondents match this
+                  selection.
+                </p>
+              ) : selectedRow ? (
+                <p className="evidence-warning">{selectedRow.evidence.description}</p>
+              ) : (
+                <p className="evidence-warning">
+                  No respondents currently match all selected behavioural conditions.
+                </p>
+              )}
+            </>
           ) : (
             <p>
               Choose one or more conditions and press <strong>Find segment</strong>. Until then, no
@@ -803,6 +857,8 @@ function BreakdownCard({
                   })
                   .filter(Boolean)
                   .join(" · ")}
+                {" · "}
+                <EvidenceBadge evidence={row.evidence} />
               </span>
             </div>
           ))}
@@ -852,6 +908,10 @@ function ProfileOverviewCard({
           ? "This describes the respondents matching the active filters, compared with the full survey baseline below."
           : "This describes all mapped respondents in the survey. Use filters above to ask a more specific cohort question."}
       </p>
+      <EvidenceBadge evidence={row.evidence} />
+      {row.evidence.label !== "usable" ? (
+        <p className="evidence-warning">{row.evidence.description}</p>
+      ) : null}
       <div className="profile-score-grid">
         {profileValueFields.slice(0, MAX_PROFILE_CONCEPTS).map((field) => {
           const averageKey = metricKeyFor("avg", field);
@@ -897,6 +957,7 @@ function DifferentiatorsCard({
   profileValueFields: SurveyAnalyticsFieldDefinition[];
 }) {
   const strongest = segmentRows
+    .filter((row) => !row.evidence.suppress_detail)
     .flatMap((row) =>
       profileValueFields.map((field) => {
         const key = metricKeyFor("avg", field);
@@ -911,6 +972,7 @@ function DifferentiatorsCard({
           segmentValue,
           baselineValue,
           sampleSize: row.metrics[key]?.sample_size ?? 0,
+          evidence: row.evidence,
         };
       }),
     )
@@ -934,6 +996,8 @@ function DifferentiatorsCard({
                 {getDifferenceLabel(entry.delta)} vs baseline · selected{" "}
                 {formatPlainValue(entry.segmentValue)} · baseline{" "}
                 {formatPlainValue(entry.baselineValue)} · n={entry.sampleSize}
+                {" · "}
+                <EvidenceBadge evidence={entry.evidence} />
               </span>
             </div>
           ))}
@@ -975,6 +1039,7 @@ function ConceptComparisonTable({
               <tr>
                 <th>Segment</th>
                 <th>Responses</th>
+                <th>Evidence</th>
                 {visibleFields.map((field) => (
                   <th key={field.key}>{getConceptShortLabel(field)}</th>
                 ))}
@@ -985,7 +1050,18 @@ function ConceptComparisonTable({
                 <tr key={getGroupLabel(row, segmentField?.key ?? "")}>
                   <td>{getGroupLabel(row, segmentField?.key ?? "")}</td>
                   <td>{formatMetricValue(row.metrics.responses)}</td>
+                  <td>
+                    <EvidenceBadge evidence={row.evidence} />
+                  </td>
                   {visibleFields.map((field) => {
+                    if (row.evidence.suppress_detail) {
+                      return (
+                        <td key={field.key}>
+                          <small>Suppressed</small>
+                        </td>
+                      );
+                    }
+
                     const key = metricKeyFor("avg", field);
                     const value = getMetricValue(row, key);
                     const baseline = getMetricValue(baselineRow, key);
@@ -1092,6 +1168,7 @@ function SurveyIntelligenceHero({
   responseCount,
   countryCount,
   publishedAt,
+  surveyEvidence,
   profileFields,
   baselineRow,
   segmentRows,
@@ -1100,6 +1177,7 @@ function SurveyIntelligenceHero({
   responseCount: number;
   countryCount: number;
   publishedAt: string | null;
+  surveyEvidence: SurveyAnalyticsQueryRow["evidence"];
   profileFields: SurveyAnalyticsFieldDefinition[];
   baselineRow: SurveyAnalyticsQueryRow | null;
   segmentRows: SurveyAnalyticsQueryRow[];
@@ -1133,6 +1211,7 @@ function SurveyIntelligenceHero({
         Survey intelligence · {responseCount} respondents · {countryCount || "No"} countries ·{" "}
         {formatDateShort(publishedAt)}
       </p>
+      <EvidenceBadge evidence={surveyEvidence} />
       <h2>{headline}</h2>
       <span>{description}</span>
     </section>
@@ -1262,6 +1341,7 @@ function RadarViewCard({
         }
       : null,
     ...segmentRows
+      .filter((row) => !row.evidence.suppress_detail)
       .slice()
       .sort((left, right) => (right.response_count ?? 0) - (left.response_count ?? 0))
       .slice(0, 2)
@@ -1572,6 +1652,7 @@ export default async function SurveyAnalyticsPage({
           .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
           .slice(0, MAX_BREAKDOWN_ROWS)
       : [];
+  const surveyEvidence = classifySurveyAnalyticsEvidence(schema.ready_response_count);
 
   return (
     <div className="page-stack">
@@ -1612,6 +1693,7 @@ export default async function SurveyAnalyticsPage({
               responseCount={schema.ready_response_count}
               countryCount={countryOptions.length}
               publishedAt={survey.publishedAt}
+              surveyEvidence={surveyEvidence}
               profileFields={mainProfileFields}
               baselineRow={baselineRow}
               segmentRows={segmentRows}

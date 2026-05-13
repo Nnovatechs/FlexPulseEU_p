@@ -851,6 +851,47 @@ textarea {
   border-bottom: none;
 }
 
+.evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 26px;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(36, 84, 197, 0.14);
+  border-radius: 999px;
+  background: rgba(36, 84, 197, 0.06);
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.evidence-badge--ok {
+  border-color: rgba(13, 194, 156, 0.24);
+  background: rgba(13, 194, 156, 0.08);
+  color: var(--accent-strong);
+}
+
+.evidence-badge--warning {
+  border-color: rgba(212, 148, 32, 0.26);
+  background: rgba(212, 148, 32, 0.1);
+  color: #9b6515;
+}
+
+.evidence-badge--critical {
+  border-color: rgba(197, 66, 66, 0.24);
+  background: rgba(197, 66, 66, 0.08);
+  color: #9b2e2e;
+}
+
+.evidence-warning {
+  margin: 0.65rem 0 0;
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
 .analytics-tabs {
   display: flex;
   flex-wrap: wrap;

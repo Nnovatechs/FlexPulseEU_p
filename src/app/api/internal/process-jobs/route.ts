@@ -17,11 +17,7 @@ async function handle(request: Request) {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
-    route: "process-jobs",
-    allowed_methods: ["POST"],
-  });
+  return new Response(null, { status: 404 });
 }
 
 export async function POST(request: Request) {

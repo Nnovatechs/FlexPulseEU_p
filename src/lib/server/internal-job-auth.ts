@@ -13,7 +13,7 @@ export function isInternalJobRequestAuthorized(request: Request) {
   const expected = getInternalJobSecret();
   const provided = readProvidedSecret(request);
 
-  if (!expected || !provided) {
+  if (!provided) {
     return false;
   }
 

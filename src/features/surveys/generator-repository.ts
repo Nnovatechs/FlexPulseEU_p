@@ -1,5 +1,4 @@
 import { requireCurrentSession } from "@/lib/auth/session";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CreateSurveyDraftInput,
@@ -323,42 +322,4 @@ export async function getOwnedDefaultSurveyLink(
     links.find((link) => link.audience_token === "default") ?? links[0] ?? null;
 
   return defaultLink;
-}
-
-export async function getPublicSurveyLinkByToken(
-  linkToken: string,
-): Promise<PersistedSurveyLink | null> {
-  const supabase = createSupabaseAdminClient();
-
-  const { data, error } = await supabase
-    .from("survey_links")
-    .select("*")
-    .eq("link_token", linkToken)
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to load public survey link: ${error.message}`);
-  }
-
-  return data ? mapSurveyLinkRow(data as SurveyLinkRow) : null;
-}
-
-export async function getPublishedSurveyByIdPublic(
-  surveyId: string,
-): Promise<PersistedSurvey | null> {
-  const supabase = createSupabaseAdminClient();
-
-  const { data, error } = await supabase
-    .from("surveys")
-    .select("*")
-    .eq("id", surveyId)
-    .eq("status", "published")
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to load published survey: ${error.message}`);
-  }
-
-  return data ? mapSurveyRow(data as SurveyRow) : null;
 }

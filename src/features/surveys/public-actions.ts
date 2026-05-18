@@ -5,7 +5,7 @@ import { appRoutes } from "@/lib/config/routes";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
-} from "./generator-repository";
+} from "./public-survey-load";
 import { createSurveyResponseAndEnqueueJob } from "./response-repository";
 import { validatePublicSurveySubmission } from "./response-validation";
 

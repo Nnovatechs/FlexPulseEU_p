@@ -1,19 +1,9 @@
 import { NextResponse } from "next/server";
 import { cleanupExpiredSurveyResponseLocationData } from "@/features/surveys/response-processing";
-import { getInternalJobSecret } from "@/lib/server/internal-jobs-env";
-
-function isAuthorized(request: Request) {
-  const expected = getInternalJobSecret();
-  const provided =
-    request.headers.get("x-internal-job-secret") ??
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-    "";
-
-  return provided === expected;
-}
+import { isInternalJobRequestAuthorized } from "@/lib/server/internal-job-auth";
 
 async function handle(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isInternalJobRequestAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -26,8 +16,12 @@ async function handle(request: Request) {
   return NextResponse.json(result);
 }
 
-export async function GET(request: Request) {
-  return handle(request);
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    route: "cleanup-response-data",
+    allowed_methods: ["POST"],
+  });
 }
 
 export async function POST(request: Request) {

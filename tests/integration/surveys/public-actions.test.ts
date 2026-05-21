@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   redirect,
 }));
 
-vi.mock("@/features/surveys/generator-repository", () => ({
+vi.mock("@/features/surveys/public-survey-load", () => ({
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
 }));

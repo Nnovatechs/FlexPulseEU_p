@@ -382,7 +382,6 @@ export async function processPendingSurveyResponseJobs(limit = 10) {
       } else {
         const nextSchedule = new Date(Date.now() + nextAttempts * 60 * 1000).toISOString();
         const retryPipelineStatus = getRetryPipelineStatus(job.job_type);
-        await updateResponsePipelineStatus(job.response_id, retryPipelineStatus);
 
         const supabase = createSupabaseAdminClient();
         const { error: retryError } = await supabase
@@ -397,13 +396,18 @@ export async function processPendingSurveyResponseJobs(limit = 10) {
         if (retryError) {
           throw new Error(`Failed to reschedule processing job: ${retryError.message}`);
         }
+
+        await updateResponsePipelineStatus(job.response_id, retryPipelineStatus);
       }
     }
   }
 
+  const pendingJobs = await countPendingProcessingJobs();
+
   return {
     processedCount,
-    pendingJobs: await countPendingProcessingJobs(),
+    pendingJobs,
+    selectedJobs: processedCount,
   };
 }
 

@@ -10,6 +10,7 @@ create or replace function public.create_survey_response_with_job(
 )
 returns uuid
 language plpgsql
+set search_path = public
 as $$
 declare
   v_response_id uuid;

@@ -20,9 +20,14 @@ Before connecting the project to a hosting provider:
 
 ## Survey publish rollout ordering
 
-When deploying public survey links, deploy the application version that reads
-public survey links and surveys through the server-side service-role loader
-before applying `20260409100000_restrict_public_survey_reads.sql`.
+When deploying public survey links, use this order:
+
+1. Apply `20260408100000_create_survey_response_with_job_rpc.sql` so public
+   submissions can create responses and processing jobs transactionally.
+2. Deploy the application version that calls that RPC and reads public survey
+   links and surveys through the server-side service-role loader.
+3. Apply `20260409100000_restrict_public_survey_reads.sql` only after the
+   service-role loader is live.
 
 Do not run that migration first by habit: it removes anonymous public read
 policies from `surveys` and `survey_links`, so `/s/...` links will stop loading

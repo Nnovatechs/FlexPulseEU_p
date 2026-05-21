@@ -296,6 +296,7 @@ export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
 
   return {
     processedCount,
+    pendingJobs: jobs.length,
     selectedJobs: jobs.length,
   };
 }

@@ -147,6 +147,7 @@ describe("survey response processing", () => {
 
     expect(result).toEqual({
       processedCount: 0,
+      pendingJobs: 1,
       selectedJobs: 1,
     });
     expect(supabase.responseUpdates).toEqual([

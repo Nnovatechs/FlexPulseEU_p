@@ -57,7 +57,7 @@ async function markJobOutcome(
 
 async function updateResponsePipelineStatus(
   responseId: string,
-  status: "enriching" | "enriched" | "ready" | "failed",
+  status: "queued" | "enriching" | "ready" | "failed",
 ) {
   const supabase = createSupabaseAdminClient();
 
@@ -217,7 +217,6 @@ async function processSingleJob(job: ProcessingJobRow) {
     throw new Error(`Failed to persist response enrichment: ${enrichmentError.message}`);
   }
 
-  await updateResponsePipelineStatus(response.id, "enriched");
   await updateResponsePipelineStatus(response.id, "ready");
   await markJobOutcome(job.id, "succeeded");
 }
@@ -289,13 +288,15 @@ export async function processPendingSurveyResponseEnrichmentJobs(limit = 10) {
         if (retryError) {
           throw new Error(`Failed to reschedule processing job: ${retryError.message}`);
         }
+
+        await updateResponsePipelineStatus(job.response_id, "queued");
       }
     }
   }
 
   return {
     processedCount,
-    pendingJobs: jobs.length,
+    selectedJobs: jobs.length,
   };
 }
 

@@ -13,9 +13,9 @@ export async function updateSession(request: NextRequest): Promise<UpdatedSessio
     request,
   });
 
-  const { url, anonKey } = getSupabasePublicEnv();
+  const { url, publishableKey } = getSupabasePublicEnv();
 
-  const supabase = createServerClient(url, anonKey, {
+  const supabase = createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

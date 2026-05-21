@@ -110,8 +110,11 @@ export function validateSurveyDefinition(
     );
   }
 
-  const { default_language: defaultLanguage, supported_languages: supportedLanguages } =
-    definition.survey_meta;
+  const {
+    default_language: defaultLanguage,
+    supported_languages: supportedLanguages,
+    response_context: responseContext,
+  } = definition.survey_meta;
 
   if (!defaultLanguage.trim()) {
     addIssue(
@@ -160,6 +163,31 @@ export function validateSurveyDefinition(
       "unsupported_language",
       "survey_meta.supported_languages",
       `Unsupported survey language(s): ${invalidLanguages.join(", ")}.`,
+    );
+  }
+
+  if (
+    responseContext?.collect_postal_code === true &&
+    responseContext.collect_country_code !== true
+  ) {
+    addIssue(
+      issues,
+      "postal_code_requires_country_code",
+      "survey_meta.response_context.collect_country_code",
+      "Collecting postal_code requires collect_country_code to be enabled as well.",
+    );
+  }
+
+  if (
+    responseContext?.enrich_weather_context === true &&
+    (responseContext.collect_postal_code !== true ||
+      responseContext.collect_country_code !== true)
+  ) {
+    addIssue(
+      issues,
+      "weather_enrichment_requires_location_context",
+      "survey_meta.response_context.enrich_weather_context",
+      "Weather enrichment requires both collect_postal_code and collect_country_code.",
     );
   }
 

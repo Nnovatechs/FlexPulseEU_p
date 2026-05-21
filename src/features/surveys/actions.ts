@@ -22,6 +22,7 @@ import type {
   SurveyDefinition,
   SurveyLanguageTranslations,
 } from "./generator-types";
+import { normalizeSurveyResponseContextConfig } from "./generator-types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,6 +30,15 @@ import type {
 
 function buildEditErrorRedirect(surveyId: string, error: string) {
   return `${appRoutes.surveyEdit(surveyId)}?error=${error}`;
+}
+
+function redirectIfSurveyNotEditable(
+  surveyId: string,
+  surveyStatus: Awaited<ReturnType<typeof getOwnedSurveyById>>["status"],
+): void {
+  if (surveyStatus !== "draft") {
+    redirect(`${appRoutes.surveyDetail(surveyId)}?error=immutable`);
+  }
 }
 
 function clearReviewValidationResults(definition: SurveyDefinition): SurveyDefinition {
@@ -120,19 +130,28 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("ontologyTargets")
     .map((value) => String(value).trim())
     .filter(Boolean);
+  const collectLocation = formData.get("collectLocation") === "on";
+  const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
 
   if (!surveyId || !name || !defaultLanguage) {
     redirect(buildEditErrorRedirect(surveyId, "missing-fields"));
   }
 
   const existing = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, existing.status);
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
+  const responseContext = normalizeSurveyResponseContextConfig({
+    collect_country_code: collectLocation,
+    collect_postal_code: collectLocation,
+    enrich_weather_context: enrichWeatherContext,
+  });
 
   // Always clear validation when settings or questions change
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
   nextDefinition.survey_meta.ontology_targets = ontologyTargets;
+  nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
     survey_description: "",
@@ -213,6 +232,7 @@ export async function updateQuestionTranslationAction(
   }
 
   const existing = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, existing.status);
 
   // Clear validation — any text edit invalidates previous result
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
@@ -267,6 +287,7 @@ export async function validateSurveyContentAction(
   }
 
   const survey = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, survey.status);
   const { questions } = survey.definition_json;
   const { mappings } = survey.mapping_contract_json;
   const translations =
@@ -305,6 +326,7 @@ export async function generateSurveyTranslationsAction(
   }
 
   const survey = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, survey.status);
   assertCurrentContentValidation(survey);
 
   const sourceTranslations =

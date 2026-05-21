@@ -3,12 +3,14 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CreateSurveyDraftInput,
   PersistedSurvey,
+  PersistedSurveyLink,
   SurveyDefinition,
   SurveyLanguageCode,
   SurveyLifecycleStatus,
   UpdateSurveyDraftInput,
   createInitialMappingContract,
   createInitialSurveyDefinition,
+  normalizeSurveyResponseContextConfig,
 } from "./generator-types";
 import { assertSupportedSurveyLanguages } from "./languages";
 import {
@@ -33,6 +35,8 @@ type SurveyRow = {
   mapping_hash: string | null;
 };
 
+type SurveyLinkRow = PersistedSurveyLink;
+
 function normalizeLanguages(
   defaultLanguage: SurveyLanguageCode,
   supportedLanguages?: SurveyLanguageCode[],
@@ -55,6 +59,9 @@ function syncDefinitionMetadata(
 
   nextDefinition.survey_meta.default_language = defaultLanguage;
   nextDefinition.survey_meta.supported_languages = supportedLanguages;
+  nextDefinition.survey_meta.response_context = normalizeSurveyResponseContextConfig(
+    nextDefinition.survey_meta.response_context,
+  );
 
   for (const language of supportedLanguages) {
     nextDefinition.translations[language] ??= {
@@ -94,6 +101,18 @@ function mapSurveyRow(row: SurveyRow): PersistedSurvey {
     mapping_contract_json: row.mapping_contract_json,
     mapping_compiled_json: row.mapping_compiled_json,
     mapping_hash: row.mapping_hash,
+  };
+}
+
+function mapSurveyLinkRow(row: SurveyLinkRow): PersistedSurveyLink {
+  return {
+    id: row.id,
+    survey_id: row.survey_id,
+    link_token: row.link_token,
+    audience_label: row.audience_label,
+    audience_token: row.audience_token,
+    is_active: row.is_active,
+    created_at: row.created_at,
   };
 }
 
@@ -225,6 +244,7 @@ export async function updateSurveyDraft(
     })
     .eq("id", input.surveyId)
     .eq("created_by", existing.created_by)
+    .eq("status", "draft")
     .select("*")
     .single();
 
@@ -263,6 +283,7 @@ export async function publishSurvey(surveyId: string): Promise<PersistedSurvey> 
     })
     .eq("id", surveyId)
     .eq("created_by", existing.created_by)
+    .eq("status", "draft")
     .select("*")
     .single();
 
@@ -271,4 +292,34 @@ export async function publishSurvey(surveyId: string): Promise<PersistedSurvey> 
   }
 
   return mapSurveyRow(data as SurveyRow);
+}
+
+export async function listOwnedSurveyLinks(
+  surveyId: string,
+): Promise<PersistedSurveyLink[]> {
+  const existing = await getOwnedSurveyById(surveyId);
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("survey_links")
+    .select("*")
+    .eq("survey_id", existing.id)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to list survey links: ${error.message}`);
+  }
+
+  return ((data ?? []) as SurveyLinkRow[]).map(mapSurveyLinkRow);
+}
+
+export async function getOwnedDefaultSurveyLink(
+  surveyId: string,
+): Promise<PersistedSurveyLink | null> {
+  const links = await listOwnedSurveyLinks(surveyId);
+
+  const defaultLink =
+    links.find((link) => link.audience_token === "default") ?? links[0] ?? null;
+
+  return defaultLink;
 }

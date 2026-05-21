@@ -1,5 +1,14 @@
-import { listOwnedSurveys, getOwnedSurveyById } from "./generator-repository";
-import { PersistedSurvey } from "./generator-types";
+import { appRoutes } from "@/lib/config/routes";
+import {
+  getOwnedDefaultSurveyLink,
+  getOwnedSurveyById,
+  listOwnedSurveys,
+} from "./generator-repository";
+import { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
+import {
+  getPublicSurveyLinkByToken,
+  getPublishedSurveyByIdPublic,
+} from "./public-survey-load";
 import { Survey } from "./types";
 
 function formatQuestionType(value: string) {
@@ -10,7 +19,10 @@ function toTitleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function mapPersistedSurvey(survey: PersistedSurvey): Survey {
+function buildSurveyProjection(
+  survey: PersistedSurvey,
+  defaultPublicLinkUrl: string | null,
+): Survey {
   const defaultTranslations =
     survey.definition_json.translations[survey.default_language];
 
@@ -43,19 +55,75 @@ function mapPersistedSurvey(survey: PersistedSurvey): Survey {
     responsesCount: 0,
     questionCount: questions.length,
     mappingCount: survey.mapping_contract_json.mappings.length,
+    defaultPublicLinkUrl,
     questions,
   };
 }
 
+async function mapOwnedPersistedSurvey(survey: PersistedSurvey): Promise<Survey> {
+  const defaultLink =
+    survey.status === "published"
+      ? await getOwnedDefaultSurveyLink(survey.id)
+      : null;
+
+  return buildSurveyProjection(
+    survey,
+    defaultLink ? appRoutes.publicSurveyLink(defaultLink.link_token) : null,
+  );
+}
+
 export async function getSurveys(): Promise<Survey[]> {
   const surveys = await listOwnedSurveys();
-  return surveys.map(mapPersistedSurvey);
+  return Promise.all(surveys.map(mapOwnedPersistedSurvey));
 }
 
 export async function getSurveyById(surveyId: string): Promise<Survey | null> {
   try {
     const survey = await getOwnedSurveyById(surveyId);
-    return mapPersistedSurvey(survey);
+    return mapOwnedPersistedSurvey(survey);
+  } catch {
+    return null;
+  }
+}
+
+export async function getPublicSurveyByLinkToken(
+  linkToken: string,
+): Promise<Survey | null> {
+  try {
+    const link = await getPublicSurveyLinkByToken(linkToken);
+    if (!link) {
+      return null;
+    }
+
+    const survey = await getPublishedSurveyByIdPublic(link.survey_id);
+    if (!survey) {
+      return null;
+    }
+
+    return buildSurveyProjection(
+      survey,
+      appRoutes.publicSurveyLink(link.link_token),
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function getPublicSurveyRuntimeByLinkToken(
+  linkToken: string,
+): Promise<{ survey: PersistedSurvey; link: PersistedSurveyLink } | null> {
+  try {
+    const link = await getPublicSurveyLinkByToken(linkToken);
+    if (!link) {
+      return null;
+    }
+
+    const survey = await getPublishedSurveyByIdPublic(link.survey_id);
+    if (!survey) {
+      return null;
+    }
+
+    return { survey, link };
   } catch {
     return null;
   }

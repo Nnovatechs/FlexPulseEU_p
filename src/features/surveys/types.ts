@@ -22,5 +22,6 @@ export type Survey = {
   responsesCount: number;
   questionCount: number;
   mappingCount: number;
+  defaultPublicLinkUrl?: string | null;
   questions: SurveyQuestion[];
 };

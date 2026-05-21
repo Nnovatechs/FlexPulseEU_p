@@ -247,4 +247,46 @@ describe("survey validation actions", () => {
     expect(runContentValidation).not.toHaveBeenCalled();
     expect(updateSurveyDraft).not.toHaveBeenCalled();
   });
+
+  it("persists normalized response context settings when survey configuration is saved", async () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+    });
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-6",
+      name: "Baseline survey",
+      default_language: fixture.language,
+      supported_languages: [fixture.language],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { updateSurveySettingsAction } = await import("@/features/surveys/actions");
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-6");
+    formData.set("name", "Baseline survey");
+    formData.set("surveyDescription", "Short intro");
+    formData.set("defaultLanguage", fixture.language);
+    formData.set("collectLocation", "on");
+    formData.set("enrichWeatherContext", "on");
+    formData.append("supportedLanguages", fixture.language);
+
+    await updateSurveySettingsAction(formData);
+
+    expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
+    expect(updateSurveyDraft.mock.calls[0]?.[0]).toMatchObject({
+      surveyId: "survey-6",
+      definition_json: {
+        survey_meta: {
+          response_context: {
+            collect_country_code: true,
+            collect_postal_code: true,
+            enrich_weather_context: true,
+          },
+        },
+      },
+    });
+  });
 });

@@ -59,6 +59,8 @@ export function buildSurveyGeneratorPrompt(
     "Use only these question types: single_choice, multiple_choice, rating_scale, numeric.",
     "For single_choice and multiple_choice questions, include options with ontology_value and is_truthy fields.",
     "For rating_scale questions, use a 1-5 scale unless the target notes strongly suggest otherwise.",
+    "For rating_scale questions, each question must be a single complete statement or direct prompt that can be rated on its own.",
+    "Do not generate matrix-style wording such as 'the following statements', 'each statement', or any question that implies hidden sub-items not present in the JSON.",
     "For numeric questions, include sensible bounds when possible.",
   ].join(" ");
 
@@ -77,7 +79,9 @@ export function buildSurveyGeneratorPrompt(
     "- Use only the selected ontology targets.",
     "- Every generated question must point to exactly one ontology_target.",
     "- Include 2-3 items only for the highest-priority latent constructs when budget allows.",
+    "- When a construct needs multiple items, return them as separate rating_scale questions. Never compress multiple statements into one question.",
     "- Use single direct items for secondary ordinal constructs.",
+    "- Do not use matrix wording like 'Please rate your agreement with the following statements' unless the actual statements are returned as separate questions.",
     "- Use multiple_choice for conditions, barriers, motivators, accepted scopes, or device lists.",
     "- Use single_choice for factual booleans or categorical preferences.",
     "- Use numeric for temperature setpoints or other direct numeric preferences.",

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
 import { FormActions } from "@/components/surveys/form-actions";
@@ -10,7 +10,9 @@ import { updateSurveySettingsAction } from "@/features/surveys/actions";
 import { computeContentHash } from "@/features/surveys/content-validator";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
+import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
 import { computeMultilingualTranslationHash } from "@/features/surveys/translation-validation";
+import { appRoutes } from "@/lib/config/routes";
 
 type SurveyEditPageProps = {
   params: Promise<{ surveyId: string }>;
@@ -43,6 +45,10 @@ export default async function SurveyEditPage({
     notFound();
   }
 
+  if (survey.status !== "draft") {
+    redirect(`${appRoutes.surveyDetail(survey.id)}?error=immutable`);
+  }
+
   const activeTranslations =
     survey.definition_json.translations[survey.default_language] ?? null;
   const savedTargets = survey.definition_json.survey_meta.ontology_targets ?? [];
@@ -59,6 +65,11 @@ export default async function SurveyEditPage({
     resolvedSearchParams.error === "missing-ontology-targets";
   const generationFailedError =
     resolvedSearchParams.error === "generation-failed";
+  const responseContext = normalizeSurveyResponseContextConfig(
+    survey.definition_json.survey_meta.response_context,
+  );
+  const collectsLocationContext =
+    responseContext.collect_country_code || responseContext.collect_postal_code;
 
   const configurationTab = (
     <form action={updateSurveySettingsAction}>
@@ -88,6 +99,36 @@ export default async function SurveyEditPage({
                 placeholder="Short introduction or context for respondents"
               />
             </label>
+
+            <div className="field">
+              <span>Response context</span>
+              <p className="muted">
+                Configure whether published respondents should provide coarse
+                location context for later enrichment and profiling.
+              </p>
+              <div className="choice-stack">
+                <label className="choice-chip">
+                  <input
+                    type="checkbox"
+                    name="collectLocation"
+                    defaultChecked={collectsLocationContext}
+                  />
+                  <span>Collect location context (country + postal code)</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="checkbox"
+                    name="enrichWeatherContext"
+                    defaultChecked={responseContext.enrich_weather_context}
+                  />
+                  <span>Enrich weather context after submission</span>
+                </label>
+              </div>
+              <p className="muted">
+                Weather enrichment depends on location context and will force it
+                on even if only the weather option is selected.
+              </p>
+            </div>
           </div>
         </details>
 

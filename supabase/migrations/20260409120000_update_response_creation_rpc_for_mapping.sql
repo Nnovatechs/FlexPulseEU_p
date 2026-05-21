@@ -1,3 +1,14 @@
+drop function if exists public.create_survey_response_with_job(
+  uuid,
+  uuid,
+  text,
+  jsonb,
+  text,
+  text,
+  timestamptz,
+  text
+);
+
 create or replace function public.create_survey_response_with_job(
   p_survey_id uuid,
   p_survey_link_id uuid,

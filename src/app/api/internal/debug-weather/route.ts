@@ -4,20 +4,10 @@ import {
   fetchHistoricalWeatherWithOpenMeteo,
   geocodePostalCodeWithOpenMeteo,
 } from "@/features/surveys/response-enrichment";
-import { getInternalJobSecret } from "@/lib/server/internal-jobs-env";
-
-function isAuthorized(request: Request) {
-  const expected = getInternalJobSecret();
-  const provided =
-    request.headers.get("x-internal-job-secret") ??
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-    "";
-
-  return provided === expected;
-}
+import { isInternalJobRequestAuthorized } from "@/lib/server/internal-job-auth";
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isInternalJobRequestAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -2,8 +2,6 @@ import { appRoutes } from "@/lib/config/routes";
 import {
   getOwnedDefaultSurveyLink,
   getOwnedSurveyById,
-  getPublicSurveyLinkByToken,
-  getPublishedSurveyByIdPublic,
   listOwnedSurveys,
 } from "./generator-repository";
 import { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
@@ -13,6 +11,10 @@ import {
   type SurveyAnalyticsQueryInput,
 } from "./survey-analytics";
 import { loadOwnedSurveyAnalyticsRuntime } from "./survey-analytics-repository";
+import {
+  getPublicSurveyLinkByToken,
+  getPublishedSurveyByIdPublic,
+} from "./public-survey-load";
 import { Survey } from "./types";
 
 function formatQuestionType(value: string) {

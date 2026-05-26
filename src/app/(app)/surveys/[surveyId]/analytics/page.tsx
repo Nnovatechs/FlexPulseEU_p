@@ -254,15 +254,6 @@ export default async function SurveyAnalyticsPage({
                 </span>
               </div>
             ) : null}
-            {schema.responses_truncated ? (
-              <div className="analytics-row">
-                <strong>Loaded window</strong>
-                <span>
-                  Latest {schema.response_load_limit} of {schema.ready_pipeline_count} ready
-                  responses
-                </span>
-              </div>
-            ) : null}
             <div className="analytics-row">
               <strong>Publication state</strong>
               <span>

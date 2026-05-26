@@ -15,7 +15,8 @@ function toErrorResponse(error: unknown) {
 
   if (
     /Unknown .* field/i.test(message) ||
-    /Analytics query requires/i.test(message) ||
+    /Analytics query/i.test(message) ||
+    /Analytics metric/i.test(message) ||
     /Duplicate analytics metric key/i.test(message) ||
     /cannot be used in group_by/i.test(message) ||
     /is not allowed/i.test(message)

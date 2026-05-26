@@ -207,8 +207,6 @@ async function loadSurveyAnalyticsContext(surveyId: string) {
     readyResponseCount: runtime.rows.length,
     excludedUnmappedCount: runtime.excludedUnmappedCount,
     readyPipelineCount: runtime.readyPipelineCount,
-    responsesTruncated: runtime.responsesTruncated,
-    responseLoadLimit: runtime.responseLoadLimit,
   });
 
   return {

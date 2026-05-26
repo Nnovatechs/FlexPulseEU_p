@@ -4,9 +4,6 @@ import type { PersistedSurvey } from "./generator-types";
 import type { MapperOutput } from "./generator-types";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 import type { SurveyAnalyticsRecord } from "./survey-analytics";
-import { SURVEY_ANALYTICS_RESPONSE_LIMIT } from "./survey-analytics";
-
-export { SURVEY_ANALYTICS_RESPONSE_LIMIT };
 
 type SurveyResponseRow = {
   id: string;
@@ -35,8 +32,6 @@ export type OwnedSurveyAnalyticsRuntime = {
   rows: SurveyAnalyticsRecord[];
   excludedUnmappedCount: number;
   readyPipelineCount: number;
-  responsesTruncated: boolean;
-  responseLoadLimit: number;
 };
 
 function isNormalizedLocationLevel(value: unknown): value is NormalizedLocationLevel {
@@ -154,8 +149,6 @@ export async function loadOwnedSurveyAnalyticsRuntime(
       rows: [],
       excludedUnmappedCount: 0,
       readyPipelineCount: 0,
-      responsesTruncated: false,
-      responseLoadLimit: 0,
     };
   }
 
@@ -177,8 +170,6 @@ export async function loadOwnedSurveyAnalyticsRuntime(
       rows: [],
       excludedUnmappedCount: 0,
       readyPipelineCount: totalReadyCount,
-      responsesTruncated: false,
-      responseLoadLimit: totalReadyCount,
     };
   }
 
@@ -246,7 +237,5 @@ export async function loadOwnedSurveyAnalyticsRuntime(
     rows,
     excludedUnmappedCount: responseRows.length - rows.length,
     readyPipelineCount: totalReadyCount,
-    responsesTruncated: false,
-    responseLoadLimit: responseRows.length,
   };
 }

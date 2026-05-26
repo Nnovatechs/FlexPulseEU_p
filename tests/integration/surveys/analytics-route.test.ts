@@ -39,8 +39,6 @@ describe("survey analytics route", () => {
       ready_response_count: 2,
       excluded_unmapped_count: 0,
       ready_pipeline_count: 2,
-      responses_truncated: false,
-      response_load_limit: 500,
       fields: [],
     });
 
@@ -77,6 +75,31 @@ describe("survey analytics route", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: "Analytics query requires at least one metric.",
+    });
+    expect(runSurveyAnalytics).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for invalid filter shape", async () => {
+    getCurrentSession.mockResolvedValue({ user: { id: "user-1" } });
+
+    const { POST } = await import("@/app/api/surveys/[surveyId]/analytics/route");
+    const response = await POST(
+      new Request("http://localhost/api/surveys/survey-1/analytics", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          filters: "country",
+          metrics: [{ key: "responses", kind: "count" }],
+        }),
+      }),
+      {
+        params: Promise.resolve({ surveyId: "survey-1" }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Analytics query filters must be an array when provided.",
     });
     expect(runSurveyAnalytics).not.toHaveBeenCalled();
   });

@@ -8,9 +8,8 @@ import type {
   SurveyAnalyticsQueryRow,
 } from "@/features/surveys/survey-analytics";
 import {
-  getSurveyAnalyticsSchema,
+  getSurveyAnalyticsPageData,
   getSurveyById,
-  runSurveyAnalytics,
 } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -130,7 +129,7 @@ export default async function SurveyAnalyticsPage({
     notFound();
   }
 
-  const schema = await getSurveyAnalyticsSchema(surveyId);
+  const { schema, runPreview } = await getSurveyAnalyticsPageData(surveyId);
 
   const fieldsBySource = groupFieldsBySource(schema.fields);
   const numericProfileField =
@@ -145,53 +144,49 @@ export default async function SurveyAnalyticsPage({
     schema.fields.find((field) => field.key === "response.audience_label") ?? null;
   const primarySegmentField = countryField ?? languageField ?? audienceField ?? null;
 
-  const [
-    languageBreakdown,
-    countryBreakdown,
-    audienceBreakdown,
-    primaryProfileBySegment,
-    tagDistribution,
-  ] = schema.ready_response_count > 0
-    ? await Promise.all([
-        languageField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [languageField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        countryField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [countryField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        audienceField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [audienceField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        numericProfileField && primarySegmentField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [primarySegmentField.key],
-              metrics: [
-                { key: "responses", kind: "count" },
-                {
-                  key: "average",
-                  kind: "average",
-                  field: numericProfileField.key,
-                },
-              ],
-            })
-          : Promise.resolve(null),
-        tagProfileField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [tagProfileField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-      ])
-    : [null, null, null, null, null];
+  const hasMappedResponses = schema.ready_response_count > 0;
+  const languageBreakdown =
+    hasMappedResponses && languageField
+      ? runPreview({
+          group_by: [languageField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const countryBreakdown =
+    hasMappedResponses && countryField
+      ? runPreview({
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const audienceBreakdown =
+    hasMappedResponses && audienceField
+      ? runPreview({
+          group_by: [audienceField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const primaryProfileBySegment =
+    hasMappedResponses && numericProfileField && primarySegmentField
+      ? runPreview({
+          group_by: [primarySegmentField.key],
+          metrics: [
+            { key: "responses", kind: "count" },
+            {
+              key: "average",
+              kind: "average",
+              field: numericProfileField.key,
+            },
+          ],
+        })
+      : null;
+  const tagDistribution =
+    hasMappedResponses && tagProfileField
+      ? runPreview({
+          group_by: [tagProfileField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
 
   return (
     <div className="page-stack">
@@ -250,6 +245,24 @@ export default async function SurveyAnalyticsPage({
               <strong>Measurement hash</strong>
               <span>{schema.measurement_hash ?? "Not available"}</span>
             </div>
+            {schema.excluded_unmapped_count > 0 ? (
+              <div className="analytics-row">
+                <strong>Ready without mapping</strong>
+                <span>
+                  {schema.excluded_unmapped_count} response
+                  {schema.excluded_unmapped_count === 1 ? "" : "s"} excluded from analytics
+                </span>
+              </div>
+            ) : null}
+            {schema.responses_truncated ? (
+              <div className="analytics-row">
+                <strong>Loaded window</strong>
+                <span>
+                  Latest {schema.response_load_limit} of {schema.ready_pipeline_count} ready
+                  responses
+                </span>
+              </div>
+            ) : null}
             <div className="analytics-row">
               <strong>Publication state</strong>
               <span>

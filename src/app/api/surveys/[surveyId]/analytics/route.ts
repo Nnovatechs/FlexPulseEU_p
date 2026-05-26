@@ -3,7 +3,7 @@ import {
   getSurveyAnalyticsSchema,
   runSurveyAnalytics,
 } from "@/features/surveys/use-cases";
-import type { SurveyAnalyticsQueryInput } from "@/features/surveys/survey-analytics";
+import { parseSurveyAnalyticsQueryInput } from "@/features/surveys/survey-analytics";
 import { getCurrentSession } from "@/lib/auth/session";
 
 function toErrorResponse(error: unknown) {
@@ -54,7 +54,7 @@ export async function POST(
   }
 
   try {
-    const query = (await request.json()) as SurveyAnalyticsQueryInput;
+    const query = parseSurveyAnalyticsQueryInput(await request.json());
     const { surveyId } = await context.params;
     const result = await runSurveyAnalytics(surveyId, query);
     return NextResponse.json(result);

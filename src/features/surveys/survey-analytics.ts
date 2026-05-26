@@ -16,6 +16,8 @@ const SUPPORTED_GEO_LEVELS = [
   "postal_area",
 ] as const;
 
+export const SURVEY_ANALYTICS_RESPONSE_LIMIT = 500;
+
 type SupportedGeoLevel = (typeof SUPPORTED_GEO_LEVELS)[number];
 
 type AnalyticsFieldScalar = string | number | boolean | null;
@@ -68,6 +70,10 @@ export type SurveyAnalyticsSchema = {
   schema_namespace: string;
   measurement_hash: string | null;
   ready_response_count: number;
+  excluded_unmapped_count: number;
+  ready_pipeline_count: number;
+  responses_truncated: boolean;
+  response_load_limit: number;
   fields: SurveyAnalyticsFieldDefinition[];
   supported_geo_levels: SupportedGeoLevel[];
 };
@@ -106,6 +112,19 @@ export type SurveyAnalyticsQueryInput = {
   group_by?: string[];
   metrics: SurveyAnalyticsMetric[];
 };
+
+export function parseSurveyAnalyticsQueryInput(body: unknown): SurveyAnalyticsQueryInput {
+  if (typeof body !== "object" || body == null) {
+    throw new Error("Analytics query requires a JSON object.");
+  }
+
+  const candidate = body as SurveyAnalyticsQueryInput;
+  if (!Array.isArray(candidate.metrics) || candidate.metrics.length === 0) {
+    throw new Error("Analytics query requires at least one metric.");
+  }
+
+  return candidate;
+}
 
 export type SurveyAnalyticsMetricResult = {
   kind: SurveyAnalyticsMetricKind;
@@ -373,6 +392,10 @@ function buildStaticFieldDefinitions(survey: PersistedSurvey) {
 export function buildSurveyAnalyticsSchema(input: {
   survey: PersistedSurvey;
   readyResponseCount: number;
+  excludedUnmappedCount?: number;
+  readyPipelineCount?: number;
+  responsesTruncated?: boolean;
+  responseLoadLimit?: number;
 }): SurveyAnalyticsSchema {
   const profileFields = buildProfileFieldDefinitions(input.survey);
   const staticFields = buildStaticFieldDefinitions(input.survey);
@@ -384,6 +407,10 @@ export function buildSurveyAnalyticsSchema(input: {
       "flexpulse_behavioural_schema",
     measurement_hash: input.survey.measurement_hash ?? null,
     ready_response_count: input.readyResponseCount,
+    excluded_unmapped_count: input.excludedUnmappedCount ?? 0,
+    ready_pipeline_count: input.readyPipelineCount ?? input.readyResponseCount,
+    responses_truncated: input.responsesTruncated ?? false,
+    response_load_limit: input.responseLoadLimit ?? SURVEY_ANALYTICS_RESPONSE_LIMIT,
     fields: [...profileFields, ...staticFields],
     supported_geo_levels: [...SUPPORTED_GEO_LEVELS],
   };

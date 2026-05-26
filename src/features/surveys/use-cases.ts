@@ -85,6 +85,7 @@ function buildSurveyProjection(
     createdAt: survey.created_at,
     updatedAt: survey.updated_at,
     publishedAt: survey.published_at,
+    // Placeholder until the survey list surfaces response counts.
     responsesCount: 0,
     questionCount: questions.length,
     mappingCount: survey.mapping_contract_json.mappings.length,
@@ -181,25 +182,50 @@ export async function getDashboardMetrics() {
 }
 
 export async function getSurveyAnalyticsSchema(surveyId: string) {
-  const { survey, rows } = await loadOwnedSurveyAnalyticsRuntime(surveyId);
-  return buildSurveyAnalyticsSchema({
-    survey,
-    readyResponseCount: rows.length,
-  });
+  const { schema } = await loadSurveyAnalyticsContext(surveyId);
+  return schema;
 }
 
 export async function runSurveyAnalytics(surveyId: string, query: SurveyAnalyticsQueryInput) {
-  const { survey, rows } = await loadOwnedSurveyAnalyticsRuntime(surveyId);
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  return runSurveyAnalyticsFromContext(context, query);
+}
+
+export async function getSurveyAnalyticsPageData(surveyId: string) {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+
+  return {
+    schema: context.schema,
+    runPreview: (query: SurveyAnalyticsQueryInput) => runSurveyAnalyticsFromContext(context, query),
+  };
+}
+
+async function loadSurveyAnalyticsContext(surveyId: string) {
+  const runtime = await loadOwnedSurveyAnalyticsRuntime(surveyId);
   const schema = buildSurveyAnalyticsSchema({
-    survey,
-    readyResponseCount: rows.length,
+    survey: runtime.survey,
+    readyResponseCount: runtime.rows.length,
+    excludedUnmappedCount: runtime.excludedUnmappedCount,
+    readyPipelineCount: runtime.readyPipelineCount,
+    responsesTruncated: runtime.responsesTruncated,
+    responseLoadLimit: runtime.responseLoadLimit,
   });
 
   return {
+    ...runtime,
     schema,
+  };
+}
+
+function runSurveyAnalyticsFromContext(
+  context: Awaited<ReturnType<typeof loadSurveyAnalyticsContext>>,
+  query: SurveyAnalyticsQueryInput,
+) {
+  return {
+    schema: context.schema,
     result: runSurveyAnalyticsQuery({
-      schema,
-      rows,
+      schema: context.schema,
+      rows: context.rows,
       query,
     }),
   };

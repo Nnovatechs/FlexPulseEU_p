@@ -1,8 +1,12 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getOwnedSurveyById } from "./generator-repository";
+import type { PersistedSurvey } from "./generator-types";
 import type { MapperOutput } from "./generator-types";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 import type { SurveyAnalyticsRecord } from "./survey-analytics";
+import { SURVEY_ANALYTICS_RESPONSE_LIMIT } from "./survey-analytics";
+
+export { SURVEY_ANALYTICS_RESPONSE_LIMIT };
 
 type SurveyResponseRow = {
   id: string;
@@ -24,6 +28,15 @@ type SurveyLinkLiteRow = {
   id: string;
   audience_token: string;
   audience_label: string;
+};
+
+export type OwnedSurveyAnalyticsRuntime = {
+  survey: PersistedSurvey;
+  rows: SurveyAnalyticsRecord[];
+  excludedUnmappedCount: number;
+  readyPipelineCount: number;
+  responsesTruncated: boolean;
+  responseLoadLimit: number;
 };
 
 function isNormalizedLocationLevel(value: unknown): value is NormalizedLocationLevel {
@@ -87,9 +100,64 @@ function parseLocationLevels(
   return fallbackLevels;
 }
 
-export async function loadOwnedSurveyAnalyticsRuntime(surveyId: string) {
+function buildAnalyticsRecords(input: {
+  responseRows: SurveyResponseRow[];
+  mappingsByResponseId: Map<string, MapperOutput>;
+  enrichmentsByResponseId: Map<string, unknown>;
+  linksById: Map<string, SurveyLinkLiteRow>;
+}) {
+  const rows: SurveyAnalyticsRecord[] = [];
+
+  for (const row of input.responseRows) {
+    const mapperOutput = input.mappingsByResponseId.get(row.id);
+    if (!mapperOutput) {
+      continue;
+    }
+
+    const link = row.survey_link_id ? input.linksById.get(row.survey_link_id) ?? null : null;
+    rows.push({
+      response_id: row.id,
+      responded_at: row.responded_at,
+      audience_token: link?.audience_token ?? null,
+      audience_label: link?.audience_label ?? null,
+      mapper_output: mapperOutput,
+      location_levels: parseLocationLevels(
+        input.enrichmentsByResponseId.get(row.id) ?? null,
+        mapperOutput,
+      ),
+    });
+  }
+
+  return rows;
+}
+
+export async function loadOwnedSurveyAnalyticsRuntime(
+  surveyId: string,
+): Promise<OwnedSurveyAnalyticsRuntime> {
   const survey = await getOwnedSurveyById(surveyId);
   const supabase = await createSupabaseServerClient();
+
+  const { count: readyPipelineCount, error: countError } = await supabase
+    .from("survey_responses")
+    .select("id", { count: "exact", head: true })
+    .eq("survey_id", surveyId)
+    .eq("pipeline_status", "ready");
+
+  if (countError) {
+    throw new Error(`Failed to count survey analytics responses: ${countError.message}`);
+  }
+
+  const totalReadyCount = readyPipelineCount ?? 0;
+  if (totalReadyCount === 0) {
+    return {
+      survey,
+      rows: [],
+      excludedUnmappedCount: 0,
+      readyPipelineCount: 0,
+      responsesTruncated: false,
+      responseLoadLimit: 0,
+    };
+  }
 
   const { data: responseRowsRaw, error: responseError } = await supabase
     .from("survey_responses")
@@ -106,7 +174,11 @@ export async function loadOwnedSurveyAnalyticsRuntime(surveyId: string) {
   if (responseRows.length === 0) {
     return {
       survey,
-      rows: [] as SurveyAnalyticsRecord[],
+      rows: [],
+      excludedUnmappedCount: 0,
+      readyPipelineCount: totalReadyCount,
+      responsesTruncated: false,
+      responseLoadLimit: totalReadyCount,
     };
   }
 
@@ -162,30 +234,19 @@ export async function loadOwnedSurveyAnalyticsRuntime(surveyId: string) {
   );
   const linksById = new Map(links.map((row) => [row.id, row]));
 
-  const rows = responseRows.flatMap((row) => {
-    const mapperOutput = mappingsByResponseId.get(row.id);
-    if (!mapperOutput) {
-      return [];
-    }
-
-    const link = row.survey_link_id ? linksById.get(row.survey_link_id) ?? null : null;
-    return [
-      {
-        response_id: row.id,
-        responded_at: row.responded_at,
-        audience_token: link?.audience_token ?? null,
-        audience_label: link?.audience_label ?? null,
-        mapper_output: mapperOutput,
-        location_levels: parseLocationLevels(
-          enrichmentsByResponseId.get(row.id) ?? null,
-          mapperOutput,
-        ),
-      } satisfies SurveyAnalyticsRecord,
-    ];
+  const rows = buildAnalyticsRecords({
+    responseRows,
+    mappingsByResponseId,
+    enrichmentsByResponseId,
+    linksById,
   });
 
   return {
     survey,
     rows,
+    excludedUnmappedCount: responseRows.length - rows.length,
+    readyPipelineCount: totalReadyCount,
+    responsesTruncated: false,
+    responseLoadLimit: responseRows.length,
   };
 }

@@ -142,6 +142,15 @@ function aggregateQuestionValues(
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
 ) {
+  for (const questionKey of concept.required_question_keys) {
+    const mapping = compiledMapping.by_question_key[questionKey];
+    const value = applyTransformStrategy(answers[questionKey], mapping);
+
+    if (value == null) {
+      return null;
+    }
+  }
+
   const values = concept.question_keys
     .map((questionKey) =>
       applyTransformStrategy(answers[questionKey], compiledMapping.by_question_key[questionKey]),
@@ -204,6 +213,9 @@ function buildProfile(
         return (
           ontologyConcept &&
           ontologyConcept.concept_role !== "context_signal" &&
+          // quality_signal concepts (e.g. mapping_low_confidence) are planned in the
+          // ontology/measurement plan but not emitted here yet; see feat/evals-mapper-profiling
+          // for profiling evidence work that may extend MapperOutput later.
           ontologyConcept.concept_role !== "quality_signal"
         );
       })

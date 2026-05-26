@@ -235,4 +235,78 @@ describe("response mapper", () => {
     expect(output.context_metadata.location).toBeNull();
     expect(output.context_metadata.climate).toBeNull();
   });
+
+  it("returns null when optional slots satisfy minimum_answer_count but required slots are missing", () => {
+    const survey = buildPublishedSurveyFixture();
+    survey.definition_json.survey_meta.measurement_plan_json = {
+      schema_version: 1,
+      schema_namespace: "flexpulse_behavioural_schema",
+      concepts: [
+        {
+          concept_key: "trust_in_automation",
+          evidence_source: "survey_questions",
+          measurement_type: "multi_item_likert_median",
+          output_type: "number",
+          aggregation_rule: "median",
+          threshold_profile: "likert_1_5_low_mid_high",
+          minimum_answer_count: 2,
+          question_keys: ["Q_TRUST_01", "Q_TRUST_02", "Q_TRUST_03", "Q_TRUST_04"],
+          required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+        },
+      ],
+    };
+
+    survey.definition_json.questions.push(
+      {
+        question_key: "Q_TRUST_03",
+        type: "rating_scale",
+        required: false,
+        order: 3,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_TRUST_04",
+        type: "rating_scale",
+        required: false,
+        order: 4,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+    );
+
+    const mapping = survey.mapping_contract_json;
+    mapping.mappings.push(
+      {
+        question_key: "Q_TRUST_03",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: false,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_TRUST_04",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: false,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+    );
+    survey.mapping_compiled_json = compileMappingContract(mapping);
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_03: 4,
+        Q_TRUST_04: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation).toEqual({
+      value: null,
+    });
+  });
 });

@@ -44,6 +44,42 @@ export const translationEvalFixtures: TranslationEvalFixture[] = [
     expectedOverall: "pass",
   },
   {
+    id: "es-natural-paraphrase-variable-prices",
+    purpose:
+      "Control positivo: una reformulacion natural en espanol no debe fallar parity solo por no ser literal.",
+    sourceLanguage: "English",
+    targetLanguage: "Spanish",
+    sourceTitle:
+      "I would rather pay a stable electricity price than have to deal with prices that change during the day.",
+    targetTitle:
+      "Preferiria pagar un precio estable por la electricidad antes que tener que gestionar precios que cambian a lo largo del dia.",
+    sourceDescription:
+      "Please answer according to your current household preferences.",
+    targetDescription:
+      "Responde segun las preferencias actuales de tu hogar.",
+    optionLabels: ["Strongly disagree", "Neutral", "Strongly agree"],
+    translatedOptionLabels: ["Totalmente en desacuerdo", "Neutral", "Totalmente de acuerdo"],
+    expectedOverall: "pass",
+  },
+  {
+    id: "es-household-benefits-home-register",
+    purpose:
+      "Control positivo: una version publicable en espanol no debe fallar parity por una leve variacion de registro si la interpretacion sigue siendo la misma.",
+    sourceLanguage: "English",
+    targetLanguage: "Spanish",
+    sourceTitle:
+      "I would consider adopting a home energy technology if it offered practical benefits for my household.",
+    targetTitle:
+      "Consideraria adoptar una tecnologia energetica para el hogar si ofreciera beneficios practicos para mi vivienda.",
+    sourceDescription:
+      "Please answer according to your current household preferences.",
+    targetDescription:
+      "Responde segun las preferencias actuales de tu hogar.",
+    optionLabels: ["No", "Maybe", "Yes"],
+    translatedOptionLabels: ["No", "Quizas", "Si"],
+    expectedOverall: "pass",
+  },
+  {
     id: "es-false-friend-drift",
     purpose:
       "Control negativo: un falso amigo o cambio de sentido en espanol debe fallar.",

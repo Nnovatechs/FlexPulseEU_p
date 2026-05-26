@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { computeMultilingualTranslationHash } from "@/features/surveys/translation-validation";
+import {
+  buildTranslationValidationPrompt,
+  computeMultilingualTranslationHash,
+} from "@/features/surveys/translation-validation";
 import { buildTranslationSurveyFixture } from "../../../fixtures/surveys/translation/factory";
 
 // These tests focus on the deterministic multilingual hash used to detect when
@@ -62,6 +65,60 @@ describe("translation validation — deterministic layer", () => {
         extendedFixture.targetLanguage,
         "Spanish",
       ]),
+    );
+  });
+});
+
+describe("translation validation prompt", () => {
+  it("uses a conservative parity threshold instead of literal matching", () => {
+    const fixture = buildTranslationSurveyFixture({
+      sourceLanguage: "English",
+      targetLanguage: "Spanish",
+    });
+
+    const prompt = buildTranslationValidationPrompt({
+      sourceLanguage: fixture.sourceLanguage,
+      targetLanguage: fixture.targetLanguage,
+      sourceTranslations: fixture.sourceTranslations,
+      targetTranslations: fixture.targetTranslations,
+      questions: fixture.questions,
+      mappings: fixture.mappings,
+    });
+
+    expect(prompt.system).toContain(
+      "Judge parity at the level of likely respondent interpretation and measurement intent",
+    );
+    expect(prompt.system).toContain(
+      "Do not flag parity for harmless changes in syntax, register, idiom, or close paraphrase",
+    );
+    expect(prompt.system).toContain(
+      "Do not fail an item just because you can imagine a more literal or slightly cleaner wording.",
+    );
+    expect(prompt.user).toContain(
+      "Pass natural paraphrases when the survey meaning and measurement intent are still preserved.",
+    );
+  });
+
+  it("forces high-confidence rewrite suggestions instead of multiple speculative alternatives", () => {
+    const fixture = buildTranslationSurveyFixture({
+      sourceLanguage: "English",
+      targetLanguage: "Spanish",
+    });
+
+    const prompt = buildTranslationValidationPrompt({
+      sourceLanguage: fixture.sourceLanguage,
+      targetLanguage: fixture.targetLanguage,
+      sourceTranslations: fixture.sourceTranslations,
+      targetTranslations: fixture.targetTranslations,
+      questions: fixture.questions,
+      mappings: fixture.mappings,
+    });
+
+    expect(prompt.system).toContain(
+      "If you propose a rewrite, provide exactly one high-confidence, minimal, idiomatic alternative in the target language.",
+    );
+    expect(prompt.system).toContain(
+      "Do not provide multiple speculative alternatives, and do not suggest awkward literal rewrites.",
     );
   });
 });

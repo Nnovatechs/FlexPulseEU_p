@@ -10,6 +10,26 @@ export type SurveyQuestionType =
   | "numeric"
   | "boolean";
 
+export type PlannerQuestionType = Extract<
+  SurveyQuestionType,
+  "single_choice" | "multiple_choice" | "rating_scale" | "numeric"
+>;
+
+export type MeasurementAggregationRule =
+  | "identity"
+  | "median"
+  | "mean"
+  | "set_union"
+  | "context_passthrough";
+
+export type MeasurementThresholdProfile =
+  | "none"
+  | "likert_1_5_low_mid_high"
+  | "likert_1_5_low_mid_high_strict"
+  | "numeric_temperature_window"
+  | "enum_identity"
+  | "asset_inventory";
+
 export type SurveyQuestionOption = {
   option_key: string;
   value: string;
@@ -99,13 +119,46 @@ export type SurveyResponseContextConfig = {
   enrich_weather_context: boolean;
 };
 
+export type MeasurementPlanEntry = {
+  concept_key: string;
+  evidence_source:
+    | "survey_questions"
+    | "response_context"
+    | "enrichment"
+    | "pipeline_flags";
+  measurement_type:
+    | "single_item_direct"
+    | "multi_item_likert_median"
+    | "single_choice_enum"
+    | "multi_choice_tag_set"
+    | "numeric_direct"
+    | "context_passthrough"
+    | "quality_flag_passthrough";
+  output_type: "number" | "boolean" | "string" | "string[]" | "enum";
+  aggregation_rule:
+    MeasurementAggregationRule;
+  threshold_profile: MeasurementThresholdProfile;
+  minimum_answer_count: number;
+  question_keys: string[];
+  required_question_keys: string[];
+  source_paths?: string[];
+};
+
+export type MeasurementPlan = {
+  schema_version: 1;
+  schema_namespace: "flexpulse_behavioural_schema";
+  concepts: MeasurementPlanEntry[];
+};
+
 export type SurveyDefinition = {
   schema_version: 1;
   survey_meta: {
     default_language: SurveyLanguageCode;
     supported_languages: SurveyLanguageCode[];
     estimated_completion_minutes?: number;
+    behavioural_concept_keys?: string[];
     ontology_targets?: string[];
+    measurement_plan_json?: MeasurementPlan;
     response_context?: SurveyResponseContextConfig;
     validation_result?: ContentValidationResult;
     multilingual_validation_result?: MultilingualValidationResult;
@@ -158,6 +211,45 @@ export type CompiledMappingContract = {
   question_keys: string[];
 };
 
+export type MapperProfileTag = "low" | "medium" | "high";
+
+export type MapperProfileEntry = {
+  value: string | number | boolean | string[] | number[] | null;
+  tag?: MapperProfileTag;
+};
+
+export type MapperContextMetadata = {
+  country_code: string | null;
+  survey_language: string;
+  location: {
+    agg_code: string | null;
+    label: string | null;
+    granularity: string | null;
+    centroid_lat: number | null;
+    centroid_lon: number | null;
+  } | null;
+  climate: {
+    provider: string | null;
+    quality_flag: string | null;
+    observed_at: string | null;
+    temp_outdoor_c: number | null;
+    humidity_pct: number | null;
+  } | null;
+};
+
+export type MapperOutput = {
+  profile: Record<string, MapperProfileEntry>;
+  context_metadata: MapperContextMetadata;
+  mapping_metadata: {
+    mapping_hash: string | null;
+    measurement_hash: string | null;
+    mapping_hash_at_submission: string | null;
+    measurement_hash_at_submission: string | null;
+    mapper_version: string;
+    threshold_profile_version: string;
+  };
+};
+
 export type PersistedSurvey = {
   id: string;
   name: string;
@@ -172,6 +264,7 @@ export type PersistedSurvey = {
   mapping_contract_json: MappingContract;
   mapping_compiled_json: CompiledMappingContract | null;
   mapping_hash: string | null;
+  measurement_hash?: string | null;
 };
 
 export type PersistedSurveyLink = {
@@ -225,7 +318,13 @@ export function createInitialSurveyDefinition(
     survey_meta: {
       default_language: defaultLanguage,
       supported_languages: languages,
+      behavioural_concept_keys: [],
       ontology_targets: [],
+      measurement_plan_json: {
+        schema_version: 1,
+        schema_namespace: "flexpulse_behavioural_schema",
+        concepts: [],
+      },
       response_context: normalizeSurveyResponseContextConfig(),
     },
     questions: [],

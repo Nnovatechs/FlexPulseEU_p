@@ -45,9 +45,6 @@ export default async function SurveyDetailPage({
                 Open public link
               </Link>
             ) : null}
-            <Link href={appRoutes.surveyFill(survey.id)} className="button button--primary">
-              Preview filling flow
-            </Link>
           </div>
         }
       />
@@ -67,6 +64,14 @@ export default async function SurveyDetailPage({
             <div>
               <span>Supported languages</span>
               <strong>{survey.supportedLanguages.join(", ")}</strong>
+            </div>
+            <div>
+              <span>Location context</span>
+              <strong>{survey.locationContextSummary}</strong>
+            </div>
+            <div>
+              <span>Enrichment</span>
+              <strong>{survey.enrichmentSummary}</strong>
             </div>
             <div>
               <span>Status</span>

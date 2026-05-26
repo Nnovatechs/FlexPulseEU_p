@@ -51,7 +51,8 @@ export default async function SurveyEditPage({
 
   const activeTranslations =
     survey.definition_json.translations[survey.default_language] ?? null;
-  const savedTargets = survey.definition_json.survey_meta.ontology_targets ?? [];
+  const savedConceptKeys =
+    survey.definition_json.survey_meta.behavioural_concept_keys ?? [];
 
   const createdMessage = resolvedSearchParams.created === "1";
   const savedMessage = resolvedSearchParams.saved === "1";
@@ -178,12 +179,12 @@ export default async function SurveyEditPage({
         <details className="collapsible-section">
           <summary className="collapsible-section__header">
             <span className="collapsible-section__title">
-              Ontology concepts
+              Behavioural schema concepts
             </span>
             <span className="collapsible-section__meta">
-              {savedTargets.length > 0 && (
+              {savedConceptKeys.length > 0 && (
                 <span className="concept-block__count">
-                  {savedTargets.length} selected
+                  {savedConceptKeys.length} selected
                 </span>
               )}
             </span>
@@ -195,15 +196,14 @@ export default async function SurveyEditPage({
           <div className="collapsible-section__body">
             <p className="concept-picker__hint">
               Select the behavioural concepts this survey should cover. The
-              generator uses these to propose questions and their ontological
-              mappings.
+              generator and measurement plan both use this schema directly.
             </p>
-            <ConceptPicker initialTargets={savedTargets} />
+            <ConceptPicker initialConceptKeys={savedConceptKeys} />
           </div>
         </details>
       </div>
 
-      <FormActions initialHasTargets={savedTargets.length > 0} />
+      <FormActions initialHasTargets={savedConceptKeys.length > 0} />
     </form>
   );
 
@@ -250,6 +250,7 @@ export default async function SurveyEditPage({
       hasQuestions={hasQuestions}
       questions={survey.definition_json.questions}
       translations={activeTranslations}
+      translationsByLanguage={survey.definition_json.translations}
       validationResult={storedValidation}
       isStale={isValidationStale}
       defaultLanguage={survey.default_language}
@@ -302,7 +303,7 @@ export default async function SurveyEditPage({
 
       {missingTargetsError ? (
         <div className="notice notice--error" role="alert">
-          Select at least one ontology concept before generating a survey.
+          Select at least one behavioural concept before generating a survey.
         </div>
       ) : null}
 
@@ -340,7 +341,7 @@ export default async function SurveyEditPage({
         </div>
         <div className="overview-band__item">
           <span className="overview-band__label">Concepts</span>
-          <span className="overview-band__value">{savedTargets.length}</span>
+          <span className="overview-band__value">{savedConceptKeys.length}</span>
         </div>
       </div>
 

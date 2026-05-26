@@ -20,6 +20,11 @@ type ValidateTranslatedSurveyLanguageInput = {
   mappings: SurveyMappingDefinition[];
 };
 
+export type TranslationValidationPrompt = {
+  system: string;
+  user: string;
+};
+
 const translationValidationOutputSchema = {
   name: "translation_validation_output",
   strict: true,
@@ -95,9 +100,9 @@ export function computeMultilingualTranslationHash(
   return createHash("sha256").update(parts.join("\n")).digest("hex").slice(0, 16);
 }
 
-export async function validateTranslatedSurveyLanguage(
+export function buildTranslationValidationPrompt(
   input: ValidateTranslatedSurveyLanguageInput,
-): Promise<MultilingualValidationIssue[]> {
+): TranslationValidationPrompt {
   const mappingByQuestionKey = Object.fromEntries(
     input.mappings.map((mapping) => [mapping.question_key, mapping]),
   );
@@ -132,23 +137,32 @@ export async function validateTranslatedSurveyLanguage(
   }));
 
   const untrustedNotice = buildUntrustedSurveyContentNotice();
-  const systemPrompt = [
+  const system = [
     "You are a multilingual survey auditor for FlexPulseEU.",
-    "Your role is to verify that each translated survey item preserves the same meaning as the source language and is culturally natural and publishable in the target language.",
-    "Fail if the translation introduces semantic drift, false friends, awkward or broken wording, culturally misleading phrasing, or any request for personal data not present in the source.",
-    "Use issue_type = parity for semantic mismatch.",
-    "Use issue_type = quality for broken, unnatural or unpublishable wording.",
+    "Your role is to verify that each translated survey item preserves the same respondent-facing meaning as the source language and is culturally natural and publishable in the target language.",
+    "Apply a high-precision audit: default to pass unless there is a clear material problem.",
+    "Judge parity at the level of likely respondent interpretation and measurement intent, not word-for-word correspondence.",
+    "Do not flag parity for harmless changes in syntax, register, idiom, or close paraphrase when a reasonable native respondent would answer the item the same way.",
+    "Only use issue_type = parity when the target wording materially changes the likely interpretation, referent, agency, polarity, timeframe, or expected answer.",
+    "Use issue_type = quality only for wording that is clearly awkward, broken, misleading, or not publishable to native speakers.",
     "Use issue_type = cultural for culturally misleading or contextually awkward adaptation.",
     "Use issue_type = pii if the translated text introduces or strengthens personal-data collection.",
+    "Do not fail an item just because you can imagine a more literal or slightly cleaner wording.",
+    "If the target text is understandable, natural enough, and publishable, pass it.",
+    "For any failing item, write a concise explanation.",
+    "If you propose a rewrite, provide exactly one high-confidence, minimal, idiomatic alternative in the target language.",
+    "Do not provide multiple speculative alternatives, and do not suggest awkward literal rewrites.",
     untrustedNotice,
   ].join(" ");
 
-  const userPrompt = [
+  const user = [
     `Source language: ${input.sourceLanguage}`,
     `Target language: ${input.targetLanguage}`,
     "",
     "Evaluate the translated survey title, description and questions.",
     "Return one question-level result for every question. Add survey-level issues only when necessary.",
+    "Use a conservative threshold for failures: fail only on clear semantic drift, clear quality problems, cultural mismatch, or added PII.",
+    "Pass natural paraphrases when the survey meaning and measurement intent are still preserved.",
     "",
     `Source survey title: ${input.sourceTranslations.survey_title}`,
     `Source survey description: ${input.sourceTranslations.survey_description ?? ""}`,
@@ -158,6 +172,14 @@ export async function validateTranslatedSurveyLanguage(
     `Questions:\n${JSON.stringify(questionPayload, null, 2)}`,
   ].join("\n");
 
+  return { system, user };
+}
+
+export async function validateTranslatedSurveyLanguage(
+  input: ValidateTranslatedSurveyLanguageInput,
+): Promise<MultilingualValidationIssue[]> {
+  const prompt = buildTranslationValidationPrompt(input);
+
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
@@ -165,8 +187,8 @@ export async function validateTranslatedSurveyLanguage(
     model: env.model,
     temperature: 0,
     messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user },
     ],
     response_format: {
       type: "json_schema",

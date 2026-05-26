@@ -32,6 +32,7 @@ function createSurveyFixture(): PersistedSurvey {
     },
     mapping_compiled_json: null,
     mapping_hash: "mapping-hash",
+    measurement_hash: "measurement-hash",
   };
 }
 
@@ -93,6 +94,7 @@ describe("survey response repository", () => {
       p_postal_code_raw: "28001",
       p_raw_location_retention_until: "2026-05-24T12:00:00.000Z",
       p_mapping_hash_at_submission: "mapping-hash",
+      p_measurement_hash_at_submission: "measurement-hash",
     });
   });
 

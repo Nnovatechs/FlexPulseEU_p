@@ -1,10 +1,13 @@
 import {
+  MeasurementPlan,
   MappingContract,
   SurveyDefinition,
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import type { MeasurementPlanBlueprint, MeasurementType } from "./measurement-plan";
 import { getInvalidSurveyLanguages } from "./languages";
+import { getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
 
 export type SurveyValidationIssue = {
   code: string;
@@ -27,6 +30,295 @@ function addIssue(
 
 function hasUniqueValues(values: string[]) {
   return new Set(values).size === values.length;
+}
+
+function getCompatibleQuestionTypes(
+  measurementType: MeasurementType,
+): SurveyQuestionDefinition["type"][] {
+  switch (measurementType) {
+    case "multi_item_likert_median":
+      return ["rating_scale"];
+    case "single_choice_enum":
+      return ["single_choice"];
+    case "multi_choice_tag_set":
+      return ["multiple_choice"];
+    case "numeric_direct":
+      return ["numeric"];
+    case "single_item_direct":
+      return ["rating_scale", "single_choice", "numeric", "boolean"];
+    case "context_passthrough":
+    case "quality_flag_passthrough":
+      return [];
+    default:
+      return [];
+  }
+}
+
+export function validateMeasurementPlanBlueprint(
+  blueprint: MeasurementPlanBlueprint,
+): SurveyValidationIssue[] {
+  const issues: SurveyValidationIssue[] = [];
+  const conceptKeys = blueprint.concepts.map((concept) => concept.concept_key);
+
+  if (!hasUniqueValues(conceptKeys)) {
+    addIssue(
+      issues,
+      "duplicate_measurement_concept_key",
+      "measurement_plan_blueprint.concepts",
+      "Measurement blueprint must not contain duplicate concept keys.",
+    );
+  }
+
+  blueprint.concepts.forEach((concept, index) => {
+    const basePath = `measurement_plan_blueprint.concepts[${index}]`;
+    const slotKeys = concept.question_slots.map((slot) => slot.slot_key);
+
+    if (!hasUniqueValues(slotKeys)) {
+      addIssue(
+        issues,
+        "duplicate_measurement_slot_key",
+        `${basePath}.question_slots`,
+        `Concept "${concept.concept_key}" repeats slot keys in its measurement blueprint.`,
+      );
+    }
+
+    for (const slotKey of slotKeys) {
+      if (!/^SLOT_[A-Z0-9_]+_\d{2}$/.test(slotKey)) {
+        addIssue(
+          issues,
+          "invalid_measurement_slot_key",
+          `${basePath}.question_slots`,
+          `Concept "${concept.concept_key}" contains invalid slot key "${slotKey}".`,
+        );
+      }
+    }
+
+    if (
+      concept.evidence_source === "survey_questions" &&
+      concept.question_slots.length === 0
+    ) {
+      addIssue(
+        issues,
+        "missing_question_coverage",
+        `${basePath}.question_slots`,
+        `Concept "${concept.concept_key}" requires survey question coverage but has no planned slots.`,
+      );
+    }
+
+    if (
+      concept.evidence_source !== "survey_questions" &&
+      concept.question_slots.length > 0
+    ) {
+      addIssue(
+        issues,
+        "unexpected_question_slots",
+        `${basePath}.question_slots`,
+        `Concept "${concept.concept_key}" should not include survey question slots for evidence source "${concept.evidence_source}".`,
+      );
+    }
+
+    if (concept.minimum_answer_count > concept.question_slots.length) {
+      addIssue(
+        issues,
+        "invalid_minimum_answer_count",
+        `${basePath}.minimum_answer_count`,
+        `Concept "${concept.concept_key}" requires more answers than planned question slots.`,
+      );
+    }
+
+    if (
+      concept.evidence_source === "survey_questions" &&
+      concept.minimum_answer_count < 1
+    ) {
+      addIssue(
+        issues,
+        "minimum_answer_count_too_low",
+        `${basePath}.minimum_answer_count`,
+        `Concept "${concept.concept_key}" must require at least one answer when measured via survey questions.`,
+      );
+    }
+  });
+
+  return issues;
+}
+
+export function validateMeasurementPlannerConceptCoverage(
+  expectedConceptKeys: string[],
+  actualConceptKeys: string[],
+): SurveyValidationIssue[] {
+  const issues: SurveyValidationIssue[] = [];
+  const expected = new Set(expectedConceptKeys);
+  const actual = new Set(actualConceptKeys);
+
+  if (!hasUniqueValues(actualConceptKeys)) {
+    addIssue(
+      issues,
+      "duplicate_planner_concept_key",
+      "measurement_planner_output.concepts",
+      "Measurement planner returned duplicate concept keys.",
+    );
+  }
+
+  for (const conceptKey of expectedConceptKeys) {
+    if (!actual.has(conceptKey)) {
+      addIssue(
+        issues,
+        "missing_planner_concept_key",
+        "measurement_planner_output.concepts",
+        `Measurement planner must return a concept plan for "${conceptKey}".`,
+      );
+    }
+  }
+
+  for (const conceptKey of actualConceptKeys) {
+    if (!expected.has(conceptKey)) {
+      addIssue(
+        issues,
+        "unexpected_planner_concept_key",
+        "measurement_planner_output.concepts",
+        `Measurement planner returned an unexpected concept "${conceptKey}".`,
+      );
+    }
+  }
+
+  return issues;
+}
+
+function validateMeasurementPlanAlignment(
+  definition: SurveyDefinition,
+  contract: MappingContract,
+  measurementPlan: MeasurementPlan,
+): SurveyValidationIssue[] {
+  const issues: SurveyValidationIssue[] = [];
+  const questionIndex = new Map(
+    definition.questions.map((question) => [question.question_key, question]),
+  );
+  const mappingIndex = new Map(
+    contract.mappings.map((mapping) => [mapping.question_key, mapping]),
+  );
+  const plannedQuestionKeys = new Set<string>();
+
+  measurementPlan.concepts.forEach((concept, index) => {
+    const basePath = `survey_meta.measurement_plan_json.concepts[${index}]`;
+
+    if (
+      concept.evidence_source === "survey_questions" &&
+      concept.question_keys.length === 0
+    ) {
+      addIssue(
+        issues,
+        "missing_question_coverage",
+        `${basePath}.question_keys`,
+        `Concept "${concept.concept_key}" requires survey questions but none were materialized.`,
+      );
+    }
+
+    if (
+      concept.evidence_source !== "survey_questions" &&
+      concept.question_keys.length > 0
+    ) {
+      addIssue(
+        issues,
+        "unexpected_question_keys",
+        `${basePath}.question_keys`,
+        `Concept "${concept.concept_key}" should not carry question keys for evidence source "${concept.evidence_source}".`,
+      );
+    }
+
+    if (concept.minimum_answer_count > concept.question_keys.length) {
+      addIssue(
+        issues,
+        "invalid_minimum_answer_count",
+        `${basePath}.minimum_answer_count`,
+        `Concept "${concept.concept_key}" requires more answers than available materialized questions.`,
+      );
+    }
+
+    if (!hasUniqueValues(concept.question_keys)) {
+      addIssue(
+        issues,
+        "duplicate_measurement_question_key",
+        `${basePath}.question_keys`,
+        `Concept "${concept.concept_key}" repeats question keys in its measurement plan.`,
+      );
+    }
+
+    const compatibleQuestionTypes = getCompatibleQuestionTypes(concept.measurement_type);
+
+    for (const questionKey of concept.question_keys) {
+      plannedQuestionKeys.add(questionKey);
+      const question = questionIndex.get(questionKey);
+      if (!question) {
+        addIssue(
+          issues,
+          "unknown_measurement_question_key",
+          `${basePath}.question_keys`,
+          `Measurement plan references unknown question "${questionKey}".`,
+        );
+        continue;
+      }
+
+      if (
+        compatibleQuestionTypes.length > 0 &&
+        !compatibleQuestionTypes.includes(question.type)
+      ) {
+        addIssue(
+          issues,
+          "measurement_type_question_type_mismatch",
+          `${basePath}.measurement_type`,
+          `Concept "${concept.concept_key}" expects question types ${compatibleQuestionTypes.join(", ")} but uses "${question.type}".`,
+        );
+      }
+
+      const mapping = mappingIndex.get(questionKey);
+      if (!mapping) {
+        addIssue(
+          issues,
+          "missing_measurement_mapping",
+          `${basePath}.question_keys`,
+          `Measurement plan question "${questionKey}" is missing a mapping contract entry.`,
+        );
+        continue;
+      }
+
+      const expectedConcept = getFlexpulseBehaviouralConcept(concept.concept_key);
+      if (
+        expectedConcept &&
+        mapping.ontology_target !== expectedConcept.schema_target
+      ) {
+        addIssue(
+          issues,
+          "measurement_mapping_target_mismatch",
+          `${basePath}.question_keys`,
+          `Measurement plan question "${questionKey}" maps to "${mapping.ontology_target}" but concept "${concept.concept_key}" expects "${expectedConcept.schema_target}".`,
+        );
+      }
+    }
+
+    if (concept.measurement_type === "multi_item_likert_median") {
+      if (concept.question_keys.length < 2) {
+        addIssue(
+          issues,
+          "insufficient_multi_item_coverage",
+          `${basePath}.question_keys`,
+          `Concept "${concept.concept_key}" needs at least 2 questions for multi-item aggregation.`,
+        );
+      }
+    }
+  });
+
+  for (const question of definition.questions) {
+    if (!plannedQuestionKeys.has(question.question_key)) {
+      addIssue(
+        issues,
+        "question_missing_from_measurement_plan",
+        `questions.${question.question_key}`,
+        `Question "${question.question_key}" is not referenced by the measurement plan.`,
+      );
+    }
+  }
+
+  return issues;
 }
 
 function validateQuestionDefinition(
@@ -389,6 +681,7 @@ export function validateSurveyPublication(
   definition: SurveyDefinition,
   contract: MappingContract,
 ): SurveyValidationIssue[] {
+  const measurementPlan = definition.survey_meta.measurement_plan_json;
   const issues = [
     ...validateSurveyDefinition(definition, {
       require_complete_translations: true,
@@ -429,12 +722,35 @@ export function validateSurveyPublication(
     }
   }
 
+  if (!measurementPlan) {
+    addIssue(
+      issues,
+      "missing_measurement_plan",
+      "survey_meta.measurement_plan_json",
+      "A survey must define a measurement plan before publication.",
+    );
+    return issues;
+  }
+
+  if (measurementPlan.concepts.length === 0) {
+    addIssue(
+      issues,
+      "missing_measurement_plan_concepts",
+      "survey_meta.measurement_plan_json.concepts",
+      "A survey must define at least one measurement plan concept before publication.",
+    );
+    return issues;
+  }
+
+  issues.push(...validateMeasurementPlanAlignment(definition, contract, measurementPlan));
+
   return issues;
 }
 
 export function validateGeneratedSurveyDraft(
   definition: SurveyDefinition,
   contract: MappingContract,
+  measurementPlan?: MeasurementPlan,
 ): SurveyValidationIssue[] {
   const issues = [
     ...validateSurveyDefinition(definition, {
@@ -474,6 +790,16 @@ export function validateGeneratedSurveyDraft(
         `Question "${question.question_key}" does not have a mapping contract entry.`,
       );
     }
+  }
+
+  if (measurementPlan) {
+    issues.push(
+      ...validateMeasurementPlanAlignment(
+        definition,
+        contract,
+        measurementPlan,
+      ),
+    );
   }
 
   return issues;

@@ -36,6 +36,7 @@ export async function createSurveyResponseAndEnqueueJob(
         ? buildRawLocationRetentionUntil()
         : null,
       p_mapping_hash_at_submission: input.survey.mapping_hash,
+      p_measurement_hash_at_submission: input.survey.measurement_hash ?? null,
     },
   );
 

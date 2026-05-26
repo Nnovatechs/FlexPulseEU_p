@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   CompiledMappingContract,
   MappingContract,
+  MeasurementPlan,
   SurveyMappingDefinition,
 } from "./generator-types";
 
@@ -48,5 +49,11 @@ export function compileMappingContract(
 export function computeMappingHash(contract: MappingContract): string {
   return createHash("sha256")
     .update(stableStringify(contract))
+    .digest("hex");
+}
+
+export function computeMeasurementHash(measurementPlan: MeasurementPlan): string {
+  return createHash("sha256")
+    .update(stableStringify(measurementPlan))
     .digest("hex");
 }

@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 import OpenAI from "openai";
 import {
-  buildOntologyTarget,
-  fpBehaviourV1Concepts,
-} from "@/features/ontology/fp-behaviour-v1";
+  flexpulseBehaviouralSchemaV1,
+} from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   buildUntrustedSurveyContentNotice,
   detectPromptInjectionSignals,
@@ -387,9 +386,8 @@ async function checkSemanticAlignment(
   surveyLanguage: string,
 ): Promise<ContentValidationIssue[]> {
   const conceptDescByTarget: Record<string, string> = {};
-  for (const concept of fpBehaviourV1Concepts) {
-    const target = buildOntologyTarget(concept.block, concept.attribute);
-    conceptDescByTarget[target] = concept.description;
+  for (const concept of flexpulseBehaviouralSchemaV1) {
+    conceptDescByTarget[concept.schema_target] = concept.description;
   }
 
   const mappingByKey: Record<string, SurveyMappingDefinition> = {};

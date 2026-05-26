@@ -37,7 +37,7 @@ describe("survey content validator — deterministic layer", () => {
     // This test covers a direct-identification case that must always fail.
     const fixture = buildValidationSurveyFixture({
       title: "Please enter your email address",
-      ontologyTarget: "fp_behaviour_v1.response_context.language_code",
+      ontologyTarget: "flexpulse_behavioural_schema.survey_language",
     });
 
     const issues = checkStructuredPII(fixture.questions, fixture.translations);
@@ -53,7 +53,7 @@ describe("survey content validator — deterministic layer", () => {
     const fixture = buildValidationSurveyFixture({
       language: "Spanish",
       title: "Indica tu número de teléfono",
-      ontologyTarget: "fp_behaviour_v1.response_context.language_code",
+      ontologyTarget: "flexpulse_behavioural_schema.survey_language",
     });
 
     const issues = checkStructuredPII(fixture.questions, fixture.translations);
@@ -70,7 +70,7 @@ describe("survey content validator — deterministic layer", () => {
     const fixture = buildValidationSurveyFixture({
       language: "French",
       title: "Veuillez indiquer votre compte bancaire",
-      ontologyTarget: "fp_behaviour_v1.response_context.language_code",
+      ontologyTarget: "flexpulse_behavioural_schema.survey_language",
     });
 
     const issues = checkStructuredPII(fixture.questions, fixture.translations);
@@ -86,7 +86,7 @@ describe("survey content validator — deterministic layer", () => {
     const fixture = buildValidationSurveyFixture({
       title: "Which region do you currently live in?",
       optionLabels: ["North", "South", "East", "West"],
-      ontologyTarget: "fp_behaviour_v1.response_context.region_code",
+      ontologyTarget: "flexpulse_behavioural_schema.normalized_location_context",
     });
 
     const issues = checkStructuredPII(fixture.questions, fixture.translations);
@@ -131,7 +131,7 @@ describe("survey content validator — deterministic layer", () => {
     const fixture = buildValidationSurveyFixture({
       title: "Please rate your agreement with the following statements about automation in energy management.",
       description: "Use a scale from 1 (Strongly disagree) to 5 (Strongly agree) for each statement.",
-      ontologyTarget: "fp_behaviour_v1.trust_automation.automation_trust_level",
+      ontologyTarget: "flexpulse_behavioural_schema.trust_in_automation",
     });
 
     fixture.definition.questions[0] = {
@@ -166,7 +166,7 @@ describe("survey content validator — deterministic layer", () => {
         "Valora tu grado de acuerdo con las siguientes afirmaciones sobre la automatizacion en la gestion energetica.",
       description:
         "Usa una escala del 1 al 5 para cada afirmacion.",
-      ontologyTarget: "fp_behaviour_v1.trust_automation.automation_trust_level",
+      ontologyTarget: "flexpulse_behavioural_schema.trust_in_automation",
     });
 
     fixture.definition.questions[0] = {

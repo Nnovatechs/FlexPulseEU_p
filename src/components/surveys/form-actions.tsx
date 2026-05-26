@@ -50,7 +50,7 @@ function FormActionsInner({ initialHasTargets }: FormActionsInnerProps) {
 
     function handleChange() {
       const checked = form!.querySelectorAll(
-        'input[name="ontologyTargets"]:checked',
+        'input[name="behaviouralConceptKeys"]:checked',
       );
       setHasTargets(checked.length > 0);
     }

@@ -14,6 +14,10 @@ import type {
   SurveyQuestionDefinition,
   SurveyLanguageTranslations,
 } from "@/features/surveys/generator-types";
+import {
+  buildQuestionTitleLookup,
+  getMultilingualIssueQuestionTitle,
+} from "@/features/surveys/review-title-helpers";
 
 const VALIDATION_STEPS = [
   "Scanning questions for personal data...",
@@ -79,6 +83,7 @@ type ReviewTabProps = {
   hasQuestions: boolean;
   questions: SurveyQuestionDefinition[];
   translations: SurveyLanguageTranslations | null;
+  translationsByLanguage: Partial<Record<SurveyLanguageCode, SurveyLanguageTranslations>>;
   validationResult: ContentValidationResult | null;
   isStale: boolean;
   defaultLanguage: SurveyLanguageCode;
@@ -92,6 +97,7 @@ export function ReviewTab({
   hasQuestions,
   questions,
   translations,
+  translationsByLanguage,
   validationResult,
   isStale,
   defaultLanguage,
@@ -159,12 +165,7 @@ export function ReviewTab({
     });
   }
 
-  // Build quick lookup: question_key → title
-  const titleByKey: Record<string, string> = {};
-  for (const q of questions) {
-    titleByKey[q.question_key] =
-      translations?.questions[q.question_key]?.title ?? q.question_key;
-  }
+  const canonicalTitleByKey = buildQuestionTitleLookup(questions, translations);
 
   const multilingualIssuesByLanguage = (multilingualValidationResult?.issues ?? []).reduce<
     Partial<Record<SurveyLanguageCode, MultilingualValidationIssue[]>>
@@ -297,7 +298,7 @@ export function ReviewTab({
                 </span>
                 <div className="review-issue__body">
                   <span className="review-issue__question">
-                    {titleByKey[issue.question_key] ?? issue.question_key}
+                    {canonicalTitleByKey[issue.question_key] ?? issue.question_key}
                   </span>
                   <span className="review-issue__message muted">
                     {issue.message}
@@ -429,7 +430,11 @@ export function ReviewTab({
                             <div className="review-issue__body">
                               <span className="review-issue__question">
                                 {issue.question_key
-                                  ? (titleByKey[issue.question_key] ?? issue.question_key)
+                                  ? (getMultilingualIssueQuestionTitle({
+                                      issue,
+                                      canonicalTitleByKey,
+                                      translationsByLanguage,
+                                    }) ?? issue.question_key)
                                   : "Survey-level issue"}
                               </span>
                               <span className="review-issue__message muted">

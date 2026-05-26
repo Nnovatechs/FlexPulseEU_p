@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
+import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { runContentValidation, computeContentHash } from "./content-validator";
-import { generateSurveyDraftProposal } from "./generator-executor";
+import { generateSurveyDraftProposal } from "./survey-generation-flow";
+import { createMeasurementPlanFromMappings } from "./measurement-plan";
 import { translateSurveyLanguage } from "./translation-service";
 import {
   computeMultilingualTranslationHash,
@@ -23,6 +25,8 @@ import type {
   SurveyLanguageTranslations,
 } from "./generator-types";
 import { normalizeSurveyResponseContextConfig } from "./generator-types";
+
+const MULTILINGUAL_TRANSLATION_MAX_RETRIES = 2;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,6 +93,61 @@ function buildMultilingualValidationResult(
   };
 }
 
+async function generateAndValidateTranslatedLanguage(params: {
+  surveyName: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  sourceTranslations: SurveyLanguageTranslations;
+  questions: SurveyDefinition["questions"];
+  mappings: Awaited<ReturnType<typeof getOwnedSurveyById>>["mapping_contract_json"]["mappings"];
+}) {
+  let translatedBundle = await translateSurveyLanguage({
+    surveyName: params.surveyName,
+    sourceLanguage: params.sourceLanguage,
+    targetLanguage: params.targetLanguage,
+    sourceTranslations: params.sourceTranslations,
+    questions: params.questions,
+    mappings: params.mappings,
+  });
+
+  let issues = await validateTranslatedSurveyLanguage({
+    sourceLanguage: params.sourceLanguage,
+    targetLanguage: params.targetLanguage,
+    sourceTranslations: params.sourceTranslations,
+    targetTranslations: translatedBundle,
+    questions: params.questions,
+    mappings: params.mappings,
+  });
+
+  for (
+    let attempt = 0;
+    attempt < MULTILINGUAL_TRANSLATION_MAX_RETRIES && issues.length > 0;
+    attempt += 1
+  ) {
+    translatedBundle = await translateSurveyLanguage({
+      surveyName: params.surveyName,
+      sourceLanguage: params.sourceLanguage,
+      targetLanguage: params.targetLanguage,
+      sourceTranslations: params.sourceTranslations,
+      questions: params.questions,
+      mappings: params.mappings,
+      previousTranslation: translatedBundle,
+      validationIssues: issues,
+    });
+
+    issues = await validateTranslatedSurveyLanguage({
+      sourceLanguage: params.sourceLanguage,
+      targetLanguage: params.targetLanguage,
+      sourceTranslations: params.sourceTranslations,
+      targetTranslations: translatedBundle,
+      questions: params.questions,
+      mappings: params.mappings,
+    });
+  }
+
+  return { targetLanguage: params.targetLanguage, translatedBundle, issues };
+}
+
 // ---------------------------------------------------------------------------
 // Create draft
 // ---------------------------------------------------------------------------
@@ -126,10 +185,14 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("supportedLanguages")
     .map((value) => String(value).trim())
     .filter(Boolean);
-  const ontologyTargets = formData
-    .getAll("ontologyTargets")
+  const behaviouralConceptKeys = formData
+    .getAll("behaviouralConceptKeys")
     .map((value) => String(value).trim())
     .filter(Boolean);
+  const schemaTargets =
+    behaviouralConceptKeys.length > 0
+      ? deriveSchemaTargetsFromBehaviouralConceptKeys(behaviouralConceptKeys)
+      : [];
   const collectLocation = formData.get("collectLocation") === "on";
   const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
 
@@ -150,7 +213,12 @@ export async function updateSurveySettingsAction(formData: FormData) {
 
   // Always clear validation when settings or questions change
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
-  nextDefinition.survey_meta.ontology_targets = ontologyTargets;
+  nextDefinition.survey_meta.behavioural_concept_keys = behaviouralConceptKeys;
+  nextDefinition.survey_meta.ontology_targets = schemaTargets;
+  nextDefinition.survey_meta.measurement_plan_json = createMeasurementPlanFromMappings(
+    behaviouralConceptKeys,
+    existing.mapping_contract_json.mappings,
+  );
   nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
@@ -160,18 +228,22 @@ export async function updateSurveySettingsAction(formData: FormData) {
   nextDefinition.translations[defaultLanguage].survey_description = surveyDescription;
 
   if (intent === "generate") {
-    if (ontologyTargets.length === 0) {
+    if (behaviouralConceptKeys.length === 0) {
       redirect(buildEditErrorRedirect(surveyId, "missing-ontology-targets"));
     }
 
     try {
       const proposal = await generateSurveyDraftProposal({
-        survey: existing,
+        survey: {
+          ...existing,
+          definition_json: nextDefinition,
+        },
         surveyName: name,
         surveyDescription,
         defaultLanguage,
         supportedLanguages: nextSupportedLanguages,
-        ontologyTargets,
+        behaviouralConceptKeys,
+        schemaTargets,
       });
 
       // Generated content → validation is stale, clear it
@@ -352,7 +424,7 @@ export async function generateSurveyTranslationsAction(
 
   const translationRuns = await Promise.all(
     targetLanguages.map(async (targetLanguage) => {
-      const translatedBundle = await translateSurveyLanguage({
+      return generateAndValidateTranslatedLanguage({
         surveyName: survey.name,
         sourceLanguage: survey.default_language,
         targetLanguage,
@@ -360,17 +432,6 @@ export async function generateSurveyTranslationsAction(
         questions: survey.definition_json.questions,
         mappings: survey.mapping_contract_json.mappings,
       });
-
-      const issues = await validateTranslatedSurveyLanguage({
-        sourceLanguage: survey.default_language,
-        targetLanguage,
-        sourceTranslations,
-        targetTranslations: translatedBundle,
-        questions: survey.definition_json.questions,
-        mappings: survey.mapping_contract_json.mappings,
-      });
-
-      return { targetLanguage, translatedBundle, issues };
     }),
   );
 

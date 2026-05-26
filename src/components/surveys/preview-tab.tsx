@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
 import { publishSurveyAction } from "@/features/surveys/actions";
 import type {
   SurveyDefinition,
@@ -17,6 +18,16 @@ const TYPE_LABELS: Record<string, string> = {
   numeric: "Numeric",
   boolean: "Boolean",
 };
+
+function getReadableOntologyTargetLabel(ontologyTarget: string) {
+  const concept = getFlexpulseBehaviouralConceptByTarget(ontologyTarget);
+  if (concept) {
+    return concept.label;
+  }
+
+  const rawLabel = ontologyTarget.split(".").pop() ?? ontologyTarget;
+  return rawLabel.replace(/_/g, " ");
+}
 
 type ReadOnlyQuestionCardProps = {
   index: number;
@@ -84,7 +95,7 @@ function ReadOnlyQuestionCard({
         <div className="qov-card__mapping">
           <span className="qov-card__mapping-label">Maps to</span>
           <span className="qov-card__mapping-target">
-            {mapping.ontology_target}
+            {getReadableOntologyTargetLabel(mapping.ontology_target)}
           </span>
         </div>
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
 import { updateQuestionTranslationAction } from "@/features/surveys/actions";
 import type {
   SurveyQuestionDefinition,
@@ -30,6 +31,16 @@ const TYPE_LABELS: Record<string, string> = {
   numeric: "Numeric",
   boolean: "Boolean",
 };
+
+function getReadableOntologyTargetLabel(ontologyTarget: string) {
+  const concept = getFlexpulseBehaviouralConceptByTarget(ontologyTarget);
+  if (concept) {
+    return concept.label;
+  }
+
+  const rawLabel = ontologyTarget.split(".").pop() ?? ontologyTarget;
+  return rawLabel.replace(/_/g, " ");
+}
 
 export function QuestionCardEditable({
   index,
@@ -178,7 +189,7 @@ export function QuestionCardEditable({
             <div className="qov-card__mapping">
               <span className="qov-card__mapping-label">Maps to</span>
               <span className="qov-card__mapping-target">
-                {mapping.ontology_target}
+                {getReadableOntologyTargetLabel(mapping.ontology_target)}
               </span>
             </div>
           )}
@@ -243,7 +254,7 @@ export function QuestionCardEditable({
         <div className="qov-card__mapping">
           <span className="qov-card__mapping-label">Maps to</span>
           <span className="qov-card__mapping-target">
-            {mapping.ontology_target}
+            {getReadableOntologyTargetLabel(mapping.ontology_target)}
           </span>
         </div>
       )}

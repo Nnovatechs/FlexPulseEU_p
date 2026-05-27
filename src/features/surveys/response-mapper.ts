@@ -175,6 +175,10 @@ function getQuestionValues(
 ): QuestionValue[] | null {
   for (const questionKey of concept.required_question_keys) {
     const mapping = compiledMapping.by_question_key[questionKey];
+    if (!mapping) {
+      return null;
+    }
+
     const value = applyTransformStrategy(answers[questionKey], mapping);
 
     if (value == null) {
@@ -240,10 +244,8 @@ function aggregateValues(
 
 function aggregateQuestionValues(
   concept: MeasurementPlanEntry,
-  compiledMapping: CompiledMappingContract,
-  answers: Record<string, SubmittedSurveyAnswer>,
+  questionValues: QuestionValue[] | null,
 ) {
-  const questionValues = getQuestionValues(concept, compiledMapping, answers);
   if (questionValues == null) {
     return null;
   }
@@ -256,14 +258,8 @@ function aggregateQuestionValues(
 
 function buildFacetSignals(
   concept: MeasurementPlanEntry,
-  compiledMapping: CompiledMappingContract,
-  answers: Record<string, SubmittedSurveyAnswer>,
+  questionValues: QuestionValue[],
 ): MapperOutput["profile"][string]["facets"] {
-  const questionValues = getQuestionValues(concept, compiledMapping, answers);
-  if (questionValues == null) {
-    return undefined;
-  }
-
   const intentsByQuestion = new Map(
     (concept.question_intents ?? []).map((intent) => [intent.question_key, intent]),
   );
@@ -331,12 +327,13 @@ function buildProfile(
         );
       })
       .map((concept) => {
-        const value = aggregateQuestionValues(concept, compiledMapping, input.answers);
+        const questionValues = getQuestionValues(concept, compiledMapping, input.answers);
+        const value = aggregateQuestionValues(concept, questionValues);
         const tag = deriveTag(value, concept.threshold_profile);
         const facets =
-          value == null
+          value == null || questionValues == null
             ? undefined
-            : buildFacetSignals(concept, compiledMapping, input.answers);
+            : buildFacetSignals(concept, questionValues);
 
         return [
           concept.concept_key,

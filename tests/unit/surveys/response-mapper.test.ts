@@ -245,7 +245,7 @@ describe("response mapper", () => {
     });
   });
 
-  it("falls back to the raw country code and keeps null when a concept lacks enough answers", () => {
+  it("falls back to the raw country code and keeps null when required slots are missing", () => {
     const survey = buildPublishedSurveyFixture();
     const output = mapSurveyResponseToOutput({
       survey,
@@ -339,6 +339,34 @@ describe("response mapper", () => {
     expect(output.profile.trust_in_automation).toEqual({
       value: null,
     });
+    expect(output.profile.trust_in_automation).not.toHaveProperty("facets");
+  });
+
+  it("returns null when a required question key has no compiled mapping entry", () => {
+    const survey = buildPublishedSurveyFixture();
+    const compiled = survey.mapping_compiled_json;
+    if (!compiled) {
+      throw new Error("Missing compiled mapping fixture.");
+    }
+
+    delete compiled.by_question_key.Q_TRUST_02;
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_01: 4,
+        Q_TRUST_02: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation).toEqual({
+      value: null,
+    });
   });
 
   it("reverse-codes negative-polarity numeric items before aggregation", () => {
@@ -370,6 +398,18 @@ describe("response mapper", () => {
     expect(output.profile.trust_in_automation).toMatchObject({
       value: 3,
       tag: "medium",
+      facets: {
+        reliability: {
+          value: 5,
+          evidence_count: 1,
+          evidence_level: "interpretive_signal",
+        },
+        delegation: {
+          value: 1,
+          evidence_count: 1,
+          evidence_level: "interpretive_signal",
+        },
+      },
     });
   });
 });

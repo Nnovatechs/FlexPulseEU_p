@@ -602,4 +602,110 @@ describe("response mapper", () => {
       value: false,
     });
   });
+
+  it("reverse-codes negative-polarity yes/no boolean_lookup items before aggregation", () => {
+    const survey = buildPublishedSurveyFixture();
+    const overrideConcept =
+      survey.definition_json.survey_meta.measurement_plan_json?.concepts.find(
+        (concept) => concept.concept_key === "manual_override_need",
+      );
+
+    if (!overrideConcept) {
+      throw new Error("Missing manual_override_need concept in fixture.");
+    }
+
+    overrideConcept.question_intents = [
+      {
+        slot_key: "SLOT_MANUAL_OVERRIDE_01",
+        question_key: "Q_OVERRIDE_PERMISSION",
+        facet: "override_need",
+        intent: "Discomfort with needing manual override.",
+        polarity: "negative",
+      },
+    ];
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_OVERRIDE_PERMISSION: "yes",
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.manual_override_need).toMatchObject({
+      value: false,
+    });
+  });
+
+  it("reverse-codes negative-polarity yes/no enum_lookup items before aggregation", () => {
+    const survey = buildPublishedSurveyFixture();
+    survey.definition_json.questions.push({
+      question_key: "Q_CONTROL_NEG",
+      type: "single_choice",
+      required: true,
+      order: 7,
+      options: [
+        { option_key: "yes", value: "Yes" },
+        { option_key: "no", value: "No" },
+      ],
+    });
+    survey.definition_json.translations.English.questions.Q_CONTROL_NEG = {
+      title: "Would automated changes without notice bother you?",
+    };
+    survey.mapping_contract_json.mappings.push({
+      question_key: "Q_CONTROL_NEG",
+      ontology_target: "flexpulse_behavioural_schema.manual_override_need",
+      expected_type: "string",
+      required_for_mapping: true,
+      transform_strategy: {
+        kind: "enum_lookup",
+        option_to_value: {
+          yes: "agrees",
+          no: "disagrees",
+        },
+      },
+    });
+    survey.mapping_compiled_json = compileMappingContract(survey.mapping_contract_json);
+
+    const overrideConcept =
+      survey.definition_json.survey_meta.measurement_plan_json?.concepts.find(
+        (concept) => concept.concept_key === "manual_override_need",
+      );
+
+    if (!overrideConcept) {
+      throw new Error("Missing manual_override_need concept in fixture.");
+    }
+
+    overrideConcept.question_keys = ["Q_CONTROL_NEG"];
+    overrideConcept.required_question_keys = ["Q_CONTROL_NEG"];
+    overrideConcept.question_intents = [
+      {
+        slot_key: "SLOT_CONTROL_NEG_01",
+        question_key: "Q_CONTROL_NEG",
+        facet: "control_concern",
+        intent: "Discomfort with automation acting without notice.",
+        polarity: "negative",
+      },
+    ];
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_CONTROL_NEG: "yes",
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.manual_override_need).toMatchObject({
+      value: "disagrees",
+    });
+  });
 });

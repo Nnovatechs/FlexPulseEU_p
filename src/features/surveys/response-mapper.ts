@@ -138,6 +138,18 @@ function deriveTag(
   return undefined;
 }
 
+function flipBinaryEnumLookupValue(
+  strategy: Extract<SurveyMappingDefinition["transform_strategy"], { kind: "enum_lookup" }>,
+  value: string,
+) {
+  const mappedValues = Array.from(new Set(Object.values(strategy.option_to_value)));
+  if (mappedValues.length !== 2 || !mappedValues.includes(value)) {
+    return value;
+  }
+
+  return mappedValues.find((candidate) => candidate !== value) ?? value;
+}
+
 function applyQuestionPolarity(
   questionKey: string,
   value: string | number | boolean | string[] | number[] | null,
@@ -148,20 +160,40 @@ function applyQuestionPolarity(
     (intent) => intent.question_key === questionKey,
   );
 
-  if (
-    questionIntent?.polarity !== "negative" ||
-    typeof value !== "number" ||
-    mapping.transform_strategy.kind !== "numeric_range"
-  ) {
+  if (questionIntent?.polarity !== "negative") {
     return value;
   }
 
-  const { min, max } = mapping.transform_strategy;
-  if (typeof min !== "number" || typeof max !== "number") {
+  if (mapping.transform_strategy.kind === "numeric_range") {
+    if (typeof value !== "number") {
+      return value;
+    }
+
+    const { min, max } = mapping.transform_strategy;
+    if (typeof min !== "number" || typeof max !== "number") {
+      return value;
+    }
+
+    return min + max - value;
+  }
+
+  if (mapping.transform_strategy.kind === "boolean_lookup") {
+    if (typeof value === "boolean") {
+      return !value;
+    }
+
     return value;
   }
 
-  return min + max - value;
+  if (mapping.transform_strategy.kind === "enum_lookup") {
+    if (typeof value === "string") {
+      return flipBinaryEnumLookupValue(mapping.transform_strategy, value);
+    }
+
+    return value;
+  }
+
+  return value;
 }
 
 type QuestionValue = {

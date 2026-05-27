@@ -264,9 +264,53 @@ describe("measurement plan", () => {
     );
 
     expect(plan.concepts[0].question_intents).toEqual(existingPlan.concepts[0].question_intents);
+    expect(plan.concepts[0].aggregation_rule).toBe("median");
+    expect(plan.concepts[0].measurement_type).toBe("multi_item_likert_median");
   });
 
-  it("drops preserved intents when rebuilt question keys no longer match", () => {
+  it("preserves planner measurement metadata when question keys are unchanged", () => {
+    const existingPlan = materializeMeasurementPlan(
+      applyMeasurementPlannerOutput(
+        createMeasurementPlanBlueprint(["flexibility_willingness"]),
+        {
+          concepts: [
+            {
+              concept_key: "flexibility_willingness",
+              measurement_type: "multi_item_likert_median",
+              aggregation_rule: "mean",
+              threshold_profile: "likert_1_5_low_mid_high",
+              slot_count: 2,
+              slot_intents: slotIntents(2),
+            },
+          ],
+        },
+      ),
+      {
+        SLOT_FLEXIBILITY_WILLINGNESS_01: "Q_FLEX_01",
+        SLOT_FLEXIBILITY_WILLINGNESS_02: "Q_FLEX_02",
+      },
+    );
+
+    const plan = createMeasurementPlanFromMappings(
+      ["flexibility_willingness"],
+      [
+        {
+          question_key: "Q_FLEX_01",
+          ontology_target: "flexpulse_behavioural_schema.flexibility_willingness",
+        },
+        {
+          question_key: "Q_FLEX_02",
+          ontology_target: "flexpulse_behavioural_schema.flexibility_willingness",
+        },
+      ],
+      existingPlan,
+    );
+
+    expect(plan.concepts[0].aggregation_rule).toBe("mean");
+    expect(plan.concepts[0].minimum_answer_count).toBe(existingPlan.concepts[0].minimum_answer_count);
+  });
+
+  it("keeps matching intents when only one rebuilt question key still aligns", () => {
     const existingPlan = materializeMeasurementPlan(
       applyMeasurementPlannerOutput(
         createMeasurementPlanBlueprint(["trust_in_automation"]),
@@ -304,6 +348,9 @@ describe("measurement plan", () => {
       existingPlan,
     );
 
-    expect(plan.concepts[0].question_intents).toEqual([]);
+    expect(plan.concepts[0].question_intents).toEqual([
+      existingPlan.concepts[0].question_intents[0],
+    ]);
+    expect(plan.concepts[0].question_keys).toEqual(["Q_TRUST_01", "Q_TRUST_03"]);
   });
 });

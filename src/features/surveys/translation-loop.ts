@@ -57,6 +57,9 @@ export async function generateAndValidateTranslatedLanguage(
   const initialIssues = issues;
   let attempts = 1;
 
+  // Retry while any validator findings remain. Loop semantics differ from publish:
+  // quality/advisory findings still trigger polish, even though only parity/pii/cultural
+  // block publication after toProductMultilingualIssues runs in actions.ts.
   for (
     let retry = 0;
     retry < MULTILINGUAL_TRANSLATION_MAX_RETRIES && issues.length > 0;

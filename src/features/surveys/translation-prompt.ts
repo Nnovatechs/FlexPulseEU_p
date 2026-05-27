@@ -1,5 +1,4 @@
 import type {
-  MultilingualValidationIssue,
   SurveyQuestionDefinition,
   SurveyLanguageTranslations,
 } from "./generator-types";
@@ -10,8 +9,6 @@ type BuildSurveyTranslationPromptInput = {
   targetLanguage: string;
   sourceTranslations: SurveyLanguageTranslations;
   questions: SurveyQuestionDefinition[];
-  previousTranslation?: SurveyLanguageTranslations;
-  validationIssues?: MultilingualValidationIssue[];
 };
 
 export type SurveyTranslationPrompt = {
@@ -53,9 +50,6 @@ export function buildSurveyTranslationPrompt(
     "- Use the respondent as the subject for feelings, comfort, interest, willingness and trust when that is more natural than making the household or system the grammatical subject.",
     "- Option labels must read naturally as standalone response choices. Do not compress them into ambiguous fragments; add a natural category word when needed so the label is clear on its own.",
     "- Do not copy awkward source phrasing.",
-    input.validationIssues?.length
-      ? "- This is a revision pass. Some previous items failed. Rewrite those items from the source meaning, not from the failed target wording."
-      : "",
     "",
     `Survey title: ${input.sourceTranslations.survey_title}`,
     `Survey description: ${input.sourceTranslations.survey_description ?? ""}`,
@@ -63,21 +57,5 @@ export function buildSurveyTranslationPrompt(
     `Questions:\n${JSON.stringify(questionPayload, null, 2)}`,
   ].join("\n");
 
-  const revisionSections =
-    input.validationIssues && input.validationIssues.length > 0
-      ? [
-          "",
-          "Failed validation checks from the previous draft:",
-          JSON.stringify(
-            input.validationIssues.map((issue) => ({
-              question_key: issue.question_key ?? null,
-              failed_check: issue.type,
-            })),
-            null,
-            2,
-          ),
-        ].join("\n")
-      : "";
-
-  return { system, user: `${user}${revisionSections}` };
+  return { system, user };
 }

@@ -24,7 +24,7 @@ export type ProductionTranslationLoopFixture = {
   questions: SurveyQuestionDefinition[];
   mappings: SurveyMappingDefinition[];
   sourceTranslations: SurveyLanguageTranslations;
-  expectedFinalPass: true;
+  expectedFinalPass: boolean;
 };
 
 function buildProductionTranslationLoopFixture(input: {
@@ -259,3 +259,72 @@ export const productionTranslationLoopFixtures: ProductionTranslationLoopFixture
     ],
   }),
 ];
+
+export type ProductionTranslationLoopNegativeControl = {
+  id: string;
+  purpose: string;
+  source_language: string;
+  target_language: string;
+  final_issues: Array<{
+    language: string;
+    question_key?: string;
+    type: "parity" | "quality" | "pii" | "cultural";
+    message: string;
+    severity?: "blocking" | "advisory";
+  }>;
+};
+
+// Deterministic regression controls for the production-loop KPI scorer.
+// These do not run through the live LLM pipeline; they assert that remaining
+// validator findings are treated as eval failures when they should be.
+export const productionTranslationLoopNegativeControls: ProductionTranslationLoopNegativeControl[] =
+  [
+    {
+      id: "parity-drift-survives-polish",
+      purpose:
+        "Negative control: material parity drift that still survives the retry loop must fail the strict pipeline KPI.",
+      source_language: "English",
+      target_language: "Spanish",
+      final_issues: [
+        {
+          language: "Spanish",
+          question_key: "Q_EN_01",
+          type: "parity",
+          severity: "blocking",
+          message: "The translated item reverses willingness to delegate load shifting.",
+        },
+      ],
+    },
+    {
+      id: "pii-request-survives-polish",
+      purpose:
+        "Negative control: added personal-data collection in the target language must fail the pipeline KPI.",
+      source_language: "English",
+      target_language: "French",
+      final_issues: [
+        {
+          language: "French",
+          question_key: "Q_EN_02",
+          type: "pii",
+          severity: "blocking",
+          message: "The translation asks for an email address that is not in the source survey.",
+        },
+      ],
+    },
+    {
+      id: "cultural-bias-survives-polish",
+      purpose:
+        "Negative control: cultural localization bias that survives polish must fail the strict pipeline KPI.",
+      source_language: "French",
+      target_language: "English",
+      final_issues: [
+        {
+          language: "English",
+          question_key: "Q_FR_01",
+          type: "cultural",
+          severity: "blocking",
+          message: "The translation adds civic-duty framing that could bias responses.",
+        },
+      ],
+    },
+  ];

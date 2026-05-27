@@ -1,12 +1,12 @@
 import OpenAI from "openai";
 import { getOpenAIEnv } from "@/lib/llm/env";
 import type {
-  MultilingualValidationIssue,
   SurveyLanguageCode,
   SurveyLanguageTranslations,
   SurveyQuestionDefinition,
 } from "./generator-types";
 import { buildSurveyTranslationPrompt } from "./translation-prompt";
+import { parseSurveyLanguageLLMOutput } from "./translation-output";
 
 type TranslateSurveyLanguageInput = {
   surveyName: string;
@@ -14,8 +14,6 @@ type TranslateSurveyLanguageInput = {
   targetLanguage: SurveyLanguageCode;
   sourceTranslations: SurveyLanguageTranslations;
   questions: SurveyQuestionDefinition[];
-  previousTranslation?: SurveyLanguageTranslations;
-  validationIssues?: MultilingualValidationIssue[];
 };
 
 const surveyTranslationOutputSchema = {
@@ -79,101 +77,11 @@ export async function translateSurveyLanguage(
 
   const message = completion.choices[0]?.message;
 
-  if (message?.refusal) {
-    throw new Error(`Translation was refused for ${input.targetLanguage}: ${message.refusal}`);
-  }
-
-  if (!message?.content) {
-    throw new Error(`Translation returned an empty response for ${input.targetLanguage}.`);
-  }
-
-  const parsed = JSON.parse(message.content) as {
-    survey_title: string;
-    survey_description: string;
-    questions: Array<{
-      question_key: string;
-      title: string;
-      description: string;
-      options: Array<{ option_key: string; label: string }>;
-    }>;
-  };
-
-  const expectedQuestionKeys = new Set(
-    input.questions.map((question) => question.question_key),
-  );
-  const translatedQuestionKeys = new Set(
-    parsed.questions.map((question) => question.question_key),
-  );
-
-  if (translatedQuestionKeys.size !== expectedQuestionKeys.size) {
-    throw new Error(
-      `Translation returned an unexpected number of questions for ${input.targetLanguage}.`,
-    );
-  }
-
-  for (const question of input.questions) {
-    if (!translatedQuestionKeys.has(question.question_key)) {
-      throw new Error(
-        `Translation is missing question "${question.question_key}" for ${input.targetLanguage}.`,
-      );
-    }
-  }
-
-  const translatedQuestions = Object.fromEntries(
-    parsed.questions.map((question) => [
-      question.question_key,
-      {
-        title: question.title,
-        ...(question.description ? { description: question.description } : {}),
-        ...(question.options.length > 0
-          ? {
-              options: Object.fromEntries(
-                question.options.map((option) => [option.option_key, option.label]),
-              ),
-            }
-          : {}),
-      },
-    ]),
-  );
-
-  for (const question of input.questions) {
-    const translatedQuestion = translatedQuestions[question.question_key];
-
-    if (!translatedQuestion?.title?.trim()) {
-      throw new Error(
-        `Translation is missing a title for question "${question.question_key}" in ${input.targetLanguage}.`,
-      );
-    }
-
-    if (question.options?.length) {
-      const expectedOptionKeys = new Set(
-        question.options.map((option) => option.option_key),
-      );
-      const translatedOptionKeys = new Set(
-        Object.keys(translatedQuestion.options ?? {}),
-      );
-
-      if (translatedOptionKeys.size !== expectedOptionKeys.size) {
-        throw new Error(
-          `Translation returned an unexpected option set for question "${question.question_key}" in ${input.targetLanguage}.`,
-        );
-      }
-
-      for (const optionKey of expectedOptionKeys) {
-        if (!translatedOptionKeys.has(optionKey)) {
-          throw new Error(
-            `Translation is missing option "${optionKey}" for question "${question.question_key}" in ${input.targetLanguage}.`,
-          );
-        }
-      }
-    }
-  }
-
-  return {
-    survey_title: parsed.survey_title,
-    ...(parsed.survey_description
-      ? { survey_description: parsed.survey_description }
-      : {}),
-    questions: translatedQuestions,
-  };
+  return parseSurveyLanguageLLMOutput({
+    content: message?.content,
+    refusal: message?.refusal,
+    questions: input.questions,
+    targetLanguage: input.targetLanguage,
+    operationLabel: "Translation",
+  });
 }

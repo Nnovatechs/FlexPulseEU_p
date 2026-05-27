@@ -7,6 +7,7 @@ import type {
   SurveyMappingDefinition,
 } from "./generator-types";
 import { compileMappingContract } from "./generator-mapping";
+import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { SubmittedSurveyAnswer } from "./response-validation";
 
 export const RESPONSE_MAPPER_VERSION = "v1";
@@ -137,13 +138,48 @@ function deriveTag(
   return undefined;
 }
 
-function aggregateQuestionValues(
+function applyQuestionPolarity(
+  questionKey: string,
+  value: string | number | boolean | string[] | number[] | null,
+  concept: MeasurementPlanEntry,
+  mapping: SurveyMappingDefinition,
+) {
+  const questionIntent = concept.question_intents?.find(
+    (intent) => intent.question_key === questionKey,
+  );
+
+  if (
+    questionIntent?.polarity !== "negative" ||
+    typeof value !== "number" ||
+    mapping.transform_strategy.kind !== "numeric_range"
+  ) {
+    return value;
+  }
+
+  const { min, max } = mapping.transform_strategy;
+  if (typeof min !== "number" || typeof max !== "number") {
+    return value;
+  }
+
+  return min + max - value;
+}
+
+type QuestionValue = {
+  questionKey: string;
+  value: string | number | boolean | string[] | number[];
+};
+
+function getQuestionValues(
   concept: MeasurementPlanEntry,
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
-) {
+): QuestionValue[] | null {
   for (const questionKey of concept.required_question_keys) {
     const mapping = compiledMapping.by_question_key[questionKey];
+    if (!mapping) {
+      return null;
+    }
+
     const value = applyTransformStrategy(answers[questionKey], mapping);
 
     if (value == null) {
@@ -151,12 +187,23 @@ function aggregateQuestionValues(
     }
   }
 
-  const values = concept.question_keys
-    .map((questionKey) =>
-      applyTransformStrategy(answers[questionKey], compiledMapping.by_question_key[questionKey]),
-    )
-    .filter((value): value is string | number | boolean | string[] | number[] => value != null);
+  return concept.question_keys
+    .map((questionKey) => {
+      const mapping = compiledMapping.by_question_key[questionKey];
+      const value = applyTransformStrategy(answers[questionKey], mapping);
 
+      return {
+        questionKey,
+        value: applyQuestionPolarity(questionKey, value, concept, mapping),
+      };
+    })
+    .filter((item): item is QuestionValue => item.value != null);
+}
+
+function aggregateValues(
+  values: Array<string | number | boolean | string[] | number[]>,
+  concept: MeasurementPlanEntry,
+) {
   if (values.length < concept.minimum_answer_count) {
     return null;
   }
@@ -196,6 +243,62 @@ function aggregateQuestionValues(
   }
 }
 
+function aggregateQuestionValues(
+  concept: MeasurementPlanEntry,
+  questionValues: QuestionValue[] | null,
+) {
+  if (questionValues == null) {
+    return null;
+  }
+
+  return aggregateValues(
+    questionValues.map((item) => item.value),
+    concept,
+  );
+}
+
+function buildFacetSignals(
+  concept: MeasurementPlanEntry,
+  questionValues: QuestionValue[],
+): MapperOutput["profile"][string]["facets"] {
+  const intentsByQuestion = new Map(
+    (concept.question_intents ?? []).map((intent) => [intent.question_key, intent]),
+  );
+  const valuesByFacet = new Map<
+    string,
+    Array<string | number | boolean | string[] | number[]>
+  >();
+
+  for (const item of questionValues) {
+    const intent = intentsByQuestion.get(item.questionKey);
+    if (!intent?.facet.trim()) {
+      continue;
+    }
+
+    const values = valuesByFacet.get(intent.facet) ?? [];
+    values.push(item.value);
+    valuesByFacet.set(intent.facet, values);
+  }
+
+  if (valuesByFacet.size === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    Array.from(valuesByFacet.entries()).map(([facet, values]) => [
+      facet,
+      {
+        value:
+          values.length >= 2
+            ? aggregateValues(values, { ...concept, minimum_answer_count: values.length })
+            : values[0],
+        evidence_count: values.length,
+        evidence_level: getFacetEvidenceLevel(concept, facet),
+      },
+    ]),
+  );
+}
+
 function buildProfile(
   input: ResponseMapperInput,
   compiledMapping: CompiledMappingContract,
@@ -220,14 +323,20 @@ function buildProfile(
         );
       })
       .map((concept) => {
-        const value = aggregateQuestionValues(concept, compiledMapping, input.answers);
+        const questionValues = getQuestionValues(concept, compiledMapping, input.answers);
+        const value = aggregateQuestionValues(concept, questionValues);
         const tag = deriveTag(value, concept.threshold_profile);
+        const facets =
+          value == null || questionValues == null
+            ? undefined
+            : buildFacetSignals(concept, questionValues);
 
         return [
           concept.concept_key,
           {
             value,
             ...(tag ? { tag } : {}),
+            ...(facets ? { facets } : {}),
           },
         ];
       }),

@@ -17,6 +17,14 @@ import {
   materializeMeasurementPlan,
 } from "@/features/surveys/measurement-plan";
 
+function slotIntents(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    facet: `facet_${index + 1}`,
+    intent: `Measure facet ${index + 1}.`,
+    polarity: "positive" as const,
+  }));
+}
+
 describe("survey definition validation — response context", () => {
   it("rejects postal code collection without country code collection", () => {
     const definition = createInitialSurveyDefinition("English", ["English"]);
@@ -137,6 +145,7 @@ describe("survey methodology validation", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
+            slot_intents: slotIntents(2),
           },
         ],
       },
@@ -162,6 +171,7 @@ describe("survey methodology validation", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
+            slot_intents: slotIntents(2),
           },
         ],
       },
@@ -169,6 +179,9 @@ describe("survey methodology validation", () => {
     blueprint.concepts[0].question_slots = [
       {
         slot_key: 'SLOT_trust_in_automation_01},{"',
+        facet: "malformed",
+        intent: "Measure malformed slot.",
+        polarity: "positive",
       },
     ];
     const issues = validateMeasurementPlanBlueprint(blueprint);
@@ -230,6 +243,7 @@ describe("survey methodology validation", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
+            slot_intents: slotIntents(2),
           },
         ],
       },
@@ -247,6 +261,82 @@ describe("survey methodology validation", () => {
 
     expect(
       issues.some((issue) => issue.code === "measurement_mapping_target_mismatch"),
+    ).toBe(true);
+  });
+
+  it("rejects survey question concepts with missing question intents", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Trust survey";
+    definition.questions = [
+      {
+        question_key: "Q_TRUST_01",
+        type: "rating_scale",
+        required: true,
+        order: 1,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_TRUST_02",
+        type: "rating_scale",
+        required: true,
+        order: 2,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+    ];
+    definition.translations.English.questions = {
+      Q_TRUST_01: { title: "I trust automation in home energy management." },
+      Q_TRUST_02: { title: "I trust automation in home energy management." },
+    };
+
+    const contract = createInitialMappingContract();
+    contract.mappings = [
+      {
+        question_key: "Q_TRUST_01",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_TRUST_02",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+    ];
+
+    const measurementPlan = materializeMeasurementPlan(
+      applyMeasurementPlannerOutput(
+        createMeasurementPlanBlueprint(["trust_in_automation"]),
+        {
+          concepts: [
+            {
+              concept_key: "trust_in_automation",
+              measurement_type: "multi_item_likert_median",
+              aggregation_rule: "median",
+              threshold_profile: "likert_1_5_low_mid_high",
+              slot_count: 2,
+              slot_intents: slotIntents(2),
+            },
+          ],
+        },
+      ),
+      {
+        SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_01",
+        SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_02",
+      },
+    );
+    measurementPlan.concepts[0].question_intents = [];
+
+    const issues = validateGeneratedSurveyDraft(
+      definition,
+      contract,
+      measurementPlan,
+    );
+
+    expect(
+      issues.some((issue) => issue.code === "question_intents_mismatch"),
     ).toBe(true);
   });
 });

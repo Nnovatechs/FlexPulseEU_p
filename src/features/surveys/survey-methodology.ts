@@ -4,7 +4,7 @@ import type { GeneratorTargetConfig } from "./generator-config";
 export const SURVEY_METHODOLOGY_CONTRACT = {
   objectives: [
     "Design a compact but defensible behavioural instrument rather than a generic questionnaire.",
-    "Maximize useful behavioural profiling signal under realistic respondent burden.",
+    "Prioritize useful behavioural profiling signal over making the shortest possible survey.",
     "Preserve semantic traceability from question wording to mapping contract and final measurement plan.",
   ],
   hard_constraints: [
@@ -12,22 +12,23 @@ export const SURVEY_METHODOLOGY_CONTRACT = {
     "Each survey question must measure one semantic intention only.",
     "The chosen question type must fit the measurement type and later aggregation logic.",
     "The design must compile cleanly into question-level mappings and construct-level aggregation rules.",
-    "The total burden must remain realistic for an actual respondent session.",
-    "Question wording must remain robust under multilingual translation and multicultural adaptation.",
+    "The total burden must remain acceptable, but under-measuring core constructs is a worse failure than adding a few useful items.",
+    "Question wording must avoid unnecessary linguistic ambiguity; full multicultural adaptation is handled by later translation workflows.",
     "Reject matrix-style compression, hidden sub-items, and nearly identical duplicates.",
   ],
   soft_optimization_goals: [
     "Maximize construct coverage.",
+    "Maximize measurement depth when depth materially improves profiling usefulness.",
     "Maximize angle diversity when multiple items are used.",
-    "Minimize respondent burden and avoid unnecessary length.",
+    "Keep respondent burden proportionate instead of minimizing length at all costs.",
     "Maximize downstream interpretability for profiling and mapping.",
-    "Maximize robustness across languages and local contexts.",
     "Minimize manual post-generation corrections.",
   ],
   tradeoff_policy: [
     "Protect semantic validity first.",
     "Protect aggregation viability and behavioural profiling usefulness second.",
-    "Optimize respondent burden third.",
+    "Protect sufficient measurement depth for central constructs third.",
+    "Optimize respondent burden fourth.",
     "Optimize surface simplicity and elegance last.",
   ],
   scorecard: [
@@ -42,6 +43,11 @@ export const SURVEY_METHODOLOGY_CONTRACT = {
         "When more than one item is used, do the items cover meaningfully different angles rather than paraphrasing each other?",
     },
     {
+      metric: "measurement_depth",
+      prompt:
+        "Is the number of planned items sufficient for the construct role and the survey purpose, avoiding weak one-item proxies for central behavioural signals?",
+    },
+    {
       metric: "measurement_fit",
       prompt:
         "Does the chosen question format fit the construct type and intended measurement semantics?",
@@ -54,12 +60,7 @@ export const SURVEY_METHODOLOGY_CONTRACT = {
     {
       metric: "respondent_burden",
       prompt:
-        "Is the total length and cognitive effort realistic for an actual public survey respondent?",
-    },
-    {
-      metric: "translation_robustness",
-      prompt:
-        "Is the wording stable enough for multilingual translation without hidden ambiguity?",
+        "Is the total length and cognitive effort proportionate to the measurement purpose?",
     },
     {
       metric: "semantic_traceability",
@@ -85,11 +86,15 @@ function getRoleSpecificRules(role: FlexpulseConceptRole): string[] {
     case "primary_profile_axis":
       return [
         "Treat this as a core latent construct whose coverage should be justified, not assumed.",
+        "Prefer multi-item coverage with distinct facets when this axis is central to the survey purpose.",
+        "Use single-item coverage only when the survey purpose makes this concept clearly peripheral or the construct is intentionally lightweight.",
         "If more than one item is used, vary the angle without creating near-duplicate items.",
       ];
     case "behavioural_modulator":
       return [
         "Use compact explanatory evidence that clarifies a main axis rather than replacing it.",
+        "If this modulator is central to the survey brief or needed to distinguish profiles, prefer 2-3 distinct items over a fragile single-item proxy.",
+        "If it is peripheral, a single clear item is acceptable.",
         "Extra items are acceptable only when they add distinct interpretive value.",
       ];
     case "applicability_factor":

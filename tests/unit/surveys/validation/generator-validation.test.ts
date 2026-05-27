@@ -339,4 +339,53 @@ describe("survey methodology validation", () => {
       issues.some((issue) => issue.code === "question_intents_mismatch"),
     ).toBe(true);
   });
+
+  it("rejects preferred_tariff_model mappings with unknown ontology values", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Tariff survey";
+    definition.questions = [
+      {
+        question_key: "Q_TARIFF_01",
+        type: "single_choice",
+        required: true,
+        order: 1,
+        options: [
+          { option_key: "opt_1", value: "value_1" },
+          { option_key: "opt_2", value: "value_2" },
+        ],
+      },
+    ];
+    definition.translations.English.questions = {
+      Q_TARIFF_01: {
+        title: "Which tariff model do you prefer?",
+        options: {
+          opt_1: "Option A",
+          opt_2: "Option B",
+        },
+      },
+    };
+
+    const contract = createInitialMappingContract();
+    contract.mappings = [
+      {
+        question_key: "Q_TARIFF_01",
+        ontology_target: "flexpulse_behavioural_schema.preferred_tariff_model",
+        expected_type: "string",
+        required_for_mapping: true,
+        transform_strategy: {
+          kind: "enum_lookup",
+          option_to_value: {
+            opt_1: "time_of_use",
+            opt_2: "unsupported_tariff_type",
+          },
+        },
+      },
+    ];
+
+    const issues = validateSurveyPublication(definition, contract);
+
+    expect(
+      issues.some((issue) => issue.code === "unknown_tariff_ontology_value"),
+    ).toBe(true);
+  });
 });

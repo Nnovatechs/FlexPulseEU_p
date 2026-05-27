@@ -85,7 +85,9 @@ export type MultilingualValidationIssue = {
   language: SurveyLanguageCode;
   question_key?: string;
   type: "parity" | "quality" | "pii" | "cultural";
+  severity?: "blocking" | "advisory";
   message: string;
+  recommendation?: string;
 };
 
 export type MultilingualValidationLanguageStatus = {

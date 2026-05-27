@@ -11,6 +11,7 @@ import { getOpenAIEnv } from "@/lib/llm/env";
 import type {
   ContentValidationIssue,
   ContentValidationResult,
+  MeasurementPlan,
   SurveyLanguageTranslations,
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
@@ -384,6 +385,7 @@ async function checkSemanticAlignment(
   mappings: SurveyMappingDefinition[],
   translations: SurveyLanguageTranslations,
   surveyLanguage: string,
+  measurementPlan?: MeasurementPlan,
 ): Promise<ContentValidationIssue[]> {
   const conceptDescByTarget: Record<string, string> = {};
   for (const concept of flexpulseBehaviouralSchemaV1) {
@@ -395,18 +397,42 @@ async function checkSemanticAlignment(
     mappingByKey[m.question_key] = m;
   }
 
+  const intentByQuestionKey: Record<
+    string,
+    {
+      concept_key: string;
+      facet: string;
+      intent: string;
+      polarity: "positive" | "negative" | "neutral";
+    }
+  > = {};
+
+  for (const concept of measurementPlan?.concepts ?? []) {
+    for (const questionIntent of concept.question_intents ?? []) {
+      intentByQuestionKey[questionIntent.question_key] = {
+        concept_key: concept.concept_key,
+        facet: questionIntent.facet,
+        intent: questionIntent.intent,
+        polarity: questionIntent.polarity,
+      };
+    }
+  }
+
   const questionInputs = questions.map((q) => {
     const trans = translations.questions[q.question_key];
     const mapping = mappingByKey[q.question_key];
+    const questionIntent = intentByQuestionKey[q.question_key] ?? null;
     return {
       question_key: q.question_key,
       title: trans?.title ?? "",
       description: trans?.description ?? "",
       options: trans?.options ? Object.values(trans.options) : [],
+      question_type: q.type,
       ontology_target: mapping?.ontology_target ?? "unknown",
       concept_description: mapping
         ? (conceptDescByTarget[mapping.ontology_target] ?? "No description available.")
         : "No mapping found.",
+      planned_question_intent: questionIntent,
     };
   });
 
@@ -417,16 +443,19 @@ async function checkSemanticAlignment(
     "The survey may be written in any language, and some questions may mix multiple languages. " +
     "Do not assume English. Judge the content semantically regardless of language. " +
     "A question also FAILS if it is malformed, visibly incomplete, contains editing leftovers, broken wording, inconsistent answer framing, or is too unclear to be safely published as a survey item. " +
+    "When a planned_question_intent is provided, also verify that the edited question still collects evidence for that specific facet, intent and polarity. " +
+    "Fail semantic alignment if the item stays broadly related to the concept but materially changes the intended facet, measurement focus, polarity, respondent agency, timeframe, or trade-off. " +
     "A question FAILS only when it asks about something clearly unrelated to the concept — for example, " +
     "asking about food preferences when the concept is energy flexibility willingness. " +
-    "Do NOT fail questions for minor wording imperfections, minor subjectivity, or harmless phrasing differences when the item is still clear and publishable. " +
-    "Only flag clear semantic mismatches that would produce data unmappable to the stated concept. " +
+    "Do NOT fail questions for minor wording imperfections, minor subjectivity, or harmless phrasing differences when the item is still clear, publishable and aligned with the planned intent. " +
+    "Only flag semantic mismatches that would produce data unmappable to the stated concept or to the planned slot intent. " +
     untrustedContentNotice;
 
   const userPrompt =
     `Canonical survey language: ${surveyLanguage}\n` +
     "The content may still contain multiple languages or mixed-language phrasing.\n\n" +
     "Evaluate whether each of the following survey questions genuinely measures its stated ontological concept and whether it is clear and publishable.\n\n" +
+    "If planned_question_intent is present, evaluate alignment against that intent in addition to the broader concept.\n" +
     "Use issue_type = semantic when the question does not properly measure the concept.\n" +
     "Use issue_type = quality when the question is too malformed, broken, incomplete or poorly written to be publishable, even if its intent is approximately related.\n\n" +
     `Questions:\n${JSON.stringify(questionInputs, null, 2)}\n\n` +
@@ -521,6 +550,7 @@ export async function runContentValidation(
   mappings: SurveyMappingDefinition[],
   translations: SurveyLanguageTranslations,
   surveyLanguage: string,
+  measurementPlan?: MeasurementPlan,
 ): Promise<ContentValidationResult> {
   const content_hash = computeContentHash(questions, translations);
 
@@ -558,6 +588,7 @@ export async function runContentValidation(
           mappings,
           translations,
           surveyLanguage,
+        measurementPlan,
         )
       : [];
 

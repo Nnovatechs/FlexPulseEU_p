@@ -16,6 +16,8 @@
     "eval:generator": "vitest run tests/evals/surveys/generator",
     "eval:planner": "vitest run tests/evals/surveys/planner",
     "eval:validation": "vitest run tests/evals/surveys/validation",
+    "eval:translation-validator": "vitest run tests/evals/surveys/translation/translation.eval.test.ts",
+    "eval:multicultural-pipeline": "vitest run tests/evals/surveys/translation/translation-production-loop.eval.test.ts",
     "eval:translation": "vitest run tests/evals/surveys/translation",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
   },

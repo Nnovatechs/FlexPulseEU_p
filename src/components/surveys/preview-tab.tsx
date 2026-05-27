@@ -4,6 +4,9 @@ import { useState, useTransition } from "react";
 import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
 import { publishSurveyAction } from "@/features/surveys/actions";
 import type {
+  ContentValidationResult,
+  MultilingualValidationIssue,
+  MultilingualValidationResult,
   SurveyDefinition,
   SurveyLanguageCode,
   SurveyMappingDefinition,
@@ -18,6 +21,14 @@ const TYPE_LABELS: Record<string, string> = {
   numeric: "Numeric",
   boolean: "Boolean",
 };
+
+function getMultilingualFlagLabel(flag: MultilingualValidationIssue) {
+  if (flag.severity === "advisory") return "Recommendation";
+  if (flag.type === "pii") return "PII";
+  if (flag.type === "quality") return "Flag";
+  if (flag.type === "cultural") return "Culture";
+  return "Parity";
+}
 
 function getReadableOntologyTargetLabel(ontologyTarget: string) {
   const concept = getFlexpulseBehaviouralConceptByTarget(ontologyTarget);
@@ -36,6 +47,7 @@ type ReadOnlyQuestionCardProps = {
   translation:
     | SurveyDefinition["translations"][string]["questions"][string]
     | undefined;
+  languageFlags?: MultilingualValidationIssue[];
 };
 
 function ReadOnlyQuestionCard({
@@ -43,6 +55,7 @@ function ReadOnlyQuestionCard({
   question,
   mapping,
   translation,
+  languageFlags = [],
 }: ReadOnlyQuestionCardProps) {
   return (
     <div className="qov-card qov-card--preview">
@@ -56,6 +69,22 @@ function ReadOnlyQuestionCard({
             {TYPE_LABELS[question.type] ?? question.type}
           </span>
         </div>
+
+        {languageFlags.length > 0 && (
+          <div className="preview-tab__question-flags">
+            {languageFlags.map((flag, index) => (
+              <div key={`${question.question_key}-${index}`} className="preview-tab__flag">
+                <span className="preview-tab__flag-badge">
+                  {getMultilingualFlagLabel(flag)}
+                </span>
+                <span className="preview-tab__flag-message">
+                  {flag.message}
+                  {flag.recommendation ? ` Recommendation: ${flag.recommendation}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {translation?.description && (
           <p className="qov-card__description">{translation.description}</p>
@@ -112,6 +141,10 @@ type PreviewTabProps = {
   translations: SurveyDefinition["translations"];
   defaultLanguage: SurveyLanguageCode;
   supportedLanguages: SurveyLanguageCode[];
+  validationResult: ContentValidationResult | null;
+  multilingualValidationResult: MultilingualValidationResult | null;
+  isValidationStale: boolean;
+  isMultilingualValidationStale: boolean;
 };
 
 export function PreviewTab({
@@ -123,6 +156,10 @@ export function PreviewTab({
   translations,
   defaultLanguage,
   supportedLanguages,
+  validationResult,
+  multilingualValidationResult,
+  isValidationStale,
+  isMultilingualValidationStale,
 }: PreviewTabProps) {
   const [activeLanguage, setActiveLanguage] = useState<SurveyLanguageCode>(
     defaultLanguage,
@@ -136,10 +173,35 @@ export function PreviewTab({
   }
 
   const activeTranslations = translations[activeLanguage];
+  const hasSecondaryLanguages = supportedLanguages.some(
+    (language) => language !== defaultLanguage,
+  );
+  const contentPassed =
+    validationResult?.passed === true && !isValidationStale;
+  const multilingualPassed =
+    !hasSecondaryLanguages ||
+    (multilingualValidationResult?.passed === true && !isMultilingualValidationStale);
+  const canPublish = contentPassed && multilingualPassed;
+  const multilingualBlockingIssueCount = (
+    multilingualValidationResult?.issues ?? []
+  ).filter((issue) => issue.severity !== "advisory").length;
   const surveyTitleForLanguage =
     activeTranslations?.survey_title || surveyTitle;
   const surveyDescriptionForLanguage =
     activeTranslations?.survey_description || surveyDescription;
+  const activeLanguageIssues = (multilingualValidationResult?.issues ?? []).filter(
+    (issue) => issue.language === activeLanguage && issue.question_key,
+  );
+  const surveyLevelFlags = (multilingualValidationResult?.issues ?? []).filter(
+    (issue) => issue.language === activeLanguage && !issue.question_key,
+  );
+  const issuesByQuestionKey = activeLanguageIssues.reduce<
+    Record<string, MultilingualValidationIssue[]>
+  >((groups, issue) => {
+    const key = issue.question_key as string;
+    groups[key] = [...(groups[key] ?? []), issue];
+    return groups;
+  }, {});
 
   function handlePublish(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -163,6 +225,30 @@ export function PreviewTab({
         responses. This action cannot be undone.
       </p>
 
+      {!contentPassed && (
+        <p className="review-notice review-notice--warning">
+          Preview remains available, but publication is blocked until content validation
+          passes{isValidationStale ? " and is up to date" : ""}.
+        </p>
+      )}
+
+      {!multilingualPassed && hasSecondaryLanguages && (
+        <p className="review-notice review-notice--warning">
+          Preview remains available, but publication is blocked until multicultural
+          blocking flags are cleared and the adapted language versions pass validation
+          {isMultilingualValidationStale ? " again" : ""}.
+        </p>
+      )}
+      {multilingualPassed &&
+        hasSecondaryLanguages &&
+        multilingualBlockingIssueCount === 0 &&
+        (multilingualValidationResult?.issues.length ?? 0) > 0 && (
+          <p className="review-notice review-notice--success">
+            Publication is allowed. Non-blocking multicultural recommendations are
+            available for review before publishing.
+          </p>
+        )}
+
       {publishError && (
         <p className="review-notice review-notice--error" role="alert">
           {publishError}
@@ -174,7 +260,12 @@ export function PreviewTab({
         <button
           type="submit"
           className="button button--primary"
-          disabled={publishPending}
+          disabled={publishPending || !canPublish}
+          title={
+            canPublish
+              ? "Publish survey"
+              : "Publishing stays blocked until validation and multicultural blocking flags are resolved"
+          }
         >
           {publishPending ? "Publishing…" : "Publish survey"}
         </button>
@@ -223,6 +314,21 @@ export function PreviewTab({
             {surveyDescriptionForLanguage}
           </p>
         )}
+        {surveyLevelFlags.length > 0 && (
+          <div className="preview-tab__survey-flags">
+            {surveyLevelFlags.map((flag, index) => (
+              <div key={`${activeLanguage}-survey-${index}`} className="preview-tab__flag">
+                <span className="preview-tab__flag-badge">
+                  {getMultilingualFlagLabel(flag)}
+                </span>
+                <span className="preview-tab__flag-message">
+                  {flag.message}
+                  {flag.recommendation ? ` Recommendation: ${flag.recommendation}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Read-only question list */}
@@ -237,6 +343,7 @@ export function PreviewTab({
               question={q}
               mapping={mappingByKey[q.question_key]}
               translation={activeTranslations?.questions?.[q.question_key]}
+              languageFlags={issuesByQuestionKey[q.question_key] ?? []}
             />
           ))
         )}

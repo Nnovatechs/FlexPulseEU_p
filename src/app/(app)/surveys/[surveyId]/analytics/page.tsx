@@ -11,9 +11,8 @@ import {
   type SurveyAnalyticsQueryRow,
 } from "@/features/surveys/survey-analytics";
 import {
-  getSurveyAnalyticsSchema,
+  getSurveyAnalyticsPageData,
   getSurveyById,
-  runSurveyAnalytics,
 } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -1501,7 +1500,7 @@ export default async function SurveyAnalyticsPage({
     notFound();
   }
 
-  const schema = await getSurveyAnalyticsSchema(surveyId);
+  const { schema, runPreview } = await getSurveyAnalyticsPageData(surveyId);
 
   const fieldsBySource = groupFieldsBySource(schema.fields);
   const profileValueFields = fieldsBySource.profile.filter(
@@ -1544,63 +1543,62 @@ export default async function SurveyAnalyticsPage({
   });
   const hasActiveFilters = selectedFilters.length > 0;
 
-  const [
-    baselineProfile,
-    selectedProfile,
-    languageBreakdown,
-    countryBreakdown,
-    audienceBreakdown,
-    profileBySegment,
-    tagDistribution,
-    selectedCountryBreakdown,
-  ] = schema.ready_response_count > 0
-    ? await Promise.all([
-        runSurveyAnalytics(surveyId, {
-          metrics: baselineMetrics,
-        }),
-        runSurveyAnalytics(surveyId, {
+  const hasMappedResponses = schema.ready_response_count > 0;
+
+  const baselineProfile = hasMappedResponses
+    ? runPreview({
+        metrics: baselineMetrics,
+      })
+    : null;
+  const selectedProfile = hasMappedResponses
+    ? runPreview({
+        filters: selectedFilters,
+        metrics: baselineMetrics,
+      })
+    : null;
+  const languageBreakdown =
+    hasMappedResponses && languageField
+      ? runPreview({
+          group_by: [languageField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const countryBreakdown =
+    hasMappedResponses && countryField
+      ? runPreview({
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const audienceBreakdown =
+    hasMappedResponses && audienceField
+      ? runPreview({
+          group_by: [audienceField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const profileBySegment =
+    hasMappedResponses && profileValueFields.length > 0 && primarySegmentField
+      ? runPreview({
+          group_by: [primarySegmentField.key],
+          metrics: segmentMetrics,
+        })
+      : null;
+  const tagDistribution =
+    hasMappedResponses && tagProfileField
+      ? runPreview({
+          group_by: [tagProfileField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const selectedCountryBreakdown =
+    hasMappedResponses && countryField
+      ? runPreview({
           filters: selectedFilters,
-          metrics: baselineMetrics,
-        }),
-        languageField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [languageField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        countryField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [countryField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        audienceField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [audienceField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        profileValueFields.length > 0 && primarySegmentField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [primarySegmentField.key],
-              metrics: segmentMetrics,
-            })
-          : Promise.resolve(null),
-        tagProfileField
-          ? runSurveyAnalytics(surveyId, {
-              group_by: [tagProfileField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-        countryField
-          ? runSurveyAnalytics(surveyId, {
-              filters: selectedFilters,
-              group_by: [countryField.key],
-              metrics: [{ key: "responses", kind: "count" }],
-            })
-          : Promise.resolve(null),
-      ])
-    : [null, null, null, null, null, null, null, null];
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
 
   const baselineRow = getSingleGroup(baselineProfile);
   const selectedRow = getSingleGroup(selectedProfile);
@@ -1684,6 +1682,13 @@ export default async function SurveyAnalyticsPage({
               The analytics engine is available, but cohort profiles need mapped responses in
               ready state. Use the sandbox seeder or collect responses to populate this explorer.
             </p>
+            {schema.excluded_unmapped_count > 0 ? (
+              <p>
+                {schema.excluded_unmapped_count} response
+                {schema.excluded_unmapped_count === 1 ? "" : "s"} in ready state are excluded
+                because they could not be mapped yet.
+              </p>
+            ) : null}
           </div>
         </section>
       ) : (
@@ -1857,6 +1862,15 @@ export default async function SurveyAnalyticsPage({
             <strong>Measurement hash</strong>
             <span>{schema.measurement_hash ?? "Not available"}</span>
           </div>
+          {schema.excluded_unmapped_count > 0 ? (
+            <div className="analytics-row">
+              <strong>Ready without mapping</strong>
+              <span>
+                {schema.excluded_unmapped_count} response
+                {schema.excluded_unmapped_count === 1 ? "" : "s"} excluded from analytics
+              </span>
+            </div>
+          ) : null}
           <div className="analytics-row">
             <strong>Publication state</strong>
             <span>

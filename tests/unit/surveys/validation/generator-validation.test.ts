@@ -263,4 +263,129 @@ describe("survey methodology validation", () => {
       issues.some((issue) => issue.code === "measurement_mapping_target_mismatch"),
     ).toBe(true);
   });
+
+  it("rejects survey question concepts with missing question intents", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Trust survey";
+    definition.questions = [
+      {
+        question_key: "Q_TRUST_01",
+        type: "rating_scale",
+        required: true,
+        order: 1,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_TRUST_02",
+        type: "rating_scale",
+        required: true,
+        order: 2,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+    ];
+    definition.translations.English.questions = {
+      Q_TRUST_01: { title: "I trust automation in home energy management." },
+      Q_TRUST_02: { title: "I trust automation in home energy management." },
+    };
+
+    const contract = createInitialMappingContract();
+    contract.mappings = [
+      {
+        question_key: "Q_TRUST_01",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_TRUST_02",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+    ];
+
+    const measurementPlan = materializeMeasurementPlan(
+      applyMeasurementPlannerOutput(
+        createMeasurementPlanBlueprint(["trust_in_automation"]),
+        {
+          concepts: [
+            {
+              concept_key: "trust_in_automation",
+              measurement_type: "multi_item_likert_median",
+              aggregation_rule: "median",
+              threshold_profile: "likert_1_5_low_mid_high",
+              slot_count: 2,
+              slot_intents: slotIntents(2),
+            },
+          ],
+        },
+      ),
+      {
+        SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_01",
+        SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_02",
+      },
+    );
+    measurementPlan.concepts[0].question_intents = [];
+
+    const issues = validateGeneratedSurveyDraft(
+      definition,
+      contract,
+      measurementPlan,
+    );
+
+    expect(
+      issues.some((issue) => issue.code === "question_intents_mismatch"),
+    ).toBe(true);
+  });
+
+  it("rejects preferred_tariff_model mappings with unknown ontology values", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Tariff survey";
+    definition.questions = [
+      {
+        question_key: "Q_TARIFF_01",
+        type: "single_choice",
+        required: true,
+        order: 1,
+        options: [
+          { option_key: "opt_1", value: "value_1" },
+          { option_key: "opt_2", value: "value_2" },
+        ],
+      },
+    ];
+    definition.translations.English.questions = {
+      Q_TARIFF_01: {
+        title: "Which tariff model do you prefer?",
+        options: {
+          opt_1: "Option A",
+          opt_2: "Option B",
+        },
+      },
+    };
+
+    const contract = createInitialMappingContract();
+    contract.mappings = [
+      {
+        question_key: "Q_TARIFF_01",
+        ontology_target: "flexpulse_behavioural_schema.preferred_tariff_model",
+        expected_type: "string",
+        required_for_mapping: true,
+        transform_strategy: {
+          kind: "enum_lookup",
+          option_to_value: {
+            opt_1: "time_of_use",
+            opt_2: "unsupported_tariff_type",
+          },
+        },
+      },
+    ];
+
+    const issues = validateSurveyPublication(definition, contract);
+
+    expect(
+      issues.some((issue) => issue.code === "unknown_tariff_ontology_value"),
+    ).toBe(true);
+  });
 });

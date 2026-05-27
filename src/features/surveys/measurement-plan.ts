@@ -10,6 +10,10 @@ import type {
   MeasurementAggregationRule,
   MeasurementThresholdProfile,
 } from "./generator-types";
+import type {
+  MeasurementPlan as StoredMeasurementPlan,
+  MeasurementPlanEntry as StoredMeasurementPlanEntry,
+} from "./generator-types";
 import type { MeasurementPlannerLLMOutput } from "./survey-generation-contracts";
 
 export type MeasurementEvidenceSource =
@@ -86,6 +90,68 @@ export type MeasurementPlan = {
   schema_namespace: "flexpulse_behavioural_schema";
   concepts: MeasurementPlanEntry[];
 };
+
+function sameQuestionKeySet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const rightKeys = new Set(right);
+  return left.every((key) => rightKeys.has(key));
+}
+
+function preserveQuestionIntentsForConcept(
+  questionKeys: string[],
+  existingConcept: StoredMeasurementPlanEntry | undefined,
+): MeasurementPlanQuestionIntent[] {
+  if (!existingConcept?.question_intents?.length || questionKeys.length === 0) {
+    return [];
+  }
+
+  const keySet = new Set(questionKeys);
+  return existingConcept.question_intents.filter((intent) => keySet.has(intent.question_key));
+}
+
+function mergeSurveyQuestionConceptFromExisting(
+  rebuilt: MeasurementPlanEntry,
+  existingConcept: StoredMeasurementPlanEntry | undefined,
+): MeasurementPlanEntry {
+  if (!existingConcept) {
+    return rebuilt;
+  }
+
+  if (sameQuestionKeySet(rebuilt.question_keys, existingConcept.question_keys)) {
+    const syncedRequiredQuestionKeys = existingConcept.required_question_keys.filter((key) =>
+      rebuilt.question_keys.includes(key),
+    );
+    const syncedIntents =
+      existingConcept.question_intents?.filter((intent) =>
+        rebuilt.question_keys.includes(intent.question_key),
+      ) ?? [];
+
+    return {
+      concept_key: existingConcept.concept_key,
+      evidence_source: existingConcept.evidence_source,
+      measurement_type: existingConcept.measurement_type,
+      output_type: existingConcept.output_type,
+      aggregation_rule: existingConcept.aggregation_rule,
+      threshold_profile: existingConcept.threshold_profile,
+      minimum_answer_count: existingConcept.minimum_answer_count,
+      question_keys: rebuilt.question_keys,
+      required_question_keys:
+        syncedRequiredQuestionKeys.length > 0
+          ? syncedRequiredQuestionKeys
+          : rebuilt.question_keys,
+      question_intents: syncedIntents,
+      source_paths: existingConcept.source_paths,
+    };
+  }
+
+  return {
+    ...rebuilt,
+    question_intents: preserveQuestionIntentsForConcept(rebuilt.question_keys, existingConcept),
+  };
+}
 
 function assertMeasurementTypeCompatibleWithCounts(
   conceptKey: string,
@@ -374,6 +440,7 @@ export function materializeMeasurementPlan(
 export function createMeasurementPlanFromMappings(
   conceptKeys: string[],
   mappings: Array<{ question_key: string; ontology_target: string }>,
+  existingPlan?: StoredMeasurementPlan | null,
 ): MeasurementPlan {
   const baseBlueprint = createMeasurementPlanBlueprint(conceptKeys);
 
@@ -427,7 +494,10 @@ export function createMeasurementPlanFromMappings(
         "single_item_direct";
       const minimum_answer_count =
         entry.evidence_source === "survey_questions" ? question_keys.length : 0;
-      return {
+      const existingConcept = existingPlan?.concepts.find(
+        (candidate) => candidate.concept_key === entry.concept_key,
+      );
+      const rebuiltConcept: MeasurementPlanEntry = {
         concept_key: entry.concept_key,
         evidence_source: entry.evidence_source,
         measurement_type: measurementType,
@@ -448,6 +518,22 @@ export function createMeasurementPlanFromMappings(
         question_intents: [],
         source_paths: entry.source_paths,
       };
+
+      return mergeSurveyQuestionConceptFromExisting(rebuiltConcept, existingConcept);
     }),
   };
+}
+
+type FacetEvidencePlanInput = {
+  question_intents?: ReadonlyArray<{ facet: string }>;
+};
+
+export function getFacetEvidenceLevel(
+  entry: FacetEvidencePlanInput,
+  facet: string,
+): "interpretive_signal" | "facet_subscore" {
+  const plannedEvidenceCount =
+    entry.question_intents?.filter((intent) => intent.facet === facet).length ?? 0;
+
+  return plannedEvidenceCount >= 2 ? "facet_subscore" : "interpretive_signal";
 }

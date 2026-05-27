@@ -93,21 +93,8 @@ function buildMultilingualValidationResult(
   };
 }
 
-function getProductAdvisoryMessage(type: MultilingualValidationIssue["type"]): string {
-  if (type === "parity") {
-    return "This wording may be worth reviewing for interpretation.";
-  }
-
-  if (type === "cultural") {
-    return "This wording may be worth reviewing for local context.";
-  }
-
-  if (type === "pii") {
-    return "This wording may be worth reviewing for personal-data risk.";
-  }
-
-  return "This wording may be worth reviewing for respondent clarity.";
-}
+const PRODUCT_QUALITY_ADVISORY_MESSAGE =
+  "This wording may be worth reviewing for respondent clarity.";
 
 function toProductMultilingualIssues(
   issues: MultilingualValidationIssue[],
@@ -137,7 +124,7 @@ function toProductMultilingualIssues(
       ...(issue.question_key ? { question_key: issue.question_key } : {}),
       type: issue.type,
       severity: "advisory",
-      message: getProductAdvisoryMessage(issue.type),
+      message: PRODUCT_QUALITY_ADVISORY_MESSAGE,
     });
   }
 

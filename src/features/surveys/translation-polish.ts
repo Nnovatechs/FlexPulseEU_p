@@ -6,6 +6,7 @@ import type {
   SurveyLanguageTranslations,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { parseSurveyLanguageLLMOutput } from "./translation-output";
 
 type PolishSurveyLanguageInput = {
   sourceLanguage: SurveyLanguageCode;
@@ -152,101 +153,11 @@ export async function polishSurveyLanguage(
 
   const message = completion.choices[0]?.message;
 
-  if (message?.refusal) {
-    throw new Error(`Translation polish was refused for ${input.targetLanguage}: ${message.refusal}`);
-  }
-
-  if (!message?.content) {
-    throw new Error(`Translation polish returned an empty response for ${input.targetLanguage}.`);
-  }
-
-  const parsed = JSON.parse(message.content) as {
-    survey_title: string;
-    survey_description: string;
-    questions: Array<{
-      question_key: string;
-      title: string;
-      description: string;
-      options: Array<{ option_key: string; label: string }>;
-    }>;
-  };
-
-  const expectedQuestionKeys = new Set(
-    input.questions.map((question) => question.question_key),
-  );
-  const polishedQuestionKeys = new Set(
-    parsed.questions.map((question) => question.question_key),
-  );
-
-  if (polishedQuestionKeys.size !== expectedQuestionKeys.size) {
-    throw new Error(
-      `Translation polish returned an unexpected number of questions for ${input.targetLanguage}.`,
-    );
-  }
-
-  for (const question of input.questions) {
-    if (!polishedQuestionKeys.has(question.question_key)) {
-      throw new Error(
-        `Translation polish is missing question "${question.question_key}" for ${input.targetLanguage}.`,
-      );
-    }
-  }
-
-  const polishedQuestions = Object.fromEntries(
-    parsed.questions.map((question) => [
-      question.question_key,
-      {
-        title: question.title,
-        ...(question.description ? { description: question.description } : {}),
-        ...(question.options.length > 0
-          ? {
-              options: Object.fromEntries(
-                question.options.map((option) => [option.option_key, option.label]),
-              ),
-            }
-          : {}),
-      },
-    ]),
-  );
-
-  for (const question of input.questions) {
-    const polishedQuestion = polishedQuestions[question.question_key];
-
-    if (!polishedQuestion?.title?.trim()) {
-      throw new Error(
-        `Translation polish is missing a title for question "${question.question_key}" in ${input.targetLanguage}.`,
-      );
-    }
-
-    if (question.options?.length) {
-      const expectedOptionKeys = new Set(
-        question.options.map((option) => option.option_key),
-      );
-      const polishedOptionKeys = new Set(
-        Object.keys(polishedQuestion.options ?? {}),
-      );
-
-      if (polishedOptionKeys.size !== expectedOptionKeys.size) {
-        throw new Error(
-          `Translation polish returned an unexpected option set for question "${question.question_key}" in ${input.targetLanguage}.`,
-        );
-      }
-
-      for (const optionKey of expectedOptionKeys) {
-        if (!polishedOptionKeys.has(optionKey)) {
-          throw new Error(
-            `Translation polish is missing option "${optionKey}" for question "${question.question_key}" in ${input.targetLanguage}.`,
-          );
-        }
-      }
-    }
-  }
-
-  return {
-    survey_title: parsed.survey_title,
-    ...(parsed.survey_description
-      ? { survey_description: parsed.survey_description }
-      : {}),
-    questions: polishedQuestions,
-  };
+  return parseSurveyLanguageLLMOutput({
+    content: message?.content,
+    refusal: message?.refusal,
+    questions: input.questions,
+    targetLanguage: input.targetLanguage,
+    operationLabel: "Translation polish",
+  });
 }

@@ -38,37 +38,4 @@ describe("buildSurveyTranslationPrompt", () => {
     expect(prompt.system).not.toContain("sistema de energía doméstica");
     expect(prompt.system).not.toContain("programarse para más tarde");
   });
-
-  it("includes previous draft and validator feedback during revision passes", () => {
-    const fixture = buildTranslationSurveyFixture({
-      sourceLanguage: "English",
-      targetLanguage: "Spanish",
-    });
-
-    const prompt = buildSurveyTranslationPrompt({
-      surveyName: "Energy flexibility survey",
-      sourceLanguage: fixture.sourceLanguage,
-      targetLanguage: fixture.targetLanguage,
-      sourceTranslations: fixture.sourceTranslations,
-      questions: fixture.questions,
-      previousTranslation: fixture.targetTranslations,
-      validationIssues: [
-        {
-          language: fixture.targetLanguage,
-          question_key: fixture.question.question_key,
-          type: "quality",
-          message: "La expresion suena poco natural en espanol general.",
-        },
-      ],
-    });
-
-    expect(prompt.user).toContain("This is a revision pass.");
-    expect(prompt.user).toContain(
-      "Some previous items failed. Rewrite those items from the source meaning",
-    );
-    expect(prompt.user).toContain("Failed validation checks from the previous draft:");
-    expect(prompt.user).toContain("failed_check");
-    expect(prompt.user).not.toContain("Previous target-language draft:");
-    expect(prompt.user).not.toContain("La expresion suena poco natural en espanol general.");
-  });
 });

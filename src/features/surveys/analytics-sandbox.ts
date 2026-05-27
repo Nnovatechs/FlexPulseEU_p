@@ -2,9 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { UserSession } from "@/lib/auth/session";
 import { appRoutes } from "@/lib/config/routes";
-import {
-  buildSyntheticCohortDataset,
-} from "../../../tests/fixtures/surveys/mapper-profiling/synthetic-cohorts";
+import { buildSyntheticCohortDataset } from "./mapper-profiling/synthetic-cohorts";
 
 const SANDBOX_SURVEY_NAME = "[Internal sandbox] Mapper profiling synthetic cohorts";
 

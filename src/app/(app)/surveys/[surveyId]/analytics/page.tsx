@@ -323,11 +323,11 @@ function getSearchParam(
 function getHumanTag(value: string | null | undefined) {
   switch (value) {
     case "high":
-      return "alta";
+      return "high";
     case "medium":
-      return "media";
+      return "medium";
     case "low":
-      return "baja";
+      return "low";
     default:
       return null;
   }
@@ -335,18 +335,18 @@ function getHumanTag(value: string | null | undefined) {
 
 function describeAverage(value: number | null | undefined) {
   if (value == null) {
-    return "sin datos suficientes";
+    return "insufficient data";
   }
 
   if (value >= 3.75) {
-    return "alto";
+    return "high";
   }
 
   if (value <= 2.25) {
-    return "bajo";
+    return "low";
   }
 
-  return "medio";
+  return "medium";
 }
 
 function getEvidenceLabel(label: SurveyAnalyticsQueryRow["evidence"]["label"]) {
@@ -1650,7 +1650,9 @@ export default async function SurveyAnalyticsPage({
           .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
           .slice(0, MAX_BREAKDOWN_ROWS)
       : [];
-  const surveyEvidence = classifySurveyAnalyticsEvidence(schema.ready_response_count);
+  const surveyEvidence = classifySurveyAnalyticsEvidence(
+    hasActiveFilters ? (selectedRow?.response_count ?? 0) : schema.ready_response_count,
+  );
 
   return (
     <div className="page-stack">
@@ -1695,7 +1697,11 @@ export default async function SurveyAnalyticsPage({
         <>
           <section id="profile-overview" className="analytics-intelligence-tab">
             <SurveyIntelligenceHero
-              responseCount={schema.ready_response_count}
+              responseCount={
+                hasActiveFilters
+                  ? (selectedRow?.response_count ?? 0)
+                  : schema.ready_response_count
+              }
               countryCount={countryOptions.length}
               publishedAt={survey.publishedAt}
               surveyEvidence={surveyEvidence}

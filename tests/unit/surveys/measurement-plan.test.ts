@@ -57,7 +57,6 @@ describe("measurement plan", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 4,
-            required_slot_count: 2,
           },
         ],
       },
@@ -80,7 +79,10 @@ describe("measurement plan", () => {
       required_question_keys: [
         "Q_FLEXIBILITY_WILLINGNESS_01",
         "Q_FLEXIBILITY_WILLINGNESS_02",
+        "Q_FLEXIBILITY_WILLINGNESS_03",
+        "Q_FLEXIBILITY_WILLINGNESS_04",
       ],
+      minimum_answer_count: 4,
     });
   });
 
@@ -94,7 +96,6 @@ describe("measurement plan", () => {
           aggregation_rule: "median",
           threshold_profile: "likert_1_5_low_mid_high",
           slot_count: 2,
-          required_slot_count: 2,
         },
       ],
     });
@@ -128,14 +129,13 @@ describe("measurement plan", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
-            required_slot_count: 2,
           },
         ],
       }),
     ).toThrow(/did not return a concept plan/);
   });
 
-  it("rejects planner outputs with impossible minimum answer counts", () => {
+  it("rejects planner outputs with incompatible slot counts", () => {
     const blueprint = createMeasurementPlanBlueprint(["trust_in_automation"]);
 
     expect(() =>
@@ -146,12 +146,11 @@ describe("measurement plan", () => {
             measurement_type: "single_item_direct",
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
-            slot_count: 1,
-            required_slot_count: 2,
+            slot_count: 2,
           },
         ],
       }),
-    ).toThrow(/impossible required_slot_count/);
+    ).toThrow(/exactly 1 question slot/);
   });
 
   it("derives a usable measurement plan from actual mapping entries", () => {

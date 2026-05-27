@@ -19,6 +19,7 @@ function mapPublicSurveyRow(row: PublicSurveyRow): PersistedSurvey {
     mapping_contract_json: row.mapping_contract_json,
     mapping_compiled_json: row.mapping_compiled_json,
     mapping_hash: row.mapping_hash,
+    measurement_hash: row.measurement_hash ?? null,
   };
 }
 

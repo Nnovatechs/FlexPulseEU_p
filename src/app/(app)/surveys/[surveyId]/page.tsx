@@ -35,6 +35,9 @@ export default async function SurveyDetailPage({
         description="Overview of the survey configuration, lifecycle, and question set."
         actions={
           <div className="button-row">
+            <Link href={appRoutes.surveyAnalytics(survey.id)} className="button button--ghost">
+              Analytics
+            </Link>
             {survey.status === "Draft" ? (
               <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
                 Edit survey

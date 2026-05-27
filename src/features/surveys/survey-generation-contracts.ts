@@ -18,7 +18,6 @@ export type SurveyGeneratorLLMQuestion = {
   description: string;
   ontology_target: string;
   type: SurveyGeneratorQuestionType;
-  required: boolean;
   options: SurveyGeneratorLLMOption[];
   scale: {
     min: number;
@@ -65,7 +64,6 @@ export type MeasurementPlannerLLMConcept = {
     | "enum_identity"
     | "asset_inventory";
   slot_count: number;
-  required_slot_count: number;
 };
 
 export type MeasurementPlannerLLMOutput = {
@@ -97,7 +95,6 @@ export function buildMeasurementPlannerOutputJsonSchema(
                 "aggregation_rule",
                 "threshold_profile",
                 "slot_count",
-                "required_slot_count",
               ],
               properties: {
                 concept_key: {
@@ -124,11 +121,6 @@ export function buildMeasurementPlannerOutputJsonSchema(
                   ],
                 },
                 slot_count: {
-                  type: "integer",
-                  minimum: 0,
-                  maximum: concept.slot_capacity_max,
-                },
-                required_slot_count: {
                   type: "integer",
                   minimum: 0,
                   maximum: concept.slot_capacity_max,
@@ -179,7 +171,6 @@ export const surveyGeneratorOutputJsonSchema = {
             "description",
             "ontology_target",
             "type",
-            "required",
             "options",
             "scale",
             "numeric",
@@ -208,9 +199,6 @@ export const surveyGeneratorOutputJsonSchema = {
                 "rating_scale",
                 "numeric",
               ],
-            },
-            required: {
-              type: "boolean",
             },
             options: {
               type: "array",

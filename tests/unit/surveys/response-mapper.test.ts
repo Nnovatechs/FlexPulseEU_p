@@ -30,7 +30,7 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
     {
       question_key: "Q_DER_01",
       type: "multiple_choice",
-      required: false,
+      required: true,
       order: 3,
       options: [
         { option_key: "heat_pump", value: "heat_pump" },
@@ -66,9 +66,9 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
         output_type: "string[]",
         aggregation_rule: "set_union",
         threshold_profile: "asset_inventory",
-        minimum_answer_count: 0,
+        minimum_answer_count: 1,
         question_keys: ["Q_DER_01"],
-        required_question_keys: [],
+        required_question_keys: ["Q_DER_01"],
       },
       {
         concept_key: "country_code",
@@ -117,7 +117,7 @@ function buildPublishedSurveyFixture(): PersistedSurvey {
       question_key: "Q_DER_01",
       ontology_target: "flexpulse_behavioural_schema.owned_der_assets",
       expected_type: "string[]",
-      required_for_mapping: false,
+      required_for_mapping: true,
       transform_strategy: {
         kind: "enum_lookup",
         option_to_value: {

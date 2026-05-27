@@ -301,7 +301,7 @@ export function transformGeneratedSurvey(
     questions.push({
       question_key: questionKey,
       type: normalizedQuestion.type,
-      required: normalizedQuestion.required,
+      required: true,
       order: index + 1,
       options:
         normalizedQuestion.type === "single_choice" ||
@@ -347,7 +347,7 @@ export function transformGeneratedSurvey(
       question_key: questionKey,
       ontology_target: normalizedQuestion.ontology_target,
       expected_type: config.expected_type,
-      required_for_mapping: normalizedQuestion.required,
+      required_for_mapping: true,
       transform_strategy: buildTransformStrategy(
         normalizedQuestion,
         normalizedOptions,

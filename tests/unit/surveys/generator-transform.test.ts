@@ -19,7 +19,6 @@ describe("generator transform", () => {
             aggregation_rule: "median",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
-            required_slot_count: 2,
           },
         ],
       },
@@ -36,7 +35,6 @@ describe("generator transform", () => {
             description: "",
             ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
             type: "rating_scale",
-            required: true,
             options: [],
             scale: {
               min: 1,
@@ -53,7 +51,6 @@ describe("generator transform", () => {
             description: "",
             ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
             type: "rating_scale",
-            required: true,
             options: [],
             scale: {
               min: 1,
@@ -83,6 +80,10 @@ describe("generator transform", () => {
       "Q_TRUST_IN_AUTOMATION_01",
       "Q_TRUST_IN_AUTOMATION_02",
     ]);
+    expect(result.definition.questions.every((question) => question.required)).toBe(true);
+    expect(result.mappingContract.mappings.every((mapping) => mapping.required_for_mapping)).toBe(
+      true,
+    );
     expect(result.slotBindings).toEqual({
       SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_IN_AUTOMATION_01",
       SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_IN_AUTOMATION_02",
@@ -101,7 +102,6 @@ describe("generator transform", () => {
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 1,
-            required_slot_count: 1,
           },
         ],
       },
@@ -120,7 +120,6 @@ describe("generator transform", () => {
               "I would be willing to spend some time setting up or learning a system that helps my home use energy more flexibly.",
             ontology_target: "flexpulse_behavioural_schema.der_engagement",
             type: "rating_scale",
-            required: true,
             options: [],
             scale: {
               min: 1,

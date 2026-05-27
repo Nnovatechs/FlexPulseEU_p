@@ -8,6 +8,7 @@ import {
 import type { MeasurementPlanBlueprint, MeasurementType } from "./measurement-plan";
 import { getInvalidSurveyLanguages } from "./languages";
 import { getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
+import { PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE } from "./generator-transform";
 
 export type SurveyValidationIssue = {
   code: string;
@@ -624,6 +625,21 @@ function validateMappingDefinition(
           `${basePath}.transform_strategy.option_to_value.${optionKey}`,
           `Mapping references unknown option "${optionKey}".`,
         );
+      }
+    }
+
+    if (mapping.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model") {
+      for (const [optionKey, ontologyValue] of Object.entries(
+        mapping.transform_strategy.option_to_value,
+      )) {
+        if (!PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE[ontologyValue.trim()]) {
+          addIssue(
+            issues,
+            "unknown_tariff_ontology_value",
+            `${basePath}.transform_strategy.option_to_value.${optionKey}`,
+            `Tariff option "${ontologyValue}" is not a supported preferred_tariff_model ontology value.`,
+          );
+        }
       }
     }
   }

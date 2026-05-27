@@ -127,7 +127,7 @@ function normalizeQuestionCopy(question: SurveyGeneratorLLMQuestion) {
   };
 }
 
-const PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE: Record<string, string> = {
+export const PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE: Record<string, string> = {
   fixed_price: "Same price most of the time",
   fixed_tariff: "Same price most of the time",
   same_price: "Same price most of the time",

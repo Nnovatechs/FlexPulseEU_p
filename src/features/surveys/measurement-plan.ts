@@ -87,6 +87,14 @@ export type MeasurementPlan = {
   concepts: MeasurementPlanEntry[];
 };
 
+type ExistingMeasurementPlanSnapshot = {
+  concepts: Array<{
+    concept_key: string;
+    question_keys?: string[];
+    question_intents?: MeasurementPlanQuestionIntent[];
+  }>;
+};
+
 function assertMeasurementTypeCompatibleWithCounts(
   conceptKey: string,
   measurementType: MeasurementType,
@@ -373,7 +381,7 @@ export function materializeMeasurementPlan(
 
 function preserveQuestionIntentsForConcept(
   questionKeys: string[],
-  existingConcept: MeasurementPlanEntry | undefined,
+  existingConcept: ExistingMeasurementPlanSnapshot["concepts"][number] | undefined,
 ): MeasurementPlanQuestionIntent[] {
   const existingIntents = existingConcept?.question_intents ?? [];
   if (existingIntents.length === 0 || questionKeys.length === 0) {
@@ -401,7 +409,7 @@ function preserveQuestionIntentsForConcept(
 export function createMeasurementPlanFromMappings(
   conceptKeys: string[],
   mappings: Array<{ question_key: string; ontology_target: string }>,
-  existingPlan?: MeasurementPlan | null,
+  existingPlan?: ExistingMeasurementPlanSnapshot | null,
 ): MeasurementPlan {
   const baseBlueprint = createMeasurementPlanBlueprint(conceptKeys);
 
@@ -483,8 +491,12 @@ export function createMeasurementPlanFromMappings(
   };
 }
 
+type FacetEvidencePlanInput = {
+  question_intents?: ReadonlyArray<{ facet: string }>;
+};
+
 export function getFacetEvidenceLevel(
-  entry: Pick<MeasurementPlanEntry, "question_intents">,
+  entry: FacetEvidencePlanInput,
   facet: string,
 ): "interpretive_signal" | "facet_subscore" {
   const plannedEvidenceCount =

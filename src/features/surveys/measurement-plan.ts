@@ -371,9 +371,37 @@ export function materializeMeasurementPlan(
   };
 }
 
+function preserveQuestionIntentsForConcept(
+  questionKeys: string[],
+  existingConcept: MeasurementPlanEntry | undefined,
+): MeasurementPlanQuestionIntent[] {
+  const existingIntents = existingConcept?.question_intents ?? [];
+  if (existingIntents.length === 0 || questionKeys.length === 0) {
+    return [];
+  }
+
+  const existingKeys = existingConcept?.question_keys ?? [];
+  const keysUnchanged =
+    questionKeys.length === existingKeys.length &&
+    questionKeys.every((key, index) => key === existingKeys[index]);
+
+  if (keysUnchanged) {
+    return existingIntents;
+  }
+
+  const keySet = new Set(questionKeys);
+  const filtered = existingIntents.filter((intent) => keySet.has(intent.question_key));
+  const coversAllKeys = questionKeys.every((key) =>
+    filtered.some((intent) => intent.question_key === key),
+  );
+
+  return coversAllKeys ? filtered : [];
+}
+
 export function createMeasurementPlanFromMappings(
   conceptKeys: string[],
   mappings: Array<{ question_key: string; ontology_target: string }>,
+  existingPlan?: MeasurementPlan | null,
 ): MeasurementPlan {
   const baseBlueprint = createMeasurementPlanBlueprint(conceptKeys);
 
@@ -427,6 +455,9 @@ export function createMeasurementPlanFromMappings(
         "single_item_direct";
       const minimum_answer_count =
         entry.evidence_source === "survey_questions" ? question_keys.length : 0;
+      const existingConcept = existingPlan?.concepts.find(
+        (candidate) => candidate.concept_key === entry.concept_key,
+      );
       return {
         concept_key: entry.concept_key,
         evidence_source: entry.evidence_source,
@@ -445,9 +476,19 @@ export function createMeasurementPlanFromMappings(
         minimum_answer_count,
         question_keys,
         required_question_keys: question_keys,
-        question_intents: [],
+        question_intents: preserveQuestionIntentsForConcept(question_keys, existingConcept),
         source_paths: entry.source_paths,
       };
     }),
   };
+}
+
+export function getFacetEvidenceLevel(
+  entry: Pick<MeasurementPlanEntry, "question_intents">,
+  facet: string,
+): "interpretive_signal" | "facet_subscore" {
+  const plannedEvidenceCount =
+    entry.question_intents?.filter((intent) => intent.facet === facet).length ?? 0;
+
+  return plannedEvidenceCount >= 2 ? "facet_subscore" : "interpretive_signal";
 }

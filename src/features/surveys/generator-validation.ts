@@ -244,7 +244,11 @@ function validateMeasurementPlanAlignment(
     }
 
     const questionIntents = concept.question_intents ?? [];
-    if (questionIntents.length > 0 && questionIntents.length !== concept.question_keys.length) {
+    if (
+      concept.evidence_source === "survey_questions" &&
+      concept.question_keys.length > 0 &&
+      questionIntents.length !== concept.question_keys.length
+    ) {
       addIssue(
         issues,
         "question_intents_mismatch",

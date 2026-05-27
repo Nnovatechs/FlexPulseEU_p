@@ -4,6 +4,7 @@ import type {
   MeasurementPlanEntry,
   PersistedSurvey,
 } from "./generator-types";
+import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 
 const SUPPORTED_GEO_LEVELS = [
@@ -324,16 +325,6 @@ function buildFieldDefinition(input: {
     facet: input.facet,
     evidence_level: input.evidence_level,
   };
-}
-
-function getFacetEvidenceLevel(
-  entry: MeasurementPlanEntry,
-  facet: string,
-): "interpretive_signal" | "facet_subscore" {
-  const evidenceCount =
-    entry.question_intents?.filter((intent) => intent.facet === facet).length ?? 0;
-
-  return evidenceCount >= 2 ? "facet_subscore" : "interpretive_signal";
 }
 
 function buildProfileFieldDefinitions(survey: PersistedSurvey) {

@@ -369,6 +369,41 @@ describe("response mapper", () => {
     });
   });
 
+  it("uses plan-level evidence_level while keeping observed evidence_count", () => {
+    const survey = buildPublishedSurveyFixture();
+    const trustConcept =
+      survey.definition_json.survey_meta.measurement_plan_json?.concepts.find(
+        (concept) => concept.concept_key === "trust_in_automation",
+      );
+
+    if (!trustConcept?.question_intents) {
+      throw new Error("Missing trust question intents in fixture.");
+    }
+
+    trustConcept.question_intents[1].facet = "reliability";
+    trustConcept.required_question_keys = ["Q_TRUST_01"];
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_01: 4,
+        Q_TRUST_02: 5,
+        Q_DER_01: ["heat_pump"],
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation?.facets?.reliability).toEqual({
+      value: 4.5,
+      evidence_count: 2,
+      evidence_level: "facet_subscore",
+    });
+  });
+
   it("reverse-codes negative-polarity numeric items before aggregation", () => {
     const survey = buildPublishedSurveyFixture();
     const trustConcept =

@@ -7,6 +7,7 @@ import type {
   SurveyMappingDefinition,
 } from "./generator-types";
 import { compileMappingContract } from "./generator-mapping";
+import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { SubmittedSurveyAnswer } from "./response-validation";
 
 export const RESPONSE_MAPPER_VERSION = "v1";
@@ -284,22 +285,17 @@ function buildFacetSignals(
   }
 
   return Object.fromEntries(
-    Array.from(valuesByFacet.entries()).map(([facet, values]) => {
-      const evidenceLevel: "interpretive_signal" | "facet_subscore" =
-        values.length >= 2 ? "facet_subscore" : "interpretive_signal";
-
-      return [
-        facet,
-        {
-          value:
-            values.length >= 2
-              ? aggregateValues(values, { ...concept, minimum_answer_count: values.length })
-              : values[0],
-          evidence_count: values.length,
-          evidence_level: evidenceLevel,
-        },
-      ];
-    }),
+    Array.from(valuesByFacet.entries()).map(([facet, values]) => [
+      facet,
+      {
+        value:
+          values.length >= 2
+            ? aggregateValues(values, { ...concept, minimum_answer_count: values.length })
+            : values[0],
+        evidence_count: values.length,
+        evidence_level: getFacetEvidenceLevel(concept, facet),
+      },
+    ]),
   );
 }
 

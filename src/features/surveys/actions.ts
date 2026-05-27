@@ -6,7 +6,6 @@ import { appRoutes } from "@/lib/config/routes";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { runContentValidation, computeContentHash } from "./content-validator";
 import { generateSurveyDraftProposal } from "./survey-generation-flow";
-import { createMeasurementPlanFromMappings } from "./measurement-plan";
 import { generateAndValidateTranslatedLanguage } from "./translation-loop";
 import {
   computeMultilingualTranslationHash,
@@ -210,13 +209,6 @@ export async function updateSurveySettingsAction(formData: FormData) {
 
   // Always clear validation when settings or questions change
   const nextDefinition = clearReviewValidationResults(existing.definition_json);
-  nextDefinition.survey_meta.behavioural_concept_keys = behaviouralConceptKeys;
-  nextDefinition.survey_meta.ontology_targets = schemaTargets;
-  nextDefinition.survey_meta.measurement_plan_json = createMeasurementPlanFromMappings(
-    behaviouralConceptKeys,
-    existing.mapping_contract_json.mappings,
-    existing.definition_json.survey_meta.measurement_plan_json,
-  );
   nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
@@ -226,6 +218,9 @@ export async function updateSurveySettingsAction(formData: FormData) {
   nextDefinition.translations[defaultLanguage].survey_description = surveyDescription;
 
   if (intent === "generate") {
+    nextDefinition.survey_meta.behavioural_concept_keys = behaviouralConceptKeys;
+    nextDefinition.survey_meta.ontology_targets = schemaTargets;
+
     if (behaviouralConceptKeys.length === 0) {
       redirect(buildEditErrorRedirect(surveyId, "missing-ontology-targets"));
     }

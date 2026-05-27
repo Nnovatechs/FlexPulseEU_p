@@ -163,11 +163,25 @@ function applyQuestionPolarity(
   return min + max - value;
 }
 
+type QuestionValue = {
+  questionKey: string;
+  value: string | number | boolean | string[] | number[];
+};
+
 function getQuestionValues(
   concept: MeasurementPlanEntry,
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
-) {
+): QuestionValue[] | null {
+  for (const questionKey of concept.required_question_keys) {
+    const mapping = compiledMapping.by_question_key[questionKey];
+    const value = applyTransformStrategy(answers[questionKey], mapping);
+
+    if (value == null) {
+      return null;
+    }
+  }
+
   return concept.question_keys
     .map((questionKey) => {
       const mapping = compiledMapping.by_question_key[questionKey];
@@ -178,14 +192,7 @@ function getQuestionValues(
         value: applyQuestionPolarity(questionKey, value, concept, mapping),
       };
     })
-    .filter(
-      (
-        item,
-      ): item is {
-        questionKey: string;
-        value: string | number | boolean | string[] | number[];
-      } => item.value != null,
-    );
+    .filter((item): item is QuestionValue => item.value != null);
 }
 
 function aggregateValues(
@@ -236,11 +243,15 @@ function aggregateQuestionValues(
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
 ) {
-  const values = getQuestionValues(concept, compiledMapping, answers).map(
-    (item) => item.value,
-  );
+  const questionValues = getQuestionValues(concept, compiledMapping, answers);
+  if (questionValues == null) {
+    return null;
+  }
 
-  return aggregateValues(values, concept);
+  return aggregateValues(
+    questionValues.map((item) => item.value),
+    concept,
+  );
 }
 
 function buildFacetSignals(
@@ -249,6 +260,10 @@ function buildFacetSignals(
   answers: Record<string, SubmittedSurveyAnswer>,
 ): MapperOutput["profile"][string]["facets"] {
   const questionValues = getQuestionValues(concept, compiledMapping, answers);
+  if (questionValues == null) {
+    return undefined;
+  }
+
   const intentsByQuestion = new Map(
     (concept.question_intents ?? []).map((intent) => [intent.question_key, intent]),
   );
@@ -309,6 +324,9 @@ function buildProfile(
         return (
           ontologyConcept &&
           ontologyConcept.concept_role !== "context_signal" &&
+          // quality_signal concepts (e.g. mapping_low_confidence) are planned in the
+          // ontology/measurement plan but not emitted here yet; see feat/evals-mapper-profiling
+          // for profiling evidence work that may extend MapperOutput later.
           ontologyConcept.concept_role !== "quality_signal"
         );
       })

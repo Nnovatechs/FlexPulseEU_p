@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   redirect,
 }));
 
-vi.mock("@/features/surveys/generator-repository", () => ({
+vi.mock("@/features/surveys/public-survey-load", () => ({
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
 }));
@@ -47,6 +47,7 @@ describe("public survey submission action", () => {
       mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
       mapping_compiled_json: null,
       mapping_hash: "mapping-hash",
+      measurement_hash: "measurement-hash-v1",
     };
 
     getPublicSurveyLinkByToken.mockResolvedValue({
@@ -75,6 +76,10 @@ describe("public survey submission action", () => {
       expect.objectContaining({
         submittedLanguage: fixture.language,
         answers: { Q_TEST_01: "opt_2" },
+        survey: expect.objectContaining({
+          mapping_hash: "mapping-hash",
+          measurement_hash: "measurement-hash-v1",
+        }),
       }),
     );
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");

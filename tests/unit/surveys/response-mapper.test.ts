@@ -245,7 +245,7 @@ describe("response mapper", () => {
     });
   });
 
-  it("falls back to the raw country code and keeps null when a concept lacks enough answers", () => {
+  it("falls back to the raw country code and keeps null when required slots are missing", () => {
     const survey = buildPublishedSurveyFixture();
     const output = mapSurveyResponseToOutput({
       survey,
@@ -265,6 +265,143 @@ describe("response mapper", () => {
     expect(output.context_metadata.country_code).toBe("HR");
     expect(output.context_metadata.location).toBeNull();
     expect(output.context_metadata.climate).toBeNull();
+  });
+
+  it("returns null when optional slots satisfy minimum_answer_count but required slots are missing", () => {
+    const survey = buildPublishedSurveyFixture();
+    survey.definition_json.survey_meta.measurement_plan_json = {
+      schema_version: 1,
+      schema_namespace: "flexpulse_behavioural_schema",
+      concepts: [
+        {
+          concept_key: "trust_in_automation",
+          evidence_source: "survey_questions",
+          measurement_type: "multi_item_likert_median",
+          output_type: "number",
+          aggregation_rule: "median",
+          threshold_profile: "likert_1_5_low_mid_high",
+          minimum_answer_count: 2,
+          question_keys: ["Q_TRUST_01", "Q_TRUST_02", "Q_TRUST_03", "Q_TRUST_04"],
+          required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+        },
+      ],
+    };
+
+    survey.definition_json.questions.push(
+      {
+        question_key: "Q_TRUST_03",
+        type: "rating_scale",
+        required: false,
+        order: 3,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_TRUST_04",
+        type: "rating_scale",
+        required: false,
+        order: 4,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+    );
+
+    const mapping = survey.mapping_contract_json;
+    mapping.mappings.push(
+      {
+        question_key: "Q_TRUST_03",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: false,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_TRUST_04",
+        ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        expected_type: "number",
+        required_for_mapping: false,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+    );
+    survey.mapping_compiled_json = compileMappingContract(mapping);
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_03: 4,
+        Q_TRUST_04: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation).toEqual({
+      value: null,
+    });
+    expect(output.profile.trust_in_automation).not.toHaveProperty("facets");
+  });
+
+  it("returns null when a required question key has no compiled mapping entry", () => {
+    const survey = buildPublishedSurveyFixture();
+    const compiled = survey.mapping_compiled_json;
+    if (!compiled) {
+      throw new Error("Missing compiled mapping fixture.");
+    }
+
+    delete compiled.by_question_key.Q_TRUST_02;
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_01: 4,
+        Q_TRUST_02: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation).toEqual({
+      value: null,
+    });
+  });
+
+  it("uses plan-level evidence_level while keeping observed evidence_count", () => {
+    const survey = buildPublishedSurveyFixture();
+    const trustConcept =
+      survey.definition_json.survey_meta.measurement_plan_json?.concepts.find(
+        (concept) => concept.concept_key === "trust_in_automation",
+      );
+
+    if (!trustConcept?.question_intents) {
+      throw new Error("Missing trust question intents in fixture.");
+    }
+
+    trustConcept.question_intents[1].facet = "reliability";
+    trustConcept.required_question_keys = ["Q_TRUST_01"];
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_TRUST_01: 4,
+        Q_TRUST_02: 5,
+        Q_DER_01: ["heat_pump"],
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.trust_in_automation?.facets?.reliability).toEqual({
+      value: 4.5,
+      evidence_count: 2,
+      evidence_level: "facet_subscore",
+    });
   });
 
   it("reverse-codes negative-polarity numeric items before aggregation", () => {
@@ -296,6 +433,18 @@ describe("response mapper", () => {
     expect(output.profile.trust_in_automation).toMatchObject({
       value: 3,
       tag: "medium",
+      facets: {
+        reliability: {
+          value: 5,
+          evidence_count: 1,
+          evidence_level: "interpretive_signal",
+        },
+        delegation: {
+          value: 1,
+          evidence_count: 1,
+          evidence_level: "interpretive_signal",
+        },
+      },
     });
   });
 });

@@ -5,7 +5,7 @@ import { appRoutes } from "@/lib/config/routes";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
-} from "./generator-repository";
+} from "./public-survey-load";
 import { createSurveyResponseAndEnqueueJob } from "./response-repository";
 import { validatePublicSurveySubmission } from "./response-validation";
 
@@ -13,7 +13,6 @@ export async function submitPublicSurveyResponseAction(
   formData: FormData,
 ): Promise<void> {
   const linkToken = String(formData.get("linkToken") ?? "").trim();
-  const submittedLanguage = String(formData.get("submittedLanguage") ?? "").trim();
 
   if (!linkToken) {
     throw new Error("Missing survey link token.");
@@ -41,8 +40,8 @@ export async function submitPublicSurveyResponseAction(
   });
 
   const target = new URLSearchParams();
-  if (submittedLanguage) {
-    target.set("lang", submittedLanguage);
+  if (validated.submittedLanguage) {
+    target.set("lang", validated.submittedLanguage);
   }
 
   redirect(`${appRoutes.publicSurveyThankYou(linkToken)}?${target.toString()}`);

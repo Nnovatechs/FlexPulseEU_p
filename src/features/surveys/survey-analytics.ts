@@ -4,6 +4,7 @@ import type {
   MeasurementPlanEntry,
   PersistedSurvey,
 } from "./generator-types";
+import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 
 const SUPPORTED_GEO_LEVELS = [
@@ -70,6 +71,8 @@ export type SurveyAnalyticsSchema = {
   schema_namespace: string;
   measurement_hash: string | null;
   ready_response_count: number;
+  excluded_unmapped_count: number;
+  ready_pipeline_count: number;
   fields: SurveyAnalyticsFieldDefinition[];
   supported_geo_levels: SupportedGeoLevel[];
 };
@@ -108,6 +111,122 @@ export type SurveyAnalyticsQueryInput = {
   group_by?: string[];
   metrics: SurveyAnalyticsMetric[];
 };
+
+export function parseSurveyAnalyticsQueryInput(body: unknown): SurveyAnalyticsQueryInput {
+  if (typeof body !== "object" || body == null) {
+    throw new Error("Analytics query requires a JSON object.");
+  }
+
+  const candidate = body as Record<string, unknown>;
+
+  if (!Array.isArray(candidate.metrics) || candidate.metrics.length === 0) {
+    throw new Error("Analytics query requires at least one metric.");
+  }
+
+  if (candidate.filters != null && !Array.isArray(candidate.filters)) {
+    throw new Error("Analytics query filters must be an array when provided.");
+  }
+
+  if (candidate.group_by != null && !Array.isArray(candidate.group_by)) {
+    throw new Error("Analytics query group_by must be an array when provided.");
+  }
+
+  const filters = (candidate.filters ?? []) as SurveyAnalyticsFilter[];
+  for (const filter of filters) {
+    if (typeof filter !== "object" || filter == null) {
+      throw new Error("Analytics query filters must contain objects.");
+    }
+    if (typeof filter.field !== "string" || !filter.field.trim()) {
+      throw new Error("Analytics query filter field must be a non-empty string.");
+    }
+    if (typeof filter.op !== "string" || !filter.op.trim()) {
+      throw new Error("Analytics query filter op must be a non-empty string.");
+    }
+  }
+
+  const groupBy = (candidate.group_by ?? []) as string[];
+  for (const field of groupBy) {
+    if (typeof field !== "string" || !field.trim()) {
+      throw new Error("Analytics query group_by entries must be non-empty strings.");
+    }
+  }
+
+  const metrics: SurveyAnalyticsMetric[] = [];
+  for (const metric of candidate.metrics) {
+    if (typeof metric !== "object" || metric == null) {
+      throw new Error("Analytics query metrics must contain objects.");
+    }
+
+    const key = (metric as { key?: unknown }).key;
+    const kind = (metric as { kind?: unknown }).kind;
+
+    if (typeof key !== "string" || !key.trim()) {
+      throw new Error("Analytics metric key must be a non-empty string.");
+    }
+
+    if (kind === "count") {
+      metrics.push({ key: key.trim(), kind: "count" });
+      continue;
+    }
+
+    if (kind === "average") {
+      const field = (metric as { field?: unknown }).field;
+      if (typeof field !== "string" || !field.trim()) {
+        throw new Error('Analytics metric "average" requires a field.');
+      }
+      metrics.push({ key: key.trim(), kind: "average", field: field.trim() });
+      continue;
+    }
+
+    if (kind === "share_equals") {
+      const field = (metric as { field?: unknown }).field;
+      const value = (metric as { value?: unknown }).value;
+      if (typeof field !== "string" || !field.trim()) {
+        throw new Error('Analytics metric "share_equals" requires a field.');
+      }
+      if (
+        typeof value !== "string" &&
+        typeof value !== "number" &&
+        typeof value !== "boolean"
+      ) {
+        throw new Error('Analytics metric "share_equals" requires a scalar value.');
+      }
+      metrics.push({
+        key: key.trim(),
+        kind: "share_equals",
+        field: field.trim(),
+        value,
+      });
+      continue;
+    }
+
+    if (kind === "share_contains") {
+      const field = (metric as { field?: unknown }).field;
+      const value = (metric as { value?: unknown }).value;
+      if (typeof field !== "string" || !field.trim()) {
+        throw new Error('Analytics metric "share_contains" requires a field.');
+      }
+      if (typeof value !== "string" && typeof value !== "number") {
+        throw new Error('Analytics metric "share_contains" requires a string or number value.');
+      }
+      metrics.push({
+        key: key.trim(),
+        kind: "share_contains",
+        field: field.trim(),
+        value,
+      });
+      continue;
+    }
+
+    throw new Error(`Analytics metric kind "${String(kind)}" is not supported.`);
+  }
+
+  return {
+    filters: filters.length > 0 ? filters : undefined,
+    group_by: groupBy.length > 0 ? groupBy : undefined,
+    metrics,
+  };
+}
 
 export type SurveyAnalyticsMetricResult = {
   kind: SurveyAnalyticsMetricKind;
@@ -206,16 +325,6 @@ function buildFieldDefinition(input: {
     facet: input.facet,
     evidence_level: input.evidence_level,
   };
-}
-
-function getFacetEvidenceLevel(
-  entry: MeasurementPlanEntry,
-  facet: string,
-): "interpretive_signal" | "facet_subscore" {
-  const evidenceCount =
-    entry.question_intents?.filter((intent) => intent.facet === facet).length ?? 0;
-
-  return evidenceCount >= 2 ? "facet_subscore" : "interpretive_signal";
 }
 
 function buildProfileFieldDefinitions(survey: PersistedSurvey) {
@@ -429,6 +538,8 @@ function buildStaticFieldDefinitions(survey: PersistedSurvey) {
 export function buildSurveyAnalyticsSchema(input: {
   survey: PersistedSurvey;
   readyResponseCount: number;
+  excludedUnmappedCount?: number;
+  readyPipelineCount?: number;
 }): SurveyAnalyticsSchema {
   const profileFields = buildProfileFieldDefinitions(input.survey);
   const staticFields = buildStaticFieldDefinitions(input.survey);
@@ -440,6 +551,8 @@ export function buildSurveyAnalyticsSchema(input: {
       "flexpulse_behavioural_schema",
     measurement_hash: input.survey.measurement_hash ?? null,
     ready_response_count: input.readyResponseCount,
+    excluded_unmapped_count: input.excludedUnmappedCount ?? 0,
+    ready_pipeline_count: input.readyPipelineCount ?? input.readyResponseCount,
     fields: [...profileFields, ...staticFields],
     supported_geo_levels: [...SUPPORTED_GEO_LEVELS],
   };

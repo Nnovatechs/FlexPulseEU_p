@@ -3,7 +3,7 @@ import {
   getSurveyAnalyticsSchema,
   runSurveyAnalytics,
 } from "@/features/surveys/use-cases";
-import type { SurveyAnalyticsQueryInput } from "@/features/surveys/survey-analytics";
+import { parseSurveyAnalyticsQueryInput } from "@/features/surveys/survey-analytics";
 import { getCurrentSession } from "@/lib/auth/session";
 
 function toErrorResponse(error: unknown) {
@@ -15,7 +15,8 @@ function toErrorResponse(error: unknown) {
 
   if (
     /Unknown .* field/i.test(message) ||
-    /Analytics query requires/i.test(message) ||
+    /Analytics query/i.test(message) ||
+    /Analytics metric/i.test(message) ||
     /Duplicate analytics metric key/i.test(message) ||
     /cannot be used in group_by/i.test(message) ||
     /is not allowed/i.test(message)
@@ -54,7 +55,7 @@ export async function POST(
   }
 
   try {
-    const query = (await request.json()) as SurveyAnalyticsQueryInput;
+    const query = parseSurveyAnalyticsQueryInput(await request.json());
     const { surveyId } = await context.params;
     const result = await runSurveyAnalytics(surveyId, query);
     return NextResponse.json(result);

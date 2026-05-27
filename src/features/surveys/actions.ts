@@ -215,6 +215,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
   nextDefinition.survey_meta.measurement_plan_json = createMeasurementPlanFromMappings(
     behaviouralConceptKeys,
     existing.mapping_contract_json.mappings,
+    existing.definition_json.survey_meta.measurement_plan_json,
   );
   nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {

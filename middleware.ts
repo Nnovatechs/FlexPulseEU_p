@@ -4,8 +4,8 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 const publicRoutes = new Set<string>(["/", appRoutes.login]);
 
-function isPublicSurveyFillRoute(pathname: string): boolean {
-  return /^\/surveys\/[^/]+\/fill\/?$/.test(pathname);
+function isPublicSurveyRoute(pathname: string): boolean {
+  return /^\/s\/[^/]+(?:\/thank-you)?\/?$/.test(pathname);
 }
 
 function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
@@ -22,7 +22,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     publicRoutes.has(pathname) ||
     pathname.startsWith("/auth") ||
-    isPublicSurveyFillRoute(pathname);
+    isPublicSurveyRoute(pathname);
 
   if (!user && !isPublicRoute) {
     const loginUrl = request.nextUrl.clone();

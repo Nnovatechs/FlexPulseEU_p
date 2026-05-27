@@ -7,6 +7,7 @@ import type {
   SurveyMappingDefinition,
 } from "./generator-types";
 import { compileMappingContract } from "./generator-mapping";
+import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { SubmittedSurveyAnswer } from "./response-validation";
 
 export const RESPONSE_MAPPER_VERSION = "v1";
@@ -163,11 +164,29 @@ function applyQuestionPolarity(
   return min + max - value;
 }
 
+type QuestionValue = {
+  questionKey: string;
+  value: string | number | boolean | string[] | number[];
+};
+
 function getQuestionValues(
   concept: MeasurementPlanEntry,
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
-) {
+): QuestionValue[] | null {
+  for (const questionKey of concept.required_question_keys) {
+    const mapping = compiledMapping.by_question_key[questionKey];
+    if (!mapping) {
+      return null;
+    }
+
+    const value = applyTransformStrategy(answers[questionKey], mapping);
+
+    if (value == null) {
+      return null;
+    }
+  }
+
   return concept.question_keys
     .map((questionKey) => {
       const mapping = compiledMapping.by_question_key[questionKey];
@@ -178,14 +197,7 @@ function getQuestionValues(
         value: applyQuestionPolarity(questionKey, value, concept, mapping),
       };
     })
-    .filter(
-      (
-        item,
-      ): item is {
-        questionKey: string;
-        value: string | number | boolean | string[] | number[];
-      } => item.value != null,
-    );
+    .filter((item): item is QuestionValue => item.value != null);
 }
 
 function aggregateValues(
@@ -233,22 +245,22 @@ function aggregateValues(
 
 function aggregateQuestionValues(
   concept: MeasurementPlanEntry,
-  compiledMapping: CompiledMappingContract,
-  answers: Record<string, SubmittedSurveyAnswer>,
+  questionValues: QuestionValue[] | null,
 ) {
-  const values = getQuestionValues(concept, compiledMapping, answers).map(
-    (item) => item.value,
-  );
+  if (questionValues == null) {
+    return null;
+  }
 
-  return aggregateValues(values, concept);
+  return aggregateValues(
+    questionValues.map((item) => item.value),
+    concept,
+  );
 }
 
 function buildFacetSignals(
   concept: MeasurementPlanEntry,
-  compiledMapping: CompiledMappingContract,
-  answers: Record<string, SubmittedSurveyAnswer>,
+  questionValues: QuestionValue[],
 ): MapperOutput["profile"][string]["facets"] {
-  const questionValues = getQuestionValues(concept, compiledMapping, answers);
   const intentsByQuestion = new Map(
     (concept.question_intents ?? []).map((intent) => [intent.question_key, intent]),
   );
@@ -273,22 +285,17 @@ function buildFacetSignals(
   }
 
   return Object.fromEntries(
-    Array.from(valuesByFacet.entries()).map(([facet, values]) => {
-      const evidenceLevel: "interpretive_signal" | "facet_subscore" =
-        values.length >= 2 ? "facet_subscore" : "interpretive_signal";
-
-      return [
-        facet,
-        {
-          value:
-            values.length >= 2
-              ? aggregateValues(values, { ...concept, minimum_answer_count: values.length })
-              : values[0],
-          evidence_count: values.length,
-          evidence_level: evidenceLevel,
-        },
-      ];
-    }),
+    Array.from(valuesByFacet.entries()).map(([facet, values]) => [
+      facet,
+      {
+        value:
+          values.length >= 2
+            ? aggregateValues(values, { ...concept, minimum_answer_count: values.length })
+            : values[0],
+        evidence_count: values.length,
+        evidence_level: getFacetEvidenceLevel(concept, facet),
+      },
+    ]),
   );
 }
 
@@ -309,16 +316,20 @@ function buildProfile(
         return (
           ontologyConcept &&
           ontologyConcept.concept_role !== "context_signal" &&
+          // quality_signal concepts (e.g. mapping_low_confidence) are planned in the
+          // ontology/measurement plan but not emitted here yet; see feat/evals-mapper-profiling
+          // for profiling evidence work that may extend MapperOutput later.
           ontologyConcept.concept_role !== "quality_signal"
         );
       })
       .map((concept) => {
-        const value = aggregateQuestionValues(concept, compiledMapping, input.answers);
+        const questionValues = getQuestionValues(concept, compiledMapping, input.answers);
+        const value = aggregateQuestionValues(concept, questionValues);
         const tag = deriveTag(value, concept.threshold_profile);
         const facets =
-          value == null
+          value == null || questionValues == null
             ? undefined
-            : buildFacetSignals(concept, compiledMapping, input.answers);
+            : buildFacetSignals(concept, questionValues);
 
         return [
           concept.concept_key,

@@ -224,4 +224,86 @@ describe("measurement plan", () => {
       }),
     ]);
   });
+
+  it("preserves question intents when rebuilding a plan from unchanged mappings", () => {
+    const existingPlan = materializeMeasurementPlan(
+      applyMeasurementPlannerOutput(
+        createMeasurementPlanBlueprint(["trust_in_automation"]),
+        {
+          concepts: [
+            {
+              concept_key: "trust_in_automation",
+              measurement_type: "multi_item_likert_median",
+              aggregation_rule: "median",
+              threshold_profile: "likert_1_5_low_mid_high",
+              slot_count: 2,
+              slot_intents: slotIntents(2),
+            },
+          ],
+        },
+      ),
+      {
+        SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_01",
+        SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_02",
+      },
+    );
+
+    const plan = createMeasurementPlanFromMappings(
+      ["trust_in_automation"],
+      [
+        {
+          question_key: "Q_TRUST_01",
+          ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        },
+        {
+          question_key: "Q_TRUST_02",
+          ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        },
+      ],
+      existingPlan,
+    );
+
+    expect(plan.concepts[0].question_intents).toEqual(existingPlan.concepts[0].question_intents);
+  });
+
+  it("drops preserved intents when rebuilt question keys no longer match", () => {
+    const existingPlan = materializeMeasurementPlan(
+      applyMeasurementPlannerOutput(
+        createMeasurementPlanBlueprint(["trust_in_automation"]),
+        {
+          concepts: [
+            {
+              concept_key: "trust_in_automation",
+              measurement_type: "multi_item_likert_median",
+              aggregation_rule: "median",
+              threshold_profile: "likert_1_5_low_mid_high",
+              slot_count: 2,
+              slot_intents: slotIntents(2),
+            },
+          ],
+        },
+      ),
+      {
+        SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_01",
+        SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_02",
+      },
+    );
+
+    const plan = createMeasurementPlanFromMappings(
+      ["trust_in_automation"],
+      [
+        {
+          question_key: "Q_TRUST_01",
+          ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        },
+        {
+          question_key: "Q_TRUST_03",
+          ontology_target: "flexpulse_behavioural_schema.trust_in_automation",
+        },
+      ],
+      existingPlan,
+    );
+
+    expect(plan.concepts[0].question_intents).toEqual([]);
+  });
 });

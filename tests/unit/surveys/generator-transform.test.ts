@@ -231,4 +231,68 @@ describe("generator transform", () => {
     });
   });
 
+  it("maps preferred tariff labels from ontology_value even when the raw label is ambiguous", () => {
+    const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
+    const measurementPlanBlueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["preferred_tariff_model"]),
+      {
+        concepts: [
+          {
+            concept_key: "preferred_tariff_model",
+            measurement_type: "single_choice_enum",
+            aggregation_rule: "identity",
+            threshold_profile: "enum_identity",
+            slot_count: 1,
+            slot_intents: [
+              {
+                facet: "tariff_choice",
+                intent: "Measure preferred tariff model.",
+                polarity: "neutral",
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    const result = transformGeneratedSurvey({
+      output: {
+        survey_title: "Tariff survey",
+        survey_description: "Measures tariff preference.",
+        estimated_completion_minutes: 2,
+        questions: [
+          {
+            slot_key: "SLOT_PREFERRED_TARIFF_MODEL_01",
+            title: "Which tariff would you prefer?",
+            description: "",
+            ontology_target: "flexpulse_behavioural_schema.preferred_tariff_model",
+            type: "single_choice",
+            options: [
+              {
+                label: "market rewards everywhere",
+                ontology_value: "dynamic_price",
+                is_truthy: true,
+              },
+            ],
+            scale: null,
+            numeric: null,
+          },
+        ],
+      },
+      baseDefinition,
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      ontologyTargets: ["flexpulse_behavioural_schema.preferred_tariff_model"],
+      measurementPlanBlueprint,
+      fallbackSurveyTitle: "Tariff survey",
+      fallbackSurveyDescription: "Measures tariff preference.",
+    });
+
+    expect(
+      result.definition.translations.English.questions.Q_PREFERRED_TARIFF_MODEL_01?.options,
+    ).toEqual({
+      dynamic_price: "Prices change often, with more risk and possible savings",
+    });
+  });
+
 });

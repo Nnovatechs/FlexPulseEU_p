@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
-import { seedAnalyticsSandboxForSession } from "@/features/surveys/analytics-sandbox";
+import {
+  canAccessAnalyticsSandbox,
+  seedAnalyticsSandboxForSession,
+} from "@/features/surveys/analytics-sandbox";
 import { requireCurrentSession } from "@/lib/auth/session";
 
 async function seedAnalyticsSandboxAction() {
@@ -13,7 +16,8 @@ async function seedAnalyticsSandboxAction() {
 }
 
 export default async function AnalyticsSandboxPage() {
-  await requireCurrentSession();
+  const session = await requireCurrentSession();
+  const canSeed = canAccessAnalyticsSandbox(session);
 
   return (
     <div className="page-stack">
@@ -25,21 +29,36 @@ export default async function AnalyticsSandboxPage() {
 
       <section className="surface-card">
         <h2>Generate synthetic analytics survey</h2>
-        <p>
-          This action resets your existing internal analytics sandbox survey and seeds a new
-          published survey with 270 ready mapped responses, 8 archetypes, synthetic enrichment,
-          and mapper outputs.
-        </p>
-        <p>
-          Access is restricted by session and sandbox configuration. The generated survey is owned
-          by your current user, so the normal survey middleware, ownership checks, and analytics
-          repository are used when you open the analytics screen.
-        </p>
-        <form action={seedAnalyticsSandboxAction}>
-          <button type="submit" className="button button--primary">
-            Generate sandbox and open analytics
-          </button>
-        </form>
+        {canSeed ? (
+          <>
+            <p>
+              This action resets your existing internal analytics sandbox survey and seeds a new
+              published survey with 270 ready mapped responses, 8 archetypes, synthetic enrichment,
+              and mapper outputs.
+            </p>
+            <p>
+              Access is restricted by session and sandbox configuration. The generated survey is
+              owned by your current user, so the normal survey middleware, ownership checks, and
+              analytics repository are used when you open the analytics screen.
+            </p>
+            <form action={seedAnalyticsSandboxAction}>
+              <button type="submit" className="button button--primary">
+                Generate sandbox and open analytics
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <p className="evidence-warning">
+              Analytics sandbox seeding is not available for your account in this environment.
+            </p>
+            <p>
+              In production this requires explicit sandbox configuration and an allowlisted email.
+              In local development it is enabled by default unless disabled via environment
+              variables.
+            </p>
+          </>
+        )}
       </section>
     </div>
   );

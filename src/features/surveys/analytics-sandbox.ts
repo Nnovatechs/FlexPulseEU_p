@@ -36,6 +36,15 @@ export function assertAnalyticsSandboxAccess(session: UserSession) {
   }
 }
 
+export function canAccessAnalyticsSandbox(session: UserSession) {
+  try {
+    assertAnalyticsSandboxAccess(session);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function toLinkToken(audienceToken: string) {
   return `sandbox-${audienceToken}-${randomUUID()}`;
 }

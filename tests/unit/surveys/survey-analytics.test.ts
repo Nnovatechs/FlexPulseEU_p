@@ -197,13 +197,34 @@ describe("survey analytics", () => {
     expect(classifySurveyAnalyticsEvidence(0)).toEqual(
       expect.objectContaining({ label: "hidden", suppress_detail: true }),
     );
+    expect(classifySurveyAnalyticsEvidence(4)).toEqual(
+      expect.objectContaining({ label: "hidden", suppress_detail: true }),
+    );
+    expect(classifySurveyAnalyticsEvidence(5)).toEqual(
+      expect.objectContaining({ label: "very_low", suppress_detail: false }),
+    );
     expect(classifySurveyAnalyticsEvidence(7)).toEqual(
       expect.objectContaining({ label: "very_low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(9)).toEqual(
+      expect.objectContaining({ label: "very_low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(10)).toEqual(
+      expect.objectContaining({ label: "low", suppress_detail: false }),
     );
     expect(classifySurveyAnalyticsEvidence(15)).toEqual(
       expect.objectContaining({ label: "low", suppress_detail: false }),
     );
+    expect(classifySurveyAnalyticsEvidence(19)).toEqual(
+      expect.objectContaining({ label: "low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(20)).toEqual(
+      expect.objectContaining({ label: "directional", suppress_detail: false }),
+    );
     expect(classifySurveyAnalyticsEvidence(30)).toEqual(
+      expect.objectContaining({ label: "directional", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(49)).toEqual(
       expect.objectContaining({ label: "directional", suppress_detail: false }),
     );
     expect(classifySurveyAnalyticsEvidence(50)).toEqual(

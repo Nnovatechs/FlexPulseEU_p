@@ -142,6 +142,8 @@ function flipBinaryEnumLookupValue(
   strategy: Extract<SurveyMappingDefinition["transform_strategy"], { kind: "enum_lookup" }>,
   value: string,
 ) {
+  // v0 contract: only true binary yes/no-style mappings are flipped. The writer does not emit
+  // negative-polarity ordinal enums (e.g. low/medium) for profile constructs today.
   const mappedValues = Array.from(new Set(Object.values(strategy.option_to_value)));
   if (mappedValues.length !== 2 || !mappedValues.includes(value)) {
     return value;

@@ -8,6 +8,7 @@ import {
 import type { NormalizedLocationLevel } from "@/features/surveys/response-enrichment";
 import {
   buildSurveyAnalyticsSchema,
+  classifySurveyAnalyticsEvidence,
   runSurveyAnalyticsQuery,
   type SurveyAnalyticsRecord,
 } from "@/features/surveys/survey-analytics";
@@ -192,6 +193,45 @@ function buildRecord(input: {
 }
 
 describe("survey analytics", () => {
+  it("classifies segment evidence from response counts", () => {
+    expect(classifySurveyAnalyticsEvidence(0)).toEqual(
+      expect.objectContaining({ label: "hidden", suppress_detail: true }),
+    );
+    expect(classifySurveyAnalyticsEvidence(4)).toEqual(
+      expect.objectContaining({ label: "hidden", suppress_detail: true }),
+    );
+    expect(classifySurveyAnalyticsEvidence(5)).toEqual(
+      expect.objectContaining({ label: "very_low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(7)).toEqual(
+      expect.objectContaining({ label: "very_low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(9)).toEqual(
+      expect.objectContaining({ label: "very_low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(10)).toEqual(
+      expect.objectContaining({ label: "low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(15)).toEqual(
+      expect.objectContaining({ label: "low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(19)).toEqual(
+      expect.objectContaining({ label: "low", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(20)).toEqual(
+      expect.objectContaining({ label: "directional", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(30)).toEqual(
+      expect.objectContaining({ label: "directional", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(49)).toEqual(
+      expect.objectContaining({ label: "directional", suppress_detail: false }),
+    );
+    expect(classifySurveyAnalyticsEvidence(50)).toEqual(
+      expect.objectContaining({ label: "usable", suppress_detail: false }),
+    );
+  });
+
   it("builds a dynamic schema from measurement plan and context capabilities", () => {
     const schema = buildSurveyAnalyticsSchema({
       survey: buildSurveyFixture(),
@@ -357,6 +397,11 @@ describe("survey analytics", () => {
           },
         },
         response_count: 2,
+        evidence: expect.objectContaining({
+          label: "hidden",
+          response_count: 2,
+          suppress_detail: true,
+        }),
       },
       {
         group: { "context.country_code": "IE" },
@@ -376,6 +421,11 @@ describe("survey analytics", () => {
           },
         },
         response_count: 1,
+        evidence: expect.objectContaining({
+          label: "hidden",
+          response_count: 1,
+          suppress_detail: true,
+        }),
       },
     ]);
 
@@ -406,6 +456,11 @@ describe("survey analytics", () => {
           responses: { kind: "count", value: 1, sample_size: 1 },
         },
         response_count: 1,
+        evidence: expect.objectContaining({
+          label: "hidden",
+          response_count: 1,
+          suppress_detail: true,
+        }),
       },
       {
         group: {
@@ -416,6 +471,11 @@ describe("survey analytics", () => {
           responses: { kind: "count", value: 1, sample_size: 1 },
         },
         response_count: 1,
+        evidence: expect.objectContaining({
+          label: "hidden",
+          response_count: 1,
+          suppress_detail: true,
+        }),
       },
     ]);
   });

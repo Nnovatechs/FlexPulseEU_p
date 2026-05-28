@@ -235,10 +235,25 @@ export type SurveyAnalyticsMetricResult = {
   matched_count?: number;
 };
 
+export type SurveyAnalyticsEvidenceLabel =
+  | "hidden"
+  | "very_low"
+  | "low"
+  | "directional"
+  | "usable";
+
+export type SurveyAnalyticsEvidence = {
+  label: SurveyAnalyticsEvidenceLabel;
+  response_count: number;
+  suppress_detail: boolean;
+  description: string;
+};
+
 export type SurveyAnalyticsQueryRow = {
   group: Record<string, AnalyticsFieldScalar>;
   metrics: Record<string, SurveyAnalyticsMetricResult>;
   response_count: number;
+  evidence: SurveyAnalyticsEvidence;
 };
 
 export type SurveyAnalyticsQueryResult = {
@@ -780,6 +795,56 @@ function serializeGroupValue(value: AnalyticsFieldScalar) {
   return String(value);
 }
 
+export function classifySurveyAnalyticsEvidence(responseCount: number): SurveyAnalyticsEvidence {
+  if (responseCount < 5) {
+    return {
+      label: "hidden",
+      response_count: responseCount,
+      suppress_detail: true,
+      description:
+        "Fewer than 5 respondents. Treat as privacy-sensitive and do not use for segment decisions.",
+    };
+  }
+
+  if (responseCount < 10) {
+    return {
+      label: "very_low",
+      response_count: responseCount,
+      suppress_detail: false,
+      description:
+        "Very small segment. Use only as an early signal, not as evidence for action.",
+    };
+  }
+
+  if (responseCount < 20) {
+    return {
+      label: "low",
+      response_count: responseCount,
+      suppress_detail: false,
+      description:
+        "Small segment. Useful for exploration, but weak for operational decisions.",
+    };
+  }
+
+  if (responseCount < 50) {
+    return {
+      label: "directional",
+      response_count: responseCount,
+      suppress_detail: false,
+      description:
+        "Directional descriptive signal. Useful for hypotheses and light operational reads.",
+    };
+  }
+
+  return {
+    label: "usable",
+    response_count: responseCount,
+    suppress_detail: false,
+    description:
+      "Usable descriptive segment within the collected sample. This is not a population representativeness claim.",
+  };
+}
+
 function computeMetric(
   rows: SurveyAnalyticsRecord[],
   metric: SurveyAnalyticsMetric,
@@ -882,6 +947,7 @@ export function runSurveyAnalyticsQuery(input: {
         input.query.metrics.map((metric) => [metric.key, computeMetric(rows, metric)]),
       ),
       response_count: rows.length,
+      evidence: classifySurveyAnalyticsEvidence(rows.length),
     }))
     .sort(
       (left, right) =>
@@ -892,6 +958,7 @@ export function runSurveyAnalyticsQuery(input: {
       group: entry.group,
       metrics: entry.metrics,
       response_count: entry.response_count,
+      evidence: entry.evidence,
     }));
 
   return {

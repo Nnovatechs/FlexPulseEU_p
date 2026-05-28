@@ -150,6 +150,12 @@ export function buildTranslationValidationPrompt(
   }));
 
   const untrustedNotice = buildUntrustedSurveyContentNotice();
+  // Product semantics (see translation-loop.ts + toProductMultilingualIssues in actions.ts):
+  // - severity=blocking on quality/parity/pii/cultural means "this item needs another polish pass"
+  //   while the multicultural loop is running.
+  // - At publish time, only parity, pii, and cultural findings block publication; quality is
+  //   downgraded to a product-safe advisory so the one-click generate flow can finish.
+  // Keep the audit strict here anyway — tighter findings improve automatic rewrite quality.
   const system = [
     "You are a multilingual survey auditor for FlexPulseEU.",
     "Your role is to verify that each localized survey item preserves the same respondent-facing meaning as the source language and is culturally natural and publishable in the target language.",

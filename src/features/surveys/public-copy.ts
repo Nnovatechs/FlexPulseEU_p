@@ -16,7 +16,6 @@ export type PublicSurveyCopy = {
   thankYouTitle: string;
   thankYouDescription: string;
   thankYouBody: string;
-  thankYouProcessing: string;
   languagePickerTitle: string;
   languagePickerSub: string;
   nextLabel: string;
@@ -43,7 +42,6 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     thankYouTitle: "Thank you!",
     thankYouDescription: "Your response has been submitted.",
     thankYouBody: "Your answers were received and stored securely for later analysis.",
-    thankYouProcessing: "Background processing will run automatically.",
     languagePickerTitle: "Choose your language",
     languagePickerSub: "Select the language you'd like to answer this survey in.",
     nextLabel: "Continue",
@@ -69,7 +67,6 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     thankYouTitle: "¡Gracias!",
     thankYouDescription: "Tu respuesta ha sido enviada.",
     thankYouBody: "Tus respuestas se han recibido y guardado de forma segura para su análisis.",
-    thankYouProcessing: "El procesamiento en segundo plano se ejecutará automáticamente.",
     languagePickerTitle: "Elige tu idioma",
     languagePickerSub: "Selecciona el idioma en el que quieres responder esta encuesta.",
     nextLabel: "Continuar",
@@ -95,7 +92,6 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     thankYouTitle: "Merci !",
     thankYouDescription: "Votre réponse a été envoyée.",
     thankYouBody: "Vos réponses ont été reçues et stockées en toute sécurité pour analyse.",
-    thankYouProcessing: "Le traitement en arrière-plan s'exécutera automatiquement.",
     languagePickerTitle: "Choisissez votre langue",
     languagePickerSub:
       "Sélectionnez la langue dans laquelle vous souhaitez répondre à cette enquête.",
@@ -122,7 +118,6 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     thankYouTitle: "Hvala!",
     thankYouDescription: "Vaš odgovor je poslan.",
     thankYouBody: "Vaši odgovori su primljeni i sigurno pohranjeni za kasniju analizu.",
-    thankYouProcessing: "Pozadinska obrada pokrenut će se automatski.",
     languagePickerTitle: "Odaberite jezik",
     languagePickerSub: "Odaberite jezik na kojem želite ispuniti ovu anketu.",
     nextLabel: "Nastavi",

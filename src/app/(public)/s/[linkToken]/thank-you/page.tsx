@@ -41,7 +41,6 @@ export default async function PublicSurveyThankYouPage({
           <div className="sf-thankyou__card">
             <h3>{bundle?.survey_title ?? survey.name}</h3>
             <p>{copy.thankYouBody}</p>
-            <p className="sf-thankyou__processing">{copy.thankYouProcessing}</p>
           </div>
         </div>
       </div>

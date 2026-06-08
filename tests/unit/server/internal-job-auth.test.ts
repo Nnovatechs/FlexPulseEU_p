@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isInternalJobRequestAuthorized } from "@/lib/server/internal-job-auth";
 
 const ORIGINAL_INTERNAL_JOB_SECRET = process.env.INTERNAL_JOB_SECRET;
+const ORIGINAL_CRON_SECRET = process.env.CRON_SECRET;
 
 function requestWithHeaders(headers: HeadersInit) {
   return new Request("https://example.test/api/internal/process-jobs", { headers });
@@ -10,10 +11,12 @@ function requestWithHeaders(headers: HeadersInit) {
 describe("internal job auth", () => {
   beforeEach(() => {
     process.env.INTERNAL_JOB_SECRET = "expected-secret";
+    process.env.CRON_SECRET = "expected-cron-secret";
   });
 
   afterEach(() => {
     process.env.INTERNAL_JOB_SECRET = ORIGINAL_INTERNAL_JOB_SECRET;
+    process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
   });
 
   it("rejects requests without an internal secret header", () => {
@@ -40,6 +43,14 @@ describe("internal job auth", () => {
     expect(
       isInternalJobRequestAuthorized(
         requestWithHeaders({ authorization: "Bearer expected-secret" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts Authorization bearer when it matches the Vercel cron secret", () => {
+    expect(
+      isInternalJobRequestAuthorized(
+        requestWithHeaders({ authorization: "Bearer expected-cron-secret" }),
       ),
     ).toBe(true);
   });

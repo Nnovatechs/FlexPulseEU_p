@@ -737,12 +737,6 @@ export function PublicSurveyForm({
             />
           )}
 
-          {isLastBlock && turnstileSiteKey ? (
-            <div className="sf-turnstile">
-              <div ref={turnstileContainerRef} />
-            </div>
-          ) : null}
-
           {blockError && (
             <div className="sf-error" role="alert">
               {blockError}
@@ -753,6 +747,11 @@ export function PublicSurveyForm({
             <span className="sf-nav__progress-text">
               {currentBlock + 1} / {blocks.length}
             </span>
+            {isLastBlock && turnstileSiteKey ? (
+              <div className="sf-turnstile">
+                <div ref={turnstileContainerRef} />
+              </div>
+            ) : null}
             <div className="sf-nav-btns">
               {currentBlock > 0 && (
                 <button

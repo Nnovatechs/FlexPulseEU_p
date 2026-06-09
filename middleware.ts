@@ -2,7 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { appRoutes } from "@/lib/config/routes";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const publicRoutes = new Set<string>(["/", appRoutes.login]);
+const publicRoutes = new Set<string>([
+  "/",
+  appRoutes.login,
+  appRoutes.privacy,
+  appRoutes.cookies,
+]);
 const internalJobRoutes = new Set<string>([
   "/api/internal/process-jobs",
   "/api/internal/cleanup-response-data",

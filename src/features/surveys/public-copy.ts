@@ -11,6 +11,10 @@ export type PublicSurveyCopy = {
   postalCodePlaceholder: string;
   submitLabel: string;
   submitError: string;
+  legalConsentLabel: string;
+  legalConsentPrivacyLink: string;
+  legalConsentCookiesLink: string;
+  legalConsentRequired: string;
   yesLabel: string;
   noLabel: string;
   thankYouEyebrow: string;
@@ -38,6 +42,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodePlaceholder: "e.g. 08001",
     submitLabel: "Submit",
     submitError: "We couldn't submit your response. Please reload and try again.",
+    legalConsentLabel: "I have read and accept the privacy information and cookie notice.",
+    legalConsentPrivacyLink: "Privacy information",
+    legalConsentCookiesLink: "Cookie notice",
+    legalConsentRequired: "Please accept the privacy information before submitting.",
     yesLabel: "Yes",
     noLabel: "No",
     thankYouEyebrow: "Done",
@@ -64,6 +72,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodePlaceholder: "p. ej. 08001",
     submitLabel: "Enviar",
     submitError: "No hemos podido enviar tu respuesta. Recarga la página e inténtalo de nuevo.",
+    legalConsentLabel: "He leído y acepto la información de privacidad y el aviso de cookies.",
+    legalConsentPrivacyLink: "Información de privacidad",
+    legalConsentCookiesLink: "Aviso de cookies",
+    legalConsentRequired: "Debes aceptar la información de privacidad antes de enviar.",
     yesLabel: "Sí",
     noLabel: "No",
     thankYouEyebrow: "Listo",
@@ -91,6 +103,12 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     submitLabel: "Envoyer",
     submitError:
       "Nous n'avons pas pu envoyer votre réponse. Rechargez la page et réessayez.",
+    legalConsentLabel:
+      "J'ai lu et j'accepte les informations de confidentialité et l'avis relatif aux cookies.",
+    legalConsentPrivacyLink: "Informations de confidentialité",
+    legalConsentCookiesLink: "Avis relatif aux cookies",
+    legalConsentRequired:
+      "Veuillez accepter les informations de confidentialité avant d'envoyer.",
     yesLabel: "Oui",
     noLabel: "Non",
     thankYouEyebrow: "Terminé",
@@ -118,6 +136,11 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodePlaceholder: "npr. 10000",
     submitLabel: "Pošalji",
     submitError: "Nismo mogli poslati vaš odgovor. Osvježite stranicu i pokušajte ponovno.",
+    legalConsentLabel:
+      "Pročitao/la sam i prihvaćam informacije o privatnosti i obavijest o kolačićima.",
+    legalConsentPrivacyLink: "Informacije o privatnosti",
+    legalConsentCookiesLink: "Obavijest o kolačićima",
+    legalConsentRequired: "Prihvatite informacije o privatnosti prije slanja.",
     yesLabel: "Da",
     noLabel: "Ne",
     thankYouEyebrow: "Gotovo",

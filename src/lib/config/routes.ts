@@ -1,5 +1,7 @@
 export const appRoutes = {
   login: "/login",
+  privacy: "/privacy",
+  cookies: "/cookies",
   dashboard: "/dashboard",
   surveys: "/surveys",
   surveyNew: "/surveys/new",

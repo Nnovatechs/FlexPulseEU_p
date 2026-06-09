@@ -100,6 +100,7 @@ describe("public survey submission action", () => {
     formData.set("linkToken", "public-token");
     formData.set("submittedLanguage", fixture.language);
     formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
 
     await submitPublicSurveyResponseAction(formData);
 
@@ -114,6 +115,26 @@ describe("public survey submission action", () => {
       }),
     );
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("rejects submissions without privacy acceptance", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+
+    await expect(submitPublicSurveyResponseAction(formData)).rejects.toThrow(
+      "Privacy information acceptance is required.",
+    );
+
+    expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
   });
 
   it("rejects submissions without Turnstile token when Turnstile is configured", async () => {
@@ -149,6 +170,7 @@ describe("public survey submission action", () => {
     formData.set("linkToken", "public-token");
     formData.set("submittedLanguage", fixture.language);
     formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
 
     await submitPublicSurveyResponseAction(formData);
 
@@ -179,6 +201,7 @@ describe("public survey submission action", () => {
     formData.set("submittedLanguage", fixture.language);
     formData.set("question:Q_TEST_01", "opt_2");
     formData.set("cf-turnstile-response", "valid-token");
+    formData.set("legalConsentAccepted", "true");
 
     await submitPublicSurveyResponseAction(formData);
 

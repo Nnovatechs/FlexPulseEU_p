@@ -148,6 +148,10 @@ export function validatePublicSurveySubmission(
     throw new Error("Postal code is required for this survey.");
   }
 
+  if (String(formData.get("legalConsentAccepted") ?? "") !== "true") {
+    throw new Error("Privacy information acceptance is required.");
+  }
+
   return {
     submittedLanguage,
     answers,

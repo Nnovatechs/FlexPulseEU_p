@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useEffect, useState, useRef, useTransition } from "react";
+import Link from "next/link";
 import type {
   SurveyLanguageTranslations,
   SurveyQuestionDefinition,
@@ -9,6 +10,7 @@ import type {
 } from "@/features/surveys/generator-types";
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
+import { appRoutes } from "@/lib/config/routes";
 
 declare global {
   interface Window {
@@ -493,6 +495,7 @@ export function PublicSurveyForm({
   const [selectedValues, setSelectedValues] = useState<AnswerValues>({});
   const [countryCode, setCountryCode] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [hasAcceptedLegal, setHasAcceptedLegal] = useState(false);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [turnstileScriptReady, setTurnstileScriptReady] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -633,6 +636,11 @@ export function PublicSurveyForm({
       return;
     }
 
+    if (!hasAcceptedLegal) {
+      setBlockError(copy.legalConsentRequired);
+      return;
+    }
+
     setBlockError(null);
     const formData = new FormData(e.currentTarget);
 
@@ -736,6 +744,31 @@ export function PublicSurveyForm({
               onPostalChange={setPostalCode}
             />
           )}
+
+          {isLastBlock ? (
+            <label className="sf-legal-consent">
+              <input
+                type="checkbox"
+                name="legalConsentAccepted"
+                value="true"
+                checked={hasAcceptedLegal}
+                onChange={(event) => {
+                  setHasAcceptedLegal(event.target.checked);
+                  setBlockError(null);
+                }}
+              />
+              <span>
+                {copy.legalConsentLabel}{" "}
+                <Link href={appRoutes.privacy} target="_blank">
+                  {copy.legalConsentPrivacyLink}
+                </Link>
+                {" · "}
+                <Link href={appRoutes.cookies} target="_blank">
+                  {copy.legalConsentCookiesLink}
+                </Link>
+              </span>
+            </label>
+          ) : null}
 
           {blockError && (
             <div className="sf-error" role="alert">

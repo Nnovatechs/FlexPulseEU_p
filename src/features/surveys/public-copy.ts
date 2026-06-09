@@ -10,6 +10,7 @@ export type PublicSurveyCopy = {
   postalCodeLabel: string;
   postalCodePlaceholder: string;
   submitLabel: string;
+  submitError: string;
   yesLabel: string;
   noLabel: string;
   thankYouEyebrow: string;
@@ -36,6 +37,7 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodeLabel: "Postal code",
     postalCodePlaceholder: "e.g. 08001",
     submitLabel: "Submit",
+    submitError: "We couldn't submit your response. Please reload and try again.",
     yesLabel: "Yes",
     noLabel: "No",
     thankYouEyebrow: "Done",
@@ -61,6 +63,7 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodeLabel: "Código postal",
     postalCodePlaceholder: "p. ej. 08001",
     submitLabel: "Enviar",
+    submitError: "No hemos podido enviar tu respuesta. Recarga la página e inténtalo de nuevo.",
     yesLabel: "Sí",
     noLabel: "No",
     thankYouEyebrow: "Listo",
@@ -86,6 +89,8 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodeLabel: "Code postal",
     postalCodePlaceholder: "ex. 75001",
     submitLabel: "Envoyer",
+    submitError:
+      "Nous n'avons pas pu envoyer votre réponse. Rechargez la page et réessayez.",
     yesLabel: "Oui",
     noLabel: "Non",
     thankYouEyebrow: "Terminé",
@@ -112,6 +117,7 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodeLabel: "Poštanski broj",
     postalCodePlaceholder: "npr. 10000",
     submitLabel: "Pošalji",
+    submitError: "Nismo mogli poslati vaš odgovor. Osvježite stranicu i pokušajte ponovno.",
     yesLabel: "Da",
     noLabel: "Ne",
     thankYouEyebrow: "Gotovo",

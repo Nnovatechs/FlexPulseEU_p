@@ -23,6 +23,16 @@ vi.mock("@/features/surveys/response-repository", () => ({
 }));
 
 const ORIGINAL_TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
+const ORIGINAL_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
 
 function buildPublishedSurveyFixture() {
   const fixture = buildValidationSurveyFixture({
@@ -68,11 +78,13 @@ describe("public survey submission action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.TURNSTILE_SECRET_KEY;
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     vi.unstubAllGlobals();
   });
 
   afterEach(() => {
-    process.env.TURNSTILE_SECRET_KEY = ORIGINAL_TURNSTILE_SECRET_KEY;
+    restoreEnv("TURNSTILE_SECRET_KEY", ORIGINAL_TURNSTILE_SECRET_KEY);
+    restoreEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", ORIGINAL_TURNSTILE_SITE_KEY);
     vi.unstubAllGlobals();
   });
 
@@ -106,6 +118,7 @@ describe("public survey submission action", () => {
 
   it("rejects submissions without Turnstile token when Turnstile is configured", async () => {
     process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "turnstile-site-key";
 
     const { submitPublicSurveyResponseAction } = await import(
       "@/features/surveys/public-actions"
@@ -122,8 +135,30 @@ describe("public survey submission action", () => {
     expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
   });
 
+  it("does not require Turnstile when only the server secret is configured", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+
+    await submitPublicSurveyResponseAction(formData);
+
+    expect(createSurveyResponseAndEnqueueJob).toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
   it("stores the response after a successful Turnstile verification", async () => {
     process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "turnstile-site-key";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({

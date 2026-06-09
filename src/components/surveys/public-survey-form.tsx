@@ -576,7 +576,11 @@ export function PublicSurveyForm({
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      await submitAction(formData);
+      try {
+        await submitAction(formData);
+      } catch {
+        setBlockError(copy.submitError);
+      }
     });
   }
 

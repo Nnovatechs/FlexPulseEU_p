@@ -4,12 +4,17 @@ type TurnstileVerificationResponse = {
 };
 
 export function isTurnstileProtectionEnabled() {
-  return Boolean(process.env.TURNSTILE_SECRET_KEY);
+  return Boolean(
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY,
+  );
 }
 
 export async function verifyTurnstileToken(token: string) {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!isTurnstileProtectionEnabled()) {
+    return;
+  }
 
+  const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) {
     return;
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useState, useRef, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition } from "react";
 import type {
   SurveyLanguageTranslations,
   SurveyQuestionDefinition,
@@ -9,6 +9,18 @@ import type {
 } from "@/features/surveys/generator-types";
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: { sitekey: string; theme?: "light" | "dark" | "auto" },
+      ) => string | undefined;
+      remove?: (widgetId: string) => void;
+    };
+  }
+}
 
 // ─── Language metadata ────────────────────────────────────────────────────
 
@@ -470,6 +482,8 @@ export function PublicSurveyForm({
   const formRef = useRef<HTMLFormElement>(null);
   const questionRefs = useRef<Record<string, HTMLElement | null>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetIdRef = useRef<string | undefined>(undefined);
 
   const [language, setLanguage] = useState(initialLanguage);
   const [phase, setPhase] = useState<"language" | "survey">(
@@ -480,8 +494,10 @@ export function PublicSurveyForm({
   const [countryCode, setCountryCode] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [blockError, setBlockError] = useState<string | null>(null);
+  const [turnstileScriptReady, setTurnstileScriptReady] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  const hasTurnstileSiteKey = Boolean(turnstileSiteKey);
   const bundle = allBundles[language] ?? allBundles[defaultLanguage];
   const copy = allCopy[language] ?? allCopy[defaultLanguage];
   const blocks = computeBlocks(questions);
@@ -489,6 +505,51 @@ export function PublicSurveyForm({
   const isLastBlock = currentBlock === blocks.length - 1;
   const progress =
     blocks.length === 1 ? 100 : Math.round((currentBlock / (blocks.length - 1)) * 100);
+
+  useEffect(() => {
+    console.info("[FlexPulseEU] Turnstile config", {
+      hasSiteKey: hasTurnstileSiteKey,
+      isLastBlock,
+    });
+  }, [hasTurnstileSiteKey, isLastBlock]);
+
+  useEffect(() => {
+    if (!hasTurnstileSiteKey || !turnstileSiteKey || !isLastBlock) {
+      return;
+    }
+
+    if (!turnstileScriptReady || !window.turnstile?.render || !turnstileContainerRef.current) {
+      console.info("[FlexPulseEU] Turnstile waiting to render", {
+        scriptReady: turnstileScriptReady,
+        hasApi: Boolean(window.turnstile?.render),
+        hasContainer: Boolean(turnstileContainerRef.current),
+      });
+      return;
+    }
+
+    if (turnstileWidgetIdRef.current) {
+      return;
+    }
+
+    turnstileWidgetIdRef.current = window.turnstile.render(
+      turnstileContainerRef.current,
+      {
+        sitekey: turnstileSiteKey,
+        theme: "light",
+      },
+    );
+    console.info("[FlexPulseEU] Turnstile rendered", {
+      hasWidgetId: Boolean(turnstileWidgetIdRef.current),
+    });
+
+    return () => {
+      const widgetId = turnstileWidgetIdRef.current;
+      if (widgetId && window.turnstile?.remove) {
+        window.turnstile.remove(widgetId);
+      }
+      turnstileWidgetIdRef.current = undefined;
+    };
+  }, [hasTurnstileSiteKey, isLastBlock, turnstileScriptReady, turnstileSiteKey]);
 
   function handleLanguageSelect(lang: string) {
     setLanguage(lang);
@@ -620,6 +681,13 @@ export function PublicSurveyForm({
             <Script
               src="https://challenges.cloudflare.com/turnstile/v0/api.js"
               strategy="afterInteractive"
+              onLoad={() => {
+                console.info("[FlexPulseEU] Turnstile script loaded");
+                setTurnstileScriptReady(true);
+              }}
+              onError={() => {
+                console.error("[FlexPulseEU] Turnstile script failed to load");
+              }}
             />
           ) : null}
           <input type="hidden" name="linkToken" value={linkToken} />
@@ -671,11 +739,7 @@ export function PublicSurveyForm({
 
           {isLastBlock && turnstileSiteKey ? (
             <div className="sf-turnstile">
-              <div
-                className="cf-turnstile"
-                data-sitekey={turnstileSiteKey}
-                data-theme="light"
-              />
+              <div ref={turnstileContainerRef} />
             </div>
           ) : null}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Script from "next/script";
 import { useState, useRef, useTransition } from "react";
 import type {
   SurveyLanguageTranslations,
@@ -69,6 +70,7 @@ export type PublicSurveyFormProps = {
   allBundles: Record<string, SurveyLanguageTranslations>;
   allCopy: Record<string, PublicSurveyCopy>;
   responseContext: SurveyResponseContextConfig | undefined;
+  turnstileSiteKey?: string;
   submitAction: (formData: FormData) => Promise<void>;
 };
 
@@ -462,6 +464,7 @@ export function PublicSurveyForm({
   allBundles,
   allCopy,
   responseContext,
+  turnstileSiteKey,
   submitAction,
 }: PublicSurveyFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -609,6 +612,12 @@ export function PublicSurveyForm({
         <BlockDots count={blocks.length} current={currentBlock} />
 
         <form ref={formRef} onSubmit={handleSubmit} noValidate>
+          {turnstileSiteKey ? (
+            <Script
+              src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+              strategy="afterInteractive"
+            />
+          ) : null}
           <input type="hidden" name="linkToken" value={linkToken} />
           <input type="hidden" name="submittedLanguage" value={language} />
 
@@ -655,6 +664,16 @@ export function PublicSurveyForm({
               onPostalChange={setPostalCode}
             />
           )}
+
+          {isLastBlock && turnstileSiteKey ? (
+            <div className="sf-turnstile">
+              <div
+                className="cf-turnstile"
+                data-sitekey={turnstileSiteKey}
+                data-theme="light"
+              />
+            </div>
+          ) : null}
 
           {blockError && (
             <div className="sf-error" role="alert">

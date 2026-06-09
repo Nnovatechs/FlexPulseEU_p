@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildValidationSurveyFixture } from "../../fixtures/surveys/validation/factory";
 
 const { redirect, getPublicSurveyLinkByToken, getPublishedSurveyByIdPublic, createSurveyResponseAndEnqueueJob } =
@@ -22,18 +22,17 @@ vi.mock("@/features/surveys/response-repository", () => ({
   createSurveyResponseAndEnqueueJob,
 }));
 
-describe("public survey submission action", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+const ORIGINAL_TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
+
+function buildPublishedSurveyFixture() {
+  const fixture = buildValidationSurveyFixture({
+    title: "How comfortable are you with automated load shifting?",
+    optionLabels: ["Low", "Medium", "High"],
   });
 
-  it("stores the response and redirects to the thank-you page", async () => {
-    const fixture = buildValidationSurveyFixture({
-      title: "How comfortable are you with automated load shifting?",
-      optionLabels: ["Low", "Medium", "High"],
-    });
-
-    const survey = {
+  return {
+    fixture,
+    survey: {
       id: "survey-1",
       name: "Baseline survey",
       status: "published" as const,
@@ -44,22 +43,42 @@ describe("public survey submission action", () => {
       default_language: fixture.language,
       supported_languages: [fixture.language],
       definition_json: fixture.definition,
-      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+      mapping_contract_json: { schema_version: 1 as const, mappings: fixture.mappings },
       mapping_compiled_json: null,
       mapping_hash: "mapping-hash",
       measurement_hash: "measurement-hash-v1",
-    };
+    },
+  };
+}
 
-    getPublicSurveyLinkByToken.mockResolvedValue({
-      id: "link-1",
-      survey_id: "survey-1",
-      link_token: "public-token",
-      audience_label: "Default audience",
-      audience_token: "default",
-      is_active: true,
-      created_at: new Date().toISOString(),
-    });
-    getPublishedSurveyByIdPublic.mockResolvedValue(survey);
+function mockPublicSurveyRuntime(survey: ReturnType<typeof buildPublishedSurveyFixture>["survey"]) {
+  getPublicSurveyLinkByToken.mockResolvedValue({
+    id: "link-1",
+    survey_id: "survey-1",
+    link_token: "public-token",
+    audience_label: "Default audience",
+    audience_token: "default",
+    is_active: true,
+    created_at: new Date().toISOString(),
+  });
+  getPublishedSurveyByIdPublic.mockResolvedValue(survey);
+}
+
+describe("public survey submission action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.TURNSTILE_SECRET_KEY;
+    vi.unstubAllGlobals();
+  });
+
+  afterEach(() => {
+    process.env.TURNSTILE_SECRET_KEY = ORIGINAL_TURNSTILE_SECRET_KEY;
+    vi.unstubAllGlobals();
+  });
+
+  it("stores the response and redirects to the thank-you page", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
 
     const { submitPublicSurveyResponseAction } = await import(
       "@/features/surveys/public-actions"
@@ -82,6 +101,60 @@ describe("public survey submission action", () => {
         }),
       }),
     );
+    expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("rejects submissions without Turnstile token when Turnstile is configured", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+
+    await expect(submitPublicSurveyResponseAction(formData)).rejects.toThrow(
+      "Turnstile verification is required.",
+    );
+
+    expect(getPublicSurveyLinkByToken).not.toHaveBeenCalled();
+    expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
+  });
+
+  it("stores the response after a successful Turnstile verification", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      }),
+    );
+
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("cf-turnstile-response", "valid-token");
+
+    await submitPublicSurveyResponseAction(formData);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(URLSearchParams),
+      }),
+    );
+    expect(createSurveyResponseAndEnqueueJob).toHaveBeenCalled();
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
   });
 });

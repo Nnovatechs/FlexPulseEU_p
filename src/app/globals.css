@@ -3165,6 +3165,13 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   margin-top: 1rem;
 }
 
+.sf-turnstile {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 65px;
+  margin-top: 1rem;
+}
+
 /* ── Navigation bar ──────────────────────────────────────── */
 
 .sf-nav {

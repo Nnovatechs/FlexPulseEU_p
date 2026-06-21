@@ -18,6 +18,46 @@ type BuildTranslationSurveyInput = {
   ontologyTarget?: string;
 };
 
+function getDefaultTargetSurveyTitle(language: string) {
+  if (language === "Spanish") return "Encuesta sobre flexibilidad energética";
+  if (language === "Croatian") return "Anketa o energetskoj fleksibilnosti";
+  if (language === "French") return "Enquête sur la flexibilité énergétique";
+  return "Energy flexibility survey";
+}
+
+function getDefaultTargetSurveyDescription(language: string) {
+  if (language === "Spanish") {
+    return "Un breve cuestionario sobre cómo su hogar podría desplazar algunas tareas que consumen electricidad a otras horas.";
+  }
+  if (language === "Croatian") {
+    return "Kratak upitnik o tome kako bi vaše kućanstvo moglo prebaciti dio potrošnje električne energije na druga doba dana.";
+  }
+  if (language === "French") {
+    return "Un court questionnaire sur la manière dont votre foyer pourrait déplacer certaines consommations d'électricité à d'autres moments de la journée.";
+  }
+  return "A short questionnaire about how your household might move some electricity use to different times of day.";
+}
+
+function getDefaultSurveyTitle(language: string) {
+  if (language === "Spanish") return "Encuesta sobre flexibilidad energética";
+  if (language === "Croatian") return "Anketa o energetskoj fleksibilnosti";
+  if (language === "French") return "Enquête sur la flexibilité énergétique";
+  return "Energy flexibility survey";
+}
+
+function getDefaultSurveyDescription(language: string) {
+  if (language === "Spanish") {
+    return "Un breve cuestionario sobre cómo su hogar podría desplazar algunas tareas que consumen electricidad a otras horas.";
+  }
+  if (language === "Croatian") {
+    return "Kratak upitnik o tome kako bi vaše kućanstvo moglo prebaciti dio potrošnje električne energije na druga doba dana.";
+  }
+  if (language === "French") {
+    return "Un court questionnaire sur la manière dont votre foyer pourrait déplacer certaines consommations d'électricité à d'autres moments de la journée.";
+  }
+  return "A short questionnaire about how your household might move some electricity use to different times of day.";
+}
+
 export function buildTranslationSurveyFixture({
   sourceLanguage = "English",
   targetLanguage = "French",
@@ -47,9 +87,9 @@ export function buildTranslationSurveyFixture({
   };
 
   definition.questions = [question];
-  definition.translations[sourceLanguage].survey_title = "Energy flexibility survey";
+  definition.translations[sourceLanguage].survey_title = getDefaultSurveyTitle(sourceLanguage);
   definition.translations[sourceLanguage].survey_description =
-    "A short questionnaire about household flexibility preferences.";
+    getDefaultSurveyDescription(sourceLanguage);
   definition.translations[sourceLanguage].questions[questionKey] = {
     title: sourceTitle,
     ...(sourceDescription ? { description: sourceDescription } : {}),
@@ -59,9 +99,8 @@ export function buildTranslationSurveyFixture({
   };
 
   definition.translations[targetLanguage] = {
-    survey_title: "Enquete sur la flexibilite energetique",
-    survey_description:
-      "Un court questionnaire sur les preferences de flexibilite du foyer.",
+    survey_title: getDefaultTargetSurveyTitle(targetLanguage),
+    survey_description: getDefaultTargetSurveyDescription(targetLanguage),
     questions: {
       [questionKey]: {
         title: targetTitle,

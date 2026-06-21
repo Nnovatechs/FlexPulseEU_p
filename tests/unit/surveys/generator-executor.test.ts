@@ -92,6 +92,13 @@ describe("generateSurveyDraftProposal", () => {
             aggregation_rule: "identity",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 1,
+            slot_intents: [
+              {
+                facet: "reliability",
+                intent: "Measure trust in automation reliability.",
+                polarity: "positive",
+              },
+            ],
           },
         ],
       });

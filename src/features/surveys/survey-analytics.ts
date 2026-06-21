@@ -4,6 +4,7 @@ import type {
   MeasurementPlanEntry,
   PersistedSurvey,
 } from "./generator-types";
+import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 
 const SUPPORTED_GEO_LEVELS = [
@@ -61,6 +62,8 @@ export type SurveyAnalyticsFieldDefinition = {
   concept_key?: string;
   concept_role?: string;
   dimension?: string;
+  facet?: string;
+  evidence_level?: "interpretive_signal" | "facet_subscore";
 };
 
 export type SurveyAnalyticsSchema = {
@@ -232,10 +235,25 @@ export type SurveyAnalyticsMetricResult = {
   matched_count?: number;
 };
 
+export type SurveyAnalyticsEvidenceLabel =
+  | "hidden"
+  | "very_low"
+  | "low"
+  | "directional"
+  | "usable";
+
+export type SurveyAnalyticsEvidence = {
+  label: SurveyAnalyticsEvidenceLabel;
+  response_count: number;
+  suppress_detail: boolean;
+  description: string;
+};
+
 export type SurveyAnalyticsQueryRow = {
   group: Record<string, AnalyticsFieldScalar>;
   metrics: Record<string, SurveyAnalyticsMetricResult>;
   response_count: number;
+  evidence: SurveyAnalyticsEvidence;
 };
 
 export type SurveyAnalyticsQueryResult = {
@@ -300,6 +318,8 @@ function buildFieldDefinition(input: {
   concept_key?: string;
   concept_role?: string;
   dimension?: string;
+  facet?: string;
+  evidence_level?: "interpretive_signal" | "facet_subscore";
 }): SurveyAnalyticsFieldDefinition {
   return {
     key: input.key,
@@ -317,6 +337,8 @@ function buildFieldDefinition(input: {
     concept_key: input.concept_key,
     concept_role: input.concept_role,
     dimension: input.dimension,
+    facet: input.facet,
+    evidence_level: input.evidence_level,
   };
 }
 
@@ -349,8 +371,47 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
       dimension: concept.dimension,
     });
 
+    const facetFields = Array.from(
+      new Set((entry.question_intents ?? []).map((intent) => intent.facet)),
+    ).flatMap((facet) => {
+      const evidenceLevel = getFacetEvidenceLevel(entry, facet);
+      const descriptionPrefix =
+        evidenceLevel === "facet_subscore"
+          ? "Facet subscore"
+          : "Interpretive facet signal";
+
+      return [
+        buildFieldDefinition({
+          key: `profile.${entry.concept_key}.facets.${facet}.value`,
+          label: `${concept.label}: ${facet}`,
+          description: `${descriptionPrefix} for ${concept.label}. Concept scores remain canonical.`,
+          source: "profile",
+          valueType: entry.output_type as SurveyAnalyticsFieldType,
+          groupable: false,
+          concept_key: entry.concept_key,
+          concept_role: concept.concept_role,
+          dimension: concept.dimension,
+          facet,
+          evidence_level: evidenceLevel,
+        }),
+        buildFieldDefinition({
+          key: `profile.${entry.concept_key}.facets.${facet}.evidence_level`,
+          label: `${concept.label}: ${facet} evidence level`,
+          description:
+            "Whether this facet is a single interpretive signal or has enough planned evidence for a subscore.",
+          source: "profile",
+          valueType: "string",
+          concept_key: entry.concept_key,
+          concept_role: concept.concept_role,
+          dimension: concept.dimension,
+          facet,
+          evidence_level: evidenceLevel,
+        }),
+      ];
+    });
+
     if (!supportsTagField(entry)) {
-      return [valueField];
+      return [valueField, ...facetFields];
     }
 
     return [
@@ -365,6 +426,7 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
         concept_role: concept.concept_role,
         dimension: concept.dimension,
       }),
+      ...facetFields,
     ];
   });
 }
@@ -519,14 +581,26 @@ function getGeoLevel(
 }
 
 function parseProfileFieldKey(field: string) {
-  const match = /^profile\.([a-z0-9_]+)\.(value|tag)$/i.exec(field);
-  if (!match) {
+  const conceptMatch = /^profile\.([a-z0-9_]+)\.(value|tag)$/i.exec(field);
+  if (conceptMatch) {
+    return {
+      conceptKey: conceptMatch[1],
+      property: conceptMatch[2] as "value" | "tag",
+      facet: null,
+    };
+  }
+
+  const facetMatch = /^profile\.([a-z0-9_]+)\.facets\.([a-z0-9_]+)\.(value|evidence_level)$/i.exec(
+    field,
+  );
+  if (!facetMatch) {
     return null;
   }
 
   return {
-    conceptKey: match[1],
-    property: match[2] as "value" | "tag",
+    conceptKey: facetMatch[1],
+    facet: facetMatch[2],
+    property: facetMatch[3] as "value" | "evidence_level",
   };
 }
 
@@ -537,7 +611,10 @@ function getFieldValue(
   const profileField = parseProfileFieldKey(field);
   if (profileField) {
     const entry = record.mapper_output.profile[profileField.conceptKey];
-    return entry?.[profileField.property];
+    if (profileField.facet) {
+      return entry?.facets?.[profileField.facet]?.[profileField.property];
+    }
+    return entry?.[profileField.property as "value" | "tag"];
   }
 
   switch (field) {
@@ -718,6 +795,56 @@ function serializeGroupValue(value: AnalyticsFieldScalar) {
   return String(value);
 }
 
+export function classifySurveyAnalyticsEvidence(responseCount: number): SurveyAnalyticsEvidence {
+  if (responseCount < 5) {
+    return {
+      label: "hidden",
+      response_count: responseCount,
+      suppress_detail: true,
+      description:
+        "Fewer than 5 respondents. Treat as privacy-sensitive and do not use for segment decisions.",
+    };
+  }
+
+  if (responseCount < 10) {
+    return {
+      label: "very_low",
+      response_count: responseCount,
+      suppress_detail: false,
+      description:
+        "Very small segment. Use only as an early signal, not as evidence for action.",
+    };
+  }
+
+  if (responseCount < 20) {
+    return {
+      label: "low",
+      response_count: responseCount,
+      suppress_detail: false,
+      description:
+        "Small segment. Useful for exploration, but weak for operational decisions.",
+    };
+  }
+
+  if (responseCount < 50) {
+    return {
+      label: "directional",
+      response_count: responseCount,
+      suppress_detail: false,
+      description:
+        "Directional descriptive signal. Useful for hypotheses and light operational reads.",
+    };
+  }
+
+  return {
+    label: "usable",
+    response_count: responseCount,
+    suppress_detail: false,
+    description:
+      "Usable descriptive segment within the collected sample. This is not a population representativeness claim.",
+  };
+}
+
 function computeMetric(
   rows: SurveyAnalyticsRecord[],
   metric: SurveyAnalyticsMetric,
@@ -820,6 +947,7 @@ export function runSurveyAnalyticsQuery(input: {
         input.query.metrics.map((metric) => [metric.key, computeMetric(rows, metric)]),
       ),
       response_count: rows.length,
+      evidence: classifySurveyAnalyticsEvidence(rows.length),
     }))
     .sort(
       (left, right) =>
@@ -830,6 +958,7 @@ export function runSurveyAnalyticsQuery(input: {
       group: entry.group,
       metrics: entry.metrics,
       response_count: entry.response_count,
+      evidence: entry.evidence,
     }));
 
   return {

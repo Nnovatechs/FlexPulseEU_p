@@ -235,14 +235,7 @@ export default async function SurveyEditPage({
         ) !== storedMultilingualValidation.translation_hash
       : false;
 
-  const hasSecondaryLanguages = survey.supported_languages.some(
-    (lang) => lang !== survey.default_language,
-  );
-  const contentPassed = storedValidation?.passed === true && !isValidationStale;
-  const multilingualPassed =
-    !hasSecondaryLanguages ||
-    (storedMultilingualValidation?.passed === true && !isMultilingualValidationStale);
-  const previewUnlocked = contentPassed && multilingualPassed && hasQuestions;
+  const previewUnlocked = hasQuestions;
 
   const reviewTab = (
     <ReviewTab
@@ -270,6 +263,10 @@ export default async function SurveyEditPage({
       translations={survey.definition_json.translations}
       defaultLanguage={survey.default_language}
       supportedLanguages={survey.supported_languages}
+      validationResult={storedValidation}
+      multilingualValidationResult={storedMultilingualValidation}
+      isValidationStale={isValidationStale}
+      isMultilingualValidationStale={isMultilingualValidationStale}
     />
   );
 

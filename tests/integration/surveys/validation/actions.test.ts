@@ -88,6 +88,7 @@ describe("survey validation actions", () => {
       fixture.mappings,
       fixture.translations,
       fixture.language,
+      fixture.definition.survey_meta.measurement_plan_json,
     );
     expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
     expect(updateSurveyDraft.mock.calls[0]?.[0]).toMatchObject({
@@ -269,6 +270,7 @@ describe("survey validation actions", () => {
     formData.set("name", "Baseline survey");
     formData.set("surveyDescription", "Short intro");
     formData.set("defaultLanguage", fixture.language);
+    formData.set("intent", "save");
     formData.set("collectLocation", "on");
     formData.set("enrichWeatherContext", "on");
     formData.append("supportedLanguages", fixture.language);
@@ -288,5 +290,56 @@ describe("survey validation actions", () => {
         },
       },
     });
+  });
+
+  it("keeps the measurement plan unchanged when only response context settings are saved", async () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+      questionIntent: {
+        facet: "delegation",
+        intent: "Measure willingness to delegate.",
+        polarity: "positive",
+      },
+    });
+    fixture.definition.survey_meta.measurement_plan_json = {
+      ...fixture.measurementPlan,
+      concepts: [
+        {
+          ...fixture.measurementPlan.concepts[0],
+          aggregation_rule: "mean",
+        },
+      ],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-7",
+      name: "Baseline survey",
+      default_language: fixture.language,
+      supported_languages: [fixture.language],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { updateSurveySettingsAction } = await import("@/features/surveys/actions");
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-7");
+    formData.set("name", "Baseline survey");
+    formData.set("surveyDescription", "Short intro");
+    formData.set("defaultLanguage", fixture.language);
+    formData.set("intent", "save");
+    formData.set("collectLocation", "on");
+    formData.append("supportedLanguages", fixture.language);
+
+    await updateSurveySettingsAction(formData);
+
+    expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
+    expect(
+      updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta.measurement_plan_json,
+    ).toEqual(fixture.definition.survey_meta.measurement_plan_json);
+    expect(
+      updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta.measurement_plan_json
+        ?.concepts[0]?.aggregation_rule,
+    ).toBe("mean");
   });
 });

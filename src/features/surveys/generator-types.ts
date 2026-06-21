@@ -85,7 +85,9 @@ export type MultilingualValidationIssue = {
   language: SurveyLanguageCode;
   question_key?: string;
   type: "parity" | "quality" | "pii" | "cultural";
+  severity?: "blocking" | "advisory";
   message: string;
+  recommendation?: string;
 };
 
 export type MultilingualValidationLanguageStatus = {
@@ -141,6 +143,13 @@ export type MeasurementPlanEntry = {
   minimum_answer_count: number;
   question_keys: string[];
   required_question_keys: string[];
+  question_intents?: {
+    slot_key: string;
+    question_key: string;
+    facet: string;
+    intent: string;
+    polarity: "positive" | "negative" | "neutral";
+  }[];
   source_paths?: string[];
 };
 
@@ -216,6 +225,14 @@ export type MapperProfileTag = "low" | "medium" | "high";
 export type MapperProfileEntry = {
   value: string | number | boolean | string[] | number[] | null;
   tag?: MapperProfileTag;
+  facets?: Record<
+    string,
+    {
+      value: string | number | boolean | string[] | number[] | null;
+      evidence_count: number;
+      evidence_level: "interpretive_signal" | "facet_subscore";
+    }
+  >;
 };
 
 export type MapperContextMetadata = {

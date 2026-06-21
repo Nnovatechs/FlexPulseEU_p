@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "crypto";
-import { getInternalJobSecret } from "./internal-jobs-env";
+import { getInternalJobSecrets } from "./internal-jobs-env";
 
 function readProvidedSecret(request: Request) {
   return (
@@ -10,18 +10,21 @@ function readProvidedSecret(request: Request) {
 }
 
 export function isInternalJobRequestAuthorized(request: Request) {
-  const expected = getInternalJobSecret();
+  const expectedSecrets = getInternalJobSecrets();
   const provided = readProvidedSecret(request);
 
   if (!provided) {
     return false;
   }
 
-  const expectedBuffer = Buffer.from(expected);
   const providedBuffer = Buffer.from(provided);
 
-  return (
-    expectedBuffer.length === providedBuffer.length &&
-    timingSafeEqual(expectedBuffer, providedBuffer)
-  );
+  return expectedSecrets.some((expected) => {
+    const expectedBuffer = Buffer.from(expected);
+
+    return (
+      expectedBuffer.length === providedBuffer.length &&
+      timingSafeEqual(expectedBuffer, providedBuffer)
+    );
+  });
 }

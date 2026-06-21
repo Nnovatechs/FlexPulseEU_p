@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import Script from "next/script";
+import { useEffect, useState, useRef, useTransition } from "react";
+import Link from "next/link";
 import type {
   SurveyLanguageTranslations,
   SurveyQuestionDefinition,
@@ -8,6 +10,19 @@ import type {
 } from "@/features/surveys/generator-types";
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
+import { appRoutes } from "@/lib/config/routes";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: { sitekey: string; theme?: "light" | "dark" | "auto" },
+      ) => string | undefined;
+      remove?: (widgetId: string) => void;
+    };
+  }
+}
 
 // ─── Language metadata ────────────────────────────────────────────────────
 
@@ -69,6 +84,7 @@ export type PublicSurveyFormProps = {
   allBundles: Record<string, SurveyLanguageTranslations>;
   allCopy: Record<string, PublicSurveyCopy>;
   responseContext: SurveyResponseContextConfig | undefined;
+  turnstileSiteKey?: string;
   submitAction: (formData: FormData) => Promise<void>;
 };
 
@@ -86,6 +102,17 @@ function validateBlock(
     if (isEmpty) return "Please answer all required questions before continuing.";
   }
   return null;
+}
+
+function rethrowNextNavigationError(error: unknown) {
+  const digest =
+    error && typeof error === "object" && "digest" in error
+      ? String((error as { digest?: unknown }).digest ?? "")
+      : "";
+
+  if (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND")) {
+    throw error;
+  }
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
@@ -462,11 +489,14 @@ export function PublicSurveyForm({
   allBundles,
   allCopy,
   responseContext,
+  turnstileSiteKey,
   submitAction,
 }: PublicSurveyFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const questionRefs = useRef<Record<string, HTMLElement | null>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetIdRef = useRef<string | undefined>(undefined);
 
   const [language, setLanguage] = useState(initialLanguage);
   const [phase, setPhase] = useState<"language" | "survey">(
@@ -476,9 +506,12 @@ export function PublicSurveyForm({
   const [selectedValues, setSelectedValues] = useState<AnswerValues>({});
   const [countryCode, setCountryCode] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [hasAcceptedLegal, setHasAcceptedLegal] = useState(false);
   const [blockError, setBlockError] = useState<string | null>(null);
+  const [turnstileScriptReady, setTurnstileScriptReady] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  const hasTurnstileSiteKey = Boolean(turnstileSiteKey);
   const bundle = allBundles[language] ?? allBundles[defaultLanguage];
   const copy = allCopy[language] ?? allCopy[defaultLanguage];
   const blocks = computeBlocks(questions);
@@ -486,6 +519,36 @@ export function PublicSurveyForm({
   const isLastBlock = currentBlock === blocks.length - 1;
   const progress =
     blocks.length === 1 ? 100 : Math.round((currentBlock / (blocks.length - 1)) * 100);
+
+  useEffect(() => {
+    if (!hasTurnstileSiteKey || !turnstileSiteKey || !isLastBlock) {
+      return;
+    }
+
+    if (!turnstileScriptReady || !window.turnstile?.render || !turnstileContainerRef.current) {
+      return;
+    }
+
+    if (turnstileWidgetIdRef.current) {
+      return;
+    }
+
+    turnstileWidgetIdRef.current = window.turnstile.render(
+      turnstileContainerRef.current,
+      {
+        sitekey: turnstileSiteKey,
+        theme: "light",
+      },
+    );
+
+    return () => {
+      const widgetId = turnstileWidgetIdRef.current;
+      if (widgetId && window.turnstile?.remove) {
+        window.turnstile.remove(widgetId);
+      }
+      turnstileWidgetIdRef.current = undefined;
+    };
+  }, [hasTurnstileSiteKey, isLastBlock, turnstileScriptReady, turnstileSiteKey]);
 
   function handleLanguageSelect(lang: string) {
     setLanguage(lang);
@@ -569,11 +632,21 @@ export function PublicSurveyForm({
       return;
     }
 
+    if (!hasAcceptedLegal) {
+      setBlockError(copy.legalConsentRequired);
+      return;
+    }
+
     setBlockError(null);
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      await submitAction(formData);
+      try {
+        await submitAction(formData);
+      } catch (error) {
+        rethrowNextNavigationError(error);
+        setBlockError(copy.submitError);
+      }
     });
   }
 
@@ -609,6 +682,15 @@ export function PublicSurveyForm({
         <BlockDots count={blocks.length} current={currentBlock} />
 
         <form ref={formRef} onSubmit={handleSubmit} noValidate>
+          {turnstileSiteKey ? (
+            <Script
+              src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+              strategy="afterInteractive"
+              onLoad={() => {
+                setTurnstileScriptReady(true);
+              }}
+            />
+          ) : null}
           <input type="hidden" name="linkToken" value={linkToken} />
           <input type="hidden" name="submittedLanguage" value={language} />
 
@@ -656,6 +738,31 @@ export function PublicSurveyForm({
             />
           )}
 
+          {isLastBlock ? (
+            <label className="sf-legal-consent">
+              <input
+                type="checkbox"
+                name="legalConsentAccepted"
+                value="true"
+                checked={hasAcceptedLegal}
+                onChange={(event) => {
+                  setHasAcceptedLegal(event.target.checked);
+                  setBlockError(null);
+                }}
+              />
+              <span>
+                {copy.legalConsentLabel}{" "}
+                <Link href={appRoutes.privacy} target="_blank">
+                  {copy.legalConsentPrivacyLink}
+                </Link>
+                {" · "}
+                <Link href={appRoutes.cookies} target="_blank">
+                  {copy.legalConsentCookiesLink}
+                </Link>
+              </span>
+            </label>
+          ) : null}
+
           {blockError && (
             <div className="sf-error" role="alert">
               {blockError}
@@ -666,6 +773,11 @@ export function PublicSurveyForm({
             <span className="sf-nav__progress-text">
               {currentBlock + 1} / {blocks.length}
             </span>
+            {isLastBlock && turnstileSiteKey ? (
+              <div className="sf-turnstile">
+                <div ref={turnstileContainerRef} />
+              </div>
+            ) : null}
             <div className="sf-nav-btns">
               {currentBlock > 0 && (
                 <button

@@ -25,9 +25,6 @@ export default async function PublicSurveyThankYouPage({
     survey.supported_languages.includes(resolvedSearchParams.lang)
       ? resolvedSearchParams.lang
       : survey.default_language;
-  const bundle =
-    survey.definition_json.translations[selectedLanguage] ??
-    survey.definition_json.translations[survey.default_language];
   const copy = getPublicSurveyCopy(selectedLanguage);
 
   return (
@@ -39,9 +36,7 @@ export default async function PublicSurveyThankYouPage({
           <h1 className="sf-thankyou__title">{copy.thankYouTitle}</h1>
           <p className="sf-thankyou__sub">{copy.thankYouDescription}</p>
           <div className="sf-thankyou__card">
-            <h3>{bundle?.survey_title ?? survey.name}</h3>
             <p>{copy.thankYouBody}</p>
-            <p className="sf-thankyou__processing">{copy.thankYouProcessing}</p>
           </div>
         </div>
       </div>

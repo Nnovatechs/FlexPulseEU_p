@@ -16,8 +16,8 @@ async function handle(request: Request) {
   return NextResponse.json(result);
 }
 
-export async function GET() {
-  return new Response(null, { status: 404 });
+export async function GET(request: Request) {
+  return handle(request);
 }
 
 export async function POST(request: Request) {

@@ -2,10 +2,23 @@ import { NextResponse, type NextRequest } from "next/server";
 import { appRoutes } from "@/lib/config/routes";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const publicRoutes = new Set<string>(["/", appRoutes.login]);
+const publicRoutes = new Set<string>([
+  "/",
+  appRoutes.login,
+  appRoutes.privacy,
+  appRoutes.cookies,
+]);
+const internalJobRoutes = new Set<string>([
+  "/api/internal/process-jobs",
+  "/api/internal/cleanup-response-data",
+]);
 
 function isPublicSurveyRoute(pathname: string): boolean {
   return /^\/s\/[^/]+(?:\/thank-you)?\/?$/.test(pathname);
+}
+
+function isInternalJobRoute(pathname: string): boolean {
+  return internalJobRoutes.has(pathname);
 }
 
 function copyCookies(source: NextResponse, target: NextResponse): NextResponse {
@@ -22,6 +35,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     publicRoutes.has(pathname) ||
     pathname.startsWith("/auth") ||
+    isInternalJobRoute(pathname) ||
     isPublicSurveyRoute(pathname);
 
   if (!user && !isPublicRoute) {

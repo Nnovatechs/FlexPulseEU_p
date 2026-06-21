@@ -69,6 +69,24 @@ After applying `20260409120000`, verify Postgres exposes a single RPC overload:
 \df public.create_survey_response_with_job
 ```
 
+## Public survey legal consent rollout ordering
+
+When deploying persisted legal consent for public submissions, apply
+`20260621140000_add_public_survey_legal_consent.sql` before deploying the
+application version that sends the legal consent RPC parameters.
+
+This migration updates `survey_responses` and replaces
+`create_survey_response_with_job` with the consent-aware signature. Deploying the
+application first will cause public survey submissions to fail until the new RPC
+exists.
+
+After applying the migration, verify Postgres exposes a single consent-aware RPC
+overload:
+
+```sql
+\df public.create_survey_response_with_job
+```
+
 ## Future integrations
 
 Authentication, Supabase, and other external services should be added only after:

@@ -32,6 +32,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   background: linear-gradient(180deg, #fbfcfe 0%, var(--background) 55%, #f1f5fb 100%);
   color: var(--foreground);
   font-size: 15px;
@@ -3164,6 +3165,43 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   margin-top: 1rem;
 }
 
+.sf-turnstile {
+  display: flex;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 65px;
+  margin-left: auto;
+}
+
+.sf-legal-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-solid) 88%, transparent);
+  color: var(--muted-strong);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.sf-legal-consent input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.12rem;
+  accent-color: var(--foreground);
+  flex: 0 0 auto;
+}
+
+.sf-legal-consent a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 /* ── Navigation bar ──────────────────────────────────────── */
 
 .sf-nav {
@@ -3184,7 +3222,6 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .sf-nav-btns {
   display: flex;
   gap: 0.625rem;
-  margin-left: auto;
 }
 
 .sf-btn {
@@ -3321,6 +3358,61 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   margin-top: 0.2rem !important;
 }
 
+/* ── Legal pages ─────────────────────────────────────────── */
+
+.legal-page {
+  min-height: 100svh;
+  padding: 4rem 1.25rem;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 12%, transparent), transparent 30%),
+    var(--background);
+}
+
+.legal-card {
+  width: min(840px, 100%);
+  margin: 0 auto;
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-solid);
+  box-shadow: var(--shadow-sm);
+}
+
+.legal-eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legal-card h1 {
+  margin: 0 0 1rem;
+  color: var(--foreground);
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  letter-spacing: -0.04em;
+}
+
+.legal-card h2 {
+  margin: 1.8rem 0 0.5rem;
+  color: var(--foreground);
+  font-size: 1.05rem;
+}
+
+.legal-card p {
+  margin: 0.65rem 0;
+  color: var(--muted-strong);
+  line-height: 1.65;
+}
+
+.legal-card a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 480px) {
@@ -3352,6 +3444,36 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   .sf-btn {
     padding: 0.7rem 1.2rem;
     font-size: 0.875rem;
+  }
+
+  .sf-nav {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .sf-nav__progress-text {
+    width: 100%;
+  }
+
+  .sf-turnstile {
+    justify-content: center;
+    width: 100%;
+    margin-left: 0;
+    order: 2;
+  }
+
+  .sf-nav-btns {
+    width: 100%;
+    justify-content: flex-end;
+    order: 3;
+  }
+
+  .legal-page {
+    padding: 2rem 1rem;
+  }
+
+  .legal-card {
+    padding: 1.35rem;
   }
 
   .sf-thankyou__title {

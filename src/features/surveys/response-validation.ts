@@ -3,6 +3,8 @@ import type {
   SurveyLanguageCode,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { getLegalConfig, LEGAL_CONSENT_SOURCE } from "@/lib/config/legal";
+import { getPublicSurveyCopy } from "./public-copy";
 
 export type SubmittedSurveyAnswer =
   | string
@@ -16,6 +18,14 @@ export type ValidatedPublicSurveySubmission = {
   answers: Record<string, SubmittedSurveyAnswer>;
   countryCodeRaw: string | null;
   postalCodeRaw: string | null;
+  legalConsent: {
+    accepted: true;
+    statement: string;
+    consentVersion: string;
+    privacyNoticeVersion: string;
+    cookieNoticeVersion: string;
+    source: typeof LEGAL_CONSENT_SOURCE;
+  };
 };
 
 function isBlank(value: FormDataEntryValue | null) {
@@ -148,10 +158,25 @@ export function validatePublicSurveySubmission(
     throw new Error("Postal code is required for this survey.");
   }
 
+  if (String(formData.get("legalConsentAccepted") ?? "") !== "true") {
+    throw new Error("Privacy information acceptance is required.");
+  }
+
+  const legal = getLegalConfig();
+  const copy = getPublicSurveyCopy(submittedLanguage);
+
   return {
     submittedLanguage,
     answers,
     countryCodeRaw,
     postalCodeRaw,
+    legalConsent: {
+      accepted: true,
+      statement: copy.legalConsentLabel,
+      consentVersion: legal.consentVersion,
+      privacyNoticeVersion: legal.privacyNoticeVersion,
+      cookieNoticeVersion: legal.cookieNoticeVersion,
+      source: LEGAL_CONSENT_SOURCE,
+    },
   };
 }

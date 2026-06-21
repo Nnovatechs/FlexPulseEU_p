@@ -51,6 +51,7 @@ export default async function PublicSurveyLinkPage({
           allBundles={allBundles}
           allCopy={allCopy}
           responseContext={responseContext}
+          turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
           submitAction={submitPublicSurveyResponseAction}
         />
       ) : (

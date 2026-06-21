@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
+import { verifyTurnstileToken } from "@/lib/server/turnstile";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
@@ -17,6 +18,8 @@ export async function submitPublicSurveyResponseAction(
   if (!linkToken) {
     throw new Error("Missing survey link token.");
   }
+
+  await verifyTurnstileToken(String(formData.get("cf-turnstile-response") ?? ""));
 
   const link = await getPublicSurveyLinkByToken(linkToken);
   if (!link) {
@@ -37,6 +40,7 @@ export async function submitPublicSurveyResponseAction(
     answers: validated.answers,
     countryCodeRaw: validated.countryCodeRaw,
     postalCodeRaw: validated.postalCodeRaw,
+    legalConsent: validated.legalConsent,
   });
 
   const target = new URLSearchParams();

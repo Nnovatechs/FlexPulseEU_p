@@ -104,6 +104,17 @@ function validateBlock(
   return null;
 }
 
+function rethrowNextNavigationError(error: unknown) {
+  const digest =
+    error && typeof error === "object" && "digest" in error
+      ? String((error as { digest?: unknown }).digest ?? "")
+      : "";
+
+  if (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND")) {
+    throw error;
+  }
+}
+
 // ─── Sub-components ────────────────────────────────────────────────────────
 
 function LanguagePickerScreen({
@@ -510,23 +521,11 @@ export function PublicSurveyForm({
     blocks.length === 1 ? 100 : Math.round((currentBlock / (blocks.length - 1)) * 100);
 
   useEffect(() => {
-    console.info("[FlexPulseEU] Turnstile config", {
-      hasSiteKey: hasTurnstileSiteKey,
-      isLastBlock,
-    });
-  }, [hasTurnstileSiteKey, isLastBlock]);
-
-  useEffect(() => {
     if (!hasTurnstileSiteKey || !turnstileSiteKey || !isLastBlock) {
       return;
     }
 
     if (!turnstileScriptReady || !window.turnstile?.render || !turnstileContainerRef.current) {
-      console.info("[FlexPulseEU] Turnstile waiting to render", {
-        scriptReady: turnstileScriptReady,
-        hasApi: Boolean(window.turnstile?.render),
-        hasContainer: Boolean(turnstileContainerRef.current),
-      });
       return;
     }
 
@@ -541,9 +540,6 @@ export function PublicSurveyForm({
         theme: "light",
       },
     );
-    console.info("[FlexPulseEU] Turnstile rendered", {
-      hasWidgetId: Boolean(turnstileWidgetIdRef.current),
-    });
 
     return () => {
       const widgetId = turnstileWidgetIdRef.current;
@@ -647,7 +643,8 @@ export function PublicSurveyForm({
     startTransition(async () => {
       try {
         await submitAction(formData);
-      } catch {
+      } catch (error) {
+        rethrowNextNavigationError(error);
         setBlockError(copy.submitError);
       }
     });
@@ -690,11 +687,7 @@ export function PublicSurveyForm({
               src="https://challenges.cloudflare.com/turnstile/v0/api.js"
               strategy="afterInteractive"
               onLoad={() => {
-                console.info("[FlexPulseEU] Turnstile script loaded");
                 setTurnstileScriptReady(true);
-              }}
-              onError={() => {
-                console.error("[FlexPulseEU] Turnstile script failed to load");
               }}
             />
           ) : null}

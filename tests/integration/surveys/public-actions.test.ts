@@ -108,6 +108,12 @@ describe("public survey submission action", () => {
       expect.objectContaining({
         submittedLanguage: fixture.language,
         answers: { Q_TEST_01: "opt_2" },
+        legalConsent: expect.objectContaining({
+          accepted: true,
+          statement:
+            "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+          source: "public_survey_form",
+        }),
         survey: expect.objectContaining({
           mapping_hash: "mapping-hash",
           measurement_hash: "measurement-hash-v1",

@@ -42,7 +42,8 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodePlaceholder: "e.g. 08001",
     submitLabel: "Submit",
     submitError: "We couldn't submit your response. Please reload and try again.",
-    legalConsentLabel: "I have read and accept the privacy information and cookie notice.",
+    legalConsentLabel:
+      "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
     legalConsentPrivacyLink: "Privacy information",
     legalConsentCookiesLink: "Cookie notice",
     legalConsentRequired: "Please accept the privacy information before submitting.",
@@ -72,7 +73,8 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     postalCodePlaceholder: "p. ej. 08001",
     submitLabel: "Enviar",
     submitError: "No hemos podido enviar tu respuesta. Recarga la página e inténtalo de nuevo.",
-    legalConsentLabel: "He leído y acepto la información de privacidad y el aviso de cookies.",
+    legalConsentLabel:
+      "He leído la información de privacidad y el aviso de cookies, y consiento el tratamiento de mi respuesta para las finalidades indicadas.",
     legalConsentPrivacyLink: "Información de privacidad",
     legalConsentCookiesLink: "Aviso de cookies",
     legalConsentRequired: "Debes aceptar la información de privacidad antes de enviar.",
@@ -104,7 +106,7 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     submitError:
       "Nous n'avons pas pu envoyer votre réponse. Rechargez la page et réessayez.",
     legalConsentLabel:
-      "J'ai lu et j'accepte les informations de confidentialité et l'avis relatif aux cookies.",
+      "J'ai lu les informations de confidentialité et l'avis relatif aux cookies, et je consens au traitement de ma réponse aux fins indiquées.",
     legalConsentPrivacyLink: "Informations de confidentialité",
     legalConsentCookiesLink: "Avis relatif aux cookies",
     legalConsentRequired:
@@ -137,7 +139,7 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     submitLabel: "Pošalji",
     submitError: "Nismo mogli poslati vaš odgovor. Osvježite stranicu i pokušajte ponovno.",
     legalConsentLabel:
-      "Pročitao/la sam i prihvaćam informacije o privatnosti i obavijest o kolačićima.",
+      "Pročitao/la sam informacije o privatnosti i obavijest o kolačićima te pristajem na obradu svog odgovora u navedene svrhe.",
     legalConsentPrivacyLink: "Informacije o privatnosti",
     legalConsentCookiesLink: "Obavijest o kolačićima",
     legalConsentRequired: "Prihvatite informacije o privatnosti prije slanja.",

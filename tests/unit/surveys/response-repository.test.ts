@@ -48,6 +48,18 @@ function createSurveyLinkFixture(): PersistedSurveyLink {
   };
 }
 
+function createLegalConsentFixture() {
+  return {
+    accepted: true as const,
+    statement:
+      "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+    consentVersion: "d2-2026-06-21",
+    privacyNoticeVersion: "d2-2026-06-21",
+    cookieNoticeVersion: "d2-2026-06-21",
+    source: "public_survey_form" as const,
+  };
+}
+
 describe("survey response repository", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -80,6 +92,7 @@ describe("survey response repository", () => {
         },
         countryCodeRaw: "ES",
         postalCodeRaw: "28001",
+        legalConsent: createLegalConsentFixture(),
       }),
     ).resolves.toEqual({ responseId: "response-1" });
 
@@ -95,6 +108,13 @@ describe("survey response repository", () => {
       p_raw_location_retention_until: "2026-05-24T12:00:00.000Z",
       p_mapping_hash_at_submission: "mapping-hash",
       p_measurement_hash_at_submission: "measurement-hash",
+      p_legal_consent_accepted: true,
+      p_legal_consent_statement:
+        "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+      p_legal_consent_version: "d2-2026-06-21",
+      p_legal_privacy_notice_version: "d2-2026-06-21",
+      p_legal_cookie_notice_version: "d2-2026-06-21",
+      p_legal_consent_source: "public_survey_form",
     });
   });
 
@@ -117,6 +137,7 @@ describe("survey response repository", () => {
         answers: {},
         countryCodeRaw: null,
         postalCodeRaw: null,
+        legalConsent: createLegalConsentFixture(),
       }),
     ).rejects.toThrow(
       "Failed to create survey response and enqueue job: function not found",

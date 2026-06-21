@@ -40,6 +40,7 @@ export async function submitPublicSurveyResponseAction(
     answers: validated.answers,
     countryCodeRaw: validated.countryCodeRaw,
     postalCodeRaw: validated.postalCodeRaw,
+    legalConsent: validated.legalConsent,
   });
 
   const target = new URLSearchParams();

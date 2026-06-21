@@ -14,6 +14,9 @@ export default function CookiesPage() {
           similar technologies needed to run the application, protect submissions,
           and maintain secure sessions where applicable.
         </p>
+        <p>
+          Cookie notice version: <strong>{legal.cookieNoticeVersion}</strong>.
+        </p>
 
         <section>
           <h2>Necessary cookies</h2>
@@ -21,6 +24,11 @@ export default function CookiesPage() {
             Necessary cookies may be used for authentication, security, routing,
             deployment protection, and basic application functionality. They are
             not used for advertising.
+          </p>
+          <p>
+            These technologies support requested application functionality and
+            secure operation. FlexPulseEU does not intentionally use advertising,
+            marketing, or cross-site profiling cookies in this D2 deployment.
           </p>
         </section>
 
@@ -31,6 +39,11 @@ export default function CookiesPage() {
             legitimate visitors from automated abuse. Cloudflare may process
             technical signals needed to provide that security check.
           </p>
+          <p>
+            Turnstile is treated as a security measure for protecting public
+            submission forms from automated abuse. If Turnstile is not configured
+            for a deployment, this section does not apply to that deployment.
+          </p>
         </section>
 
         <section>
@@ -39,6 +52,16 @@ export default function CookiesPage() {
             This stage does not intentionally use advertising cookies or
             respondent-facing marketing trackers. If optional analytics are added
             later, this notice should be updated before use.
+          </p>
+        </section>
+
+        <section>
+          <h2>Cookie banner</h2>
+          <p>
+            This deployment does not show a separate cookie banner because it does
+            not intentionally use optional advertising, marketing, or behavioural
+            analytics cookies. If non-essential cookies or trackers are introduced
+            later, a consent mechanism should be added before they are enabled.
           </p>
         </section>
 

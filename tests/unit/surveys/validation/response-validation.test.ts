@@ -73,6 +73,12 @@ describe("public survey submission validation", () => {
       answers: {
         Q_TEST_01: "opt_2",
       },
+      legalConsent: {
+        accepted: true,
+        statement:
+          "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+        source: "public_survey_form",
+      },
     });
   });
 

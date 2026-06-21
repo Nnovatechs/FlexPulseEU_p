@@ -1,6 +1,9 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
-import type { SubmittedSurveyAnswer } from "./response-validation";
+import type {
+  SubmittedSurveyAnswer,
+  ValidatedPublicSurveySubmission,
+} from "./response-validation";
 
 type CreateSurveyResponseInput = {
   survey: PersistedSurvey;
@@ -9,6 +12,7 @@ type CreateSurveyResponseInput = {
   answers: Record<string, SubmittedSurveyAnswer>;
   countryCodeRaw: string | null;
   postalCodeRaw: string | null;
+  legalConsent: ValidatedPublicSurveySubmission["legalConsent"];
 };
 
 function buildRawLocationRetentionUntil() {
@@ -37,6 +41,12 @@ export async function createSurveyResponseAndEnqueueJob(
         : null,
       p_mapping_hash_at_submission: input.survey.mapping_hash,
       p_measurement_hash_at_submission: input.survey.measurement_hash ?? null,
+      p_legal_consent_accepted: input.legalConsent.accepted,
+      p_legal_consent_statement: input.legalConsent.statement,
+      p_legal_consent_version: input.legalConsent.consentVersion,
+      p_legal_privacy_notice_version: input.legalConsent.privacyNoticeVersion,
+      p_legal_cookie_notice_version: input.legalConsent.cookieNoticeVersion,
+      p_legal_consent_source: input.legalConsent.source,
     },
   );
 

@@ -121,6 +121,20 @@ function finalizeRow(row: SyntheticCohortEvalRow) {
   expect(row.failures, row.purpose).toEqual([]);
 }
 
+function contradictionMetrics() {
+  const row = reportRows.find((candidate) => candidate.check_id === "contradiction_recovery");
+  const checks = row?.checks ?? 0;
+  const matches = row?.matches ?? 0;
+  const failures = Math.max(0, checks - matches);
+
+  return {
+    contradiction_checks: checks,
+    contradiction_failures: failures,
+    contradiction_rate: checks === 0 ? 0 : failures / checks,
+    contradiction_recovery_rate: checks === 0 ? 1 : matches / checks,
+  };
+}
+
 describe("survey synthetic cohort profiling evals", () => {
   const dataset = buildSyntheticCohortDataset();
   const schema = buildSurveyAnalyticsSchema({
@@ -186,6 +200,7 @@ describe("survey synthetic cohort profiling evals", () => {
           respondent_count: dataset.rows.length,
           archetype_count: syntheticCohortArchetypes.length,
           ...summarizeProfilingEvalRows(reportRows),
+          ...contradictionMetrics(),
           rows: reportRows,
         },
         null,
@@ -271,10 +286,10 @@ describe("survey synthetic cohort profiling evals", () => {
     finalizeRow(row);
   });
 
-  it("recovers seeded ranking and contradictory facet signals", () => {
+  it("recovers seeded cohort ranking", () => {
     const row: SyntheticCohortEvalRow = {
-      check_id: "ranking_and_contradiction_recovery",
-      purpose: "Verify strong cohort ordering and contradictory profile facets are visible.",
+      check_id: "ranking_recovery",
+      purpose: "Verify strong cohort ordering is visible after mapping and profiling.",
       checks: 0,
       matches: 0,
       failures: [],
@@ -284,18 +299,6 @@ describe("survey synthetic cohort profiling evals", () => {
     const controlTrust = metricValue(cohortQueryResult, "control_protective", "avg_trust");
     const derEvShare = metricValue(cohortQueryResult, "der_engaged", "ev_asset_share");
     const neutralEvShare = metricValue(cohortQueryResult, "neutral_mainstream", "ev_asset_share");
-    const contradictoryReliability = directFacetAverageByArchetype(
-      dataset.rows,
-      "contradictory",
-      "trust_in_automation",
-      "reliability",
-    );
-    const contradictoryControl = directFacetAverageByArchetype(
-      dataset.rows,
-      "contradictory",
-      "trust_in_automation",
-      "control_concern",
-    );
 
     addCheck(
       row,
@@ -309,6 +312,33 @@ describe("survey synthetic cohort profiling evals", () => {
       derEvShare != null && neutralEvShare != null && derEvShare - neutralEvShare >= 0.5,
       `der ${derEvShare}, neutral ${neutralEvShare}`,
     );
+
+    finalizeRow(row);
+  });
+
+  it("recovers contradictory facet signals", () => {
+    const row: SyntheticCohortEvalRow = {
+      check_id: "contradiction_recovery",
+      purpose:
+        "Measure residual contradiction failures for seeded mixed trust/control signals.",
+      checks: 0,
+      matches: 0,
+      failures: [],
+      status: "fail",
+    };
+    const contradictoryReliability = directFacetAverageByArchetype(
+      dataset.rows,
+      "contradictory",
+      "trust_in_automation",
+      "reliability",
+    );
+    const contradictoryControl = directFacetAverageByArchetype(
+      dataset.rows,
+      "contradictory",
+      "trust_in_automation",
+      "control_concern",
+    );
+
     addCheck(
       row,
       "contradictory reliability facet remains high",

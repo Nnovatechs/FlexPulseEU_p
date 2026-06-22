@@ -2,7 +2,7 @@
 
 ## About this document
 
-This note presents three candidate publication directions we have been exploring based on the FlexPulse-EU work. 
+This note presents three candidate publication directions we have been exploring based on the FlexPulse-EU work.
 
 These topics are exploratory at this stage. They are based on our own development work — the agent orchestration, system architecture, behavioural schema, and validation methodology built within the project — together with the public scope information from the O-CEI open call.
 

@@ -2,9 +2,9 @@
 
 **License:** Apache-2.0
 
-FlexPulse-EU is an O-CEI Open Call project for Pilot 1 / Challenge P1C2. This repository contains the open-source Stage 2 technical components developed for D2: schema-driven survey generation, semantic response mapping, behavioural profiling, and analytics-ready aggregation.
+FlexPulse-EU is an O-CEI Open Call project for Pilot 1 / Challenge P1C2. This repository contains the open-source Stage 2 FlexPulse-EU implementation: the web application, database schema, survey generation workflow, publication and response-collection pipeline, semantic mapping, behavioural profiling, analytics-ready aggregation, validation harnesses, and supporting operational modules.
 
-The hosted D2 deployment is the reference execution environment. This repository is intended to make the implemented pipeline reviewable, reproducible at code level, and auditable through tests and validation fixtures without exposing hosted secrets or managed infrastructure configuration.
+The hosted Stage 2 deployment is the reference execution environment for D2 review. This repository makes the implemented system reviewable, auditable and reproducible at code level, while excluding only hosted secrets, managed infrastructure state, private operational notes and non-public data.
 
 ## Project Context
 
@@ -24,13 +24,26 @@ This repository includes the project-specific application code, contracts, tests
 - Deterministic runtime response mapping and profiling modules.
 - Unit, integration, synthetic cohort, and evaluation tests supporting the D2 validation evidence.
 
-## D2 Scope
+## Current Implementation Scope
 
-The D2 implementation covers three main technical areas:
+The current Stage 2 implementation includes the main technical capabilities required for the D2 prototype milestone:
 
-- **Survey generation:** agentic generation flow, methodology constraints, content validation, translation support, and publication checks.
-- **Semantic mapping:** frozen measurement plans and mapping contracts, response enrichment, transform strategies, polarity handling, threshold tags, and mapper outputs.
-- **Profiling and aggregation:** behavioural profile construction, evidence levels, cohort analytics, schema-driven filters, and privacy-aware aggregation thresholds.
+- Authenticated survey-management workflow for creating, reviewing, validating and publishing behavioural surveys.
+- Schema-driven survey generation through behavioural concept selection, measurement planning and survey writing.
+- Validation, translation and multilingual review support for generated survey artefacts.
+- Controlled public survey publication and response collection through stable public links.
+- Server-side response persistence, processing-job creation and consent accountability metadata.
+- Context enrichment and preparation of submitted responses for downstream processing.
+- Deterministic semantic mapping using frozen measurement plans and mapping contracts.
+- Behavioural profiling, scoring, descriptor generation and cohort-level aggregation.
+- Analytics-facing outputs and schema-driven filtering/grouping logic.
+- Unit, integration, synthetic cohort and model-backed evaluation harnesses supporting D2 validation evidence.
+
+For D2 review, the implementation is assessed mainly through three Technical Performance Indicator areas:
+
+- **Survey generation:** schema-driven generation, methodology constraints, validation gates, translation support and publication checks.
+- **Semantic mapping:** frozen measurement plans and mapping contracts, response enrichment, transform strategies, polarity handling, threshold tags and mapper outputs.
+- **Profiling and aggregation:** behavioural profile construction, evidence levels, cohort analytics, schema-driven filters and privacy-aware aggregation thresholds.
 
 The Stage 2 scope is a controlled hosted prototype. It demonstrates an integrated workflow from survey design to analytics-ready behavioural outputs, but it is not a final multi-site pilot deployment.
 

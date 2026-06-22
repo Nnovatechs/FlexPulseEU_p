@@ -2,7 +2,7 @@
   "name": "flexpulseeu",
   "version": "0.1.0",
   "private": true,
-  "description": "Foundation repository for FlexPulseEU with secure defaults, governance, and quality checks.",
+  "description": "FlexPulse-EU D2 Stage 2 prototype for survey generation, semantic mapping, profiling, and analytics.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

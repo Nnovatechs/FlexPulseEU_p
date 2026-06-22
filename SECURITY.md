@@ -2,11 +2,20 @@
 
 ## Scope
 
-This repository is currently private and in its foundation phase. Security still applies from day one:
+This repository is prepared for public review of the FlexPulse-EU D2 Stage 2
+technical prototype. It contains application code, migrations, tests, and
+validation fixtures, but it must not contain hosted secrets, production datasets,
+or private operational notes.
 
-- do not commit secrets, API keys, tokens, or private certificates
-- keep real credentials only in local or platform-managed environment variables
-- treat future third-party integrations as server-side by default unless explicitly designed to be public
+Security expectations:
+
+- do not commit secrets, API keys, tokens, private certificates, or real `.env`
+  files
+- keep production credentials only in platform-managed environment variables
+- keep Supabase service-role access, OpenAI calls, cron workers, and other
+  sensitive integrations server-side
+- treat `docs/internal/` and unpublished reporting material as private unless
+  explicitly reviewed for publication
 
 ## Reporting a vulnerability
 
@@ -22,7 +31,7 @@ When reporting, include:
 
 ## Repository protections
 
-The intended repository policy is:
+The intended public-repository policy is:
 
 - no direct pushes to `main`
 - changes merged via Pull Request only
@@ -33,4 +42,9 @@ The intended repository policy is:
 
 - `.env.example` documents placeholders only
 - `.env*` files with real values must stay untracked
-- future providers such as Supabase must be integrated with least-privilege credentials and clear client/server separation
+- Supabase, OpenAI, Turnstile, cron, and internal worker secrets must be managed
+  outside Git
+- public survey worker routes are protected by shared secrets and must be tested
+  with production-like platform environment variables before broad use
+- legal disclosure variables such as controller name and contact email should be
+  configured before deploying public legal pages

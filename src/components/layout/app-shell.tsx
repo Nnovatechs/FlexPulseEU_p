@@ -13,14 +13,6 @@ const navItems: NavItem[] = [
     href: appRoutes.dashboard,
     label: "Surveys",
   },
-  {
-    href: appRoutes.surveys,
-    label: "Library",
-  },
-  {
-    href: appRoutes.surveyNew,
-    label: "New survey",
-  },
 ];
 
 type AppShellProps = {

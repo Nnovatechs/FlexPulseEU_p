@@ -31,34 +31,22 @@ export default async function DashboardPage() {
             hint: "Current portfolio",
           },
           {
-            label: "Published",
+            label: "Surveys published",
             value: String(metrics.publishedSurveys),
             hint: "Published definitions",
-          },
-          {
-            label: "Drafts",
-            value: String(metrics.draftSurveys),
-            hint: "Editable surveys",
           },
           {
             label: "Questions",
             value: String(metrics.totalQuestions),
             hint: "Across all drafts and published surveys",
           },
+          {
+            label: "Questions answered",
+            value: String(metrics.questionsAnswered),
+            hint: "Individual answers collected from submissions",
+          },
         ]}
       />
-
-      <section className="workspace-strip">
-        <div className="workspace-strip__copy">
-          <h2>Survey workspace</h2>
-          <p>Create a new survey or continue refining an existing one.</p>
-        </div>
-        <div className="workspace-strip__actions">
-          <Link href={appRoutes.surveyNew} className="button button--primary">
-            New survey
-          </Link>
-        </div>
-      </section>
 
       <SurveyList surveys={surveys} />
     </div>

@@ -1,4 +1,5 @@
 import { requireCurrentSession } from "@/lib/auth/session";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   CreateSurveyDraftInput,
@@ -300,6 +301,51 @@ export async function publishSurvey(surveyId: string): Promise<PersistedSurvey> 
 
   if (error) {
     throw new Error(`Failed to publish survey: ${error.message}`);
+  }
+
+  return mapSurveyRow(data as SurveyRow);
+}
+
+export async function deleteOwnedSurveyDraft(surveyId: string): Promise<void> {
+  const session = await requireCurrentSession();
+  const existing = await getOwnedSurveyById(surveyId);
+
+  if (existing.status !== "draft") {
+    throw new Error("Only draft surveys can be deleted.");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("surveys")
+    .delete()
+    .eq("id", surveyId)
+    .eq("created_by", session.user.id)
+    .eq("status", "draft");
+
+  if (error) {
+    throw new Error(`Failed to delete survey: ${error.message}`);
+  }
+}
+
+export async function archiveOwnedSurvey(surveyId: string): Promise<PersistedSurvey> {
+  const existing = await getOwnedSurveyById(surveyId);
+
+  if (existing.status !== "published") {
+    throw new Error("Only published surveys can be archived.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("surveys")
+    .update({ status: "archived" })
+    .eq("id", surveyId)
+    .eq("created_by", existing.created_by)
+    .eq("status", "published")
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to archive survey: ${error.message}`);
   }
 
   return mapSurveyRow(data as SurveyRow);

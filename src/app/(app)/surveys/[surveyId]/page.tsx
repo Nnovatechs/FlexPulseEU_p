@@ -29,6 +29,11 @@ export default async function SurveyDetailPage({
           This survey has already been published and can no longer be edited.
         </div>
       ) : null}
+      {survey.status === "Archived" ? (
+        <div className="notice notice--warning" role="status">
+          This survey has been archived and is hidden from the workspace list.
+        </div>
+      ) : null}
       <PageHeader
         eyebrow="Survey detail"
         title={survey.title}

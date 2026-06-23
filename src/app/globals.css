@@ -138,6 +138,55 @@ textarea {
   gap: 0.75rem;
 }
 
+.icon-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.icon-action-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.icon-action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.icon-action-button--danger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.16);
+}
+
+.icon-action-button--danger:hover:not(:disabled) {
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.28);
+  color: #912018;
+}
+
+.icon-action-button--archive {
+  color: #b54708;
+  border-color: rgba(181, 71, 8, 0.16);
+}
+
+.icon-action-button--archive:hover:not(:disabled) {
+  background: rgba(181, 71, 8, 0.08);
+  border-color: rgba(181, 71, 8, 0.28);
+  color: #93370d;
+}
+
 .page-stack {
   display: flex;
   flex-direction: column;

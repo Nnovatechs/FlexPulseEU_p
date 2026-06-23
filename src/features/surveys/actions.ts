@@ -15,6 +15,8 @@ import {
   getOwnedSurveyById,
   updateSurveyDraft,
   publishSurvey,
+  deleteOwnedSurveyDraft,
+  archiveOwnedSurvey,
 } from "./generator-repository";
 import type {
   MultilingualValidationIssue,
@@ -508,4 +510,39 @@ export async function publishSurveyAction(formData: FormData): Promise<void> {
   revalidatePath(appRoutes.dashboard);
 
   redirect(`${appRoutes.surveyDetail(surveyId)}?published=1`);
+}
+
+// ---------------------------------------------------------------------------
+// Survey lifecycle
+// ---------------------------------------------------------------------------
+
+export async function deleteSurveyDraftAction(formData: FormData): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+
+  await deleteOwnedSurveyDraft(surveyId);
+
+  revalidatePath(appRoutes.dashboard);
+  revalidatePath(appRoutes.surveys);
+
+  redirect(appRoutes.dashboard);
+}
+
+export async function archiveSurveyAction(formData: FormData): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+
+  await archiveOwnedSurvey(surveyId);
+
+  revalidatePath(appRoutes.dashboard);
+  revalidatePath(appRoutes.surveys);
+  revalidatePath(appRoutes.surveyDetail(surveyId));
+
+  redirect(appRoutes.dashboard);
 }

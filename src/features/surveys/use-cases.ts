@@ -1,4 +1,6 @@
+import { unstable_cache } from "next/cache";
 import { appRoutes } from "@/lib/config/routes";
+import { requireCurrentSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getOwnedDefaultSurveyLink,
@@ -12,12 +14,19 @@ import {
   runSurveyAnalyticsQuery,
   type SurveyAnalyticsQueryInput,
 } from "./survey-analytics";
-import { loadOwnedSurveyAnalyticsRuntime } from "./survey-analytics-repository";
+import { loadOwnedSurveyAnalyticsRuntimeSnapshot } from "./survey-analytics-repository";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
 } from "./public-survey-load";
 import { Survey } from "./types";
+
+const loadCachedSurveyAnalyticsRuntime = unstable_cache(
+  async (surveyId: string, ownerId: string) =>
+    loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, ownerId),
+  ["owned-survey-analytics-runtime"],
+  { revalidate: 60 },
+);
 
 function formatQuestionType(value: string) {
   return value.replaceAll("_", " ");
@@ -347,7 +356,8 @@ export async function getSurveyAnalyticsPageData(surveyId: string) {
 }
 
 async function loadSurveyAnalyticsContext(surveyId: string) {
-  const runtime = await loadOwnedSurveyAnalyticsRuntime(surveyId);
+  const session = await requireCurrentSession();
+  const runtime = await loadCachedSurveyAnalyticsRuntime(surveyId, session.user.id);
   const schema = buildSurveyAnalyticsSchema({
     survey: runtime.survey,
     readyResponseCount: runtime.rows.length,

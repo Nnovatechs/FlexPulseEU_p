@@ -3617,11 +3617,12 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   position: sticky;
   top: 0;
   max-height: 100vh;
-  overflow-y: auto;
+  overflow: visible;
   background: var(--an-bg);
   border-right: 1px solid var(--an-border);
   display: flex;
   flex-direction: column;
+  z-index: 30;
   scrollbar-width: thin;
   scrollbar-color: var(--an-border) transparent;
 }
@@ -3652,7 +3653,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 /* ── Filter rail ─────────────────────────────────────────────── */
 
 .analytics-filter-rail {
-  padding: 0.9rem 1rem 0.75rem;
+  padding: 0.9rem 1rem 1.8rem;
   border-bottom: 1px solid var(--an-border);
   flex: 1;
 }
@@ -3694,6 +3695,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .analytics-filter-option {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: 1.8rem;
@@ -3718,6 +3720,28 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   background: var(--an-accent-soft);
   border-color: rgba(91, 156, 246, 0.44);
   color: var(--an-accent);
+}
+
+.analytics-filter-option[data-tooltip]:hover::after,
+.analytics-filter-option[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.5rem);
+  z-index: 40;
+  width: min(16rem, 72vw);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 4px;
+  background: #111111;
+  color: var(--an-text);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 .analytics-shell .analytics-filter-form select,
@@ -4082,7 +4106,9 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .analytics-shell .radar-card__header p {
-  color: var(--an-accent);
+  color: var(--an-muted-strong);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
 }
 
 .analytics-shell .radar-series--baseline {
@@ -4104,6 +4130,30 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   stroke-width: 2px;
 }
 
+.analytics-shell .radar-series--tertiary {
+  fill: rgba(245, 166, 35, 0.08);
+  stroke: #f5a623;
+  stroke-width: 2px;
+}
+
+.analytics-shell .radar-series--quaternary {
+  fill: rgba(171, 120, 255, 0.08);
+  stroke: #ab78ff;
+  stroke-width: 2px;
+}
+
+.analytics-shell .radar-series--quinary {
+  fill: rgba(78, 205, 196, 0.08);
+  stroke: #4ecdc4;
+  stroke-width: 2px;
+}
+
+.analytics-shell .radar-series--senary {
+  fill: rgba(232, 82, 82, 0.07);
+  stroke: #e85252;
+  stroke-width: 2px;
+}
+
 .analytics-shell .radar-dot.radar-series--baseline {
   background: #a8a8a8;
   width: 5px;
@@ -4118,6 +4168,30 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 
 .analytics-shell .radar-dot.radar-series--secondary {
   background: #3ecf7c;
+  width: 6px;
+  height: 6px;
+}
+
+.analytics-shell .radar-dot.radar-series--tertiary {
+  background: #f5a623;
+  width: 6px;
+  height: 6px;
+}
+
+.analytics-shell .radar-dot.radar-series--quaternary {
+  background: #ab78ff;
+  width: 6px;
+  height: 6px;
+}
+
+.analytics-shell .radar-dot.radar-series--quinary {
+  background: #4ecdc4;
+  width: 6px;
+  height: 6px;
+}
+
+.analytics-shell .radar-dot.radar-series--senary {
+  background: #e85252;
   width: 6px;
   height: 6px;
 }

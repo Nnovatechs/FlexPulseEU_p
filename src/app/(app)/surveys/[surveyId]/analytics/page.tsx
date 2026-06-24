@@ -68,7 +68,31 @@ type SurveyAnalyticsPageProps = {
 type FilterOption = {
   value: string;
   label: string;
+  description?: string;
 };
+
+const ARCHETYPE_DESCRIPTIONS: Record<string, string> = {
+  automation_ready:
+    "High trust in automation, high willingness to flex demand, and low comfort rigidity. Usually the easiest cohort for automated flexibility offers.",
+  control_protective:
+    "Low trust, low flexibility willingness, and high need for direct control. This cohort needs opt-outs, manual control, and strong reassurance.",
+  price_optimizer:
+    "Savings-led respondents with high flexibility and moderate trust. Price signals and clear bill impact are the strongest hooks.",
+  comfort_first:
+    "Comfort-protective households with low tolerance for temperature or routine disruption. Automation needs strict comfort guarantees.",
+  neutral_mainstream:
+    "Centrist baseline cohort with mostly mid-scale answers. Useful as the reference group for comparing stronger behavioural signals.",
+  der_engaged:
+    "Asset-rich DER users with practical familiarity and high flexibility. Often more ready for advanced flexibility propositions.",
+  contradictory:
+    "Respondents who trust technical reliability but still feel discomfort with autonomous control. Good for spotting messaging or control-design tension.",
+  partial_sparse:
+    "Sparse or incomplete responses used to test evidence thresholds and null handling. Treat as directional, not a strong product signal.",
+};
+
+function getArchetypeDescription(value: string) {
+  return ARCHETYPE_DESCRIPTIONS[value] ?? null;
+}
 
 function humanizeFilterLabel(value: string) {
   const normalized = value.replace(/[_-]+/g, " ").trim();
@@ -147,6 +171,8 @@ function FilterOptionGroup({
               href={buildFilterHref(searchParams, name, isActive ? "" : option.value)}
               className={`analytics-filter-option${isActive ? " is-active" : ""}`}
               aria-current={isActive ? "true" : undefined}
+              title={option.description}
+              data-tooltip={option.description}
             >
               {humanizeFilterLabel(option.label)}
             </Link>
@@ -887,6 +913,14 @@ function RadarViewCard({
   segmentField: SurveyAnalyticsFieldDefinition | null;
 }) {
   const visibleFields = fields.slice(0, MAX_RADAR_AXES);
+  const segmentSeriesClasses = [
+    "radar-series--accent",
+    "radar-series--secondary",
+    "radar-series--tertiary",
+    "radar-series--quaternary",
+    "radar-series--quinary",
+    "radar-series--senary",
+  ];
   const series = [
     baselineRow
       ? {
@@ -900,10 +934,9 @@ function RadarViewCard({
       .filter((row) => !row.evidence.suppress_detail)
       .slice()
       .sort((left, right) => (right.response_count ?? 0) - (left.response_count ?? 0))
-      .slice(0, 2)
       .map((row, index) => ({
         label: getGroupLabel(row, segmentField?.key ?? ""),
-        colorClass: index === 0 ? "radar-series--accent" : "radar-series--secondary",
+        colorClass: segmentSeriesClasses[index % segmentSeriesClasses.length],
         row,
         responses: row.response_count ?? 0,
       })),
@@ -922,6 +955,10 @@ function RadarViewCard({
   const cy = 190;
   const radius = 118;
   const levels = [0.25, 0.5, 0.75, 1];
+  const comparisonLabel =
+    segmentField?.key === "context.country_code"
+      ? "countries"
+      : `${getSegmentFieldLabel(segmentField)} groups`;
 
   if (visibleFields.length < 3 || series.length < 2) {
     return (
@@ -941,8 +978,7 @@ function RadarViewCard({
         <div>
           <h2>Radar view</h2>
           <p>
-            Baseline vs top {Math.min(2, series.length - 1)} {getSegmentFieldLabel(segmentField)} groups
-            across the main profile axes.
+            Baseline vs all {comparisonLabel} across the main profile axes.
             {fields.length > MAX_RADAR_AXES ? ` Showing first ${MAX_RADAR_AXES} axes.` : ""}
           </p>
         </div>
@@ -1164,7 +1200,10 @@ export default async function SurveyAnalyticsPage({
     ? optionsFromRows(countryBreakdown?.result.groups ?? [], countryField.key)
     : [];
   const audienceOptions = audienceField
-    ? optionsFromRows(audienceBreakdown?.result.groups ?? [], audienceField.key)
+    ? optionsFromRows(audienceBreakdown?.result.groups ?? [], audienceField.key).map((option) => ({
+        ...option,
+        description: getArchetypeDescription(option.value) ?? undefined,
+      }))
     : [];
   const languageOptions = languageField
     ? optionsFromRows(languageBreakdown?.result.groups ?? [], languageField.key)

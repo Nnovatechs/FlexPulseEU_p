@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getOwnedSurveyById } from "./generator-repository";
 import type { PersistedSurvey } from "./generator-types";
 import type { MapperOutput } from "./generator-types";
@@ -126,16 +127,16 @@ function buildAnalyticsRecords(input: {
   return rows;
 }
 
-export async function loadOwnedSurveyAnalyticsRuntime(
-  surveyId: string,
+async function loadSurveyAnalyticsRuntimeForSurvey(
+  survey: PersistedSurvey,
+  supabase:
+    | Awaited<ReturnType<typeof createSupabaseServerClient>>
+    | ReturnType<typeof createSupabaseAdminClient>,
 ): Promise<OwnedSurveyAnalyticsRuntime> {
-  const survey = await getOwnedSurveyById(surveyId);
-  const supabase = await createSupabaseServerClient();
-
   const { count: readyPipelineCount, error: countError } = await supabase
     .from("survey_responses")
     .select("id", { count: "exact", head: true })
-    .eq("survey_id", surveyId)
+    .eq("survey_id", survey.id)
     .eq("pipeline_status", "ready");
 
   if (countError) {
@@ -155,7 +156,7 @@ export async function loadOwnedSurveyAnalyticsRuntime(
   const { data: responseRowsRaw, error: responseError } = await supabase
     .from("survey_responses")
     .select("id, responded_at, survey_link_id")
-    .eq("survey_id", surveyId)
+    .eq("survey_id", survey.id)
     .eq("pipeline_status", "ready")
     .order("responded_at", { ascending: false });
 
@@ -238,4 +239,36 @@ export async function loadOwnedSurveyAnalyticsRuntime(
     excludedUnmappedCount: responseRows.length - rows.length,
     readyPipelineCount: totalReadyCount,
   };
+}
+
+export async function loadOwnedSurveyAnalyticsRuntime(
+  surveyId: string,
+): Promise<OwnedSurveyAnalyticsRuntime> {
+  const survey = await getOwnedSurveyById(surveyId);
+  const supabase = await createSupabaseServerClient();
+
+  return loadSurveyAnalyticsRuntimeForSurvey(survey, supabase);
+}
+
+export async function loadOwnedSurveyAnalyticsRuntimeSnapshot(
+  surveyId: string,
+  ownerId: string,
+): Promise<OwnedSurveyAnalyticsRuntime> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("surveys")
+    .select("*")
+    .eq("id", surveyId)
+    .eq("created_by", ownerId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load survey: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Survey not found.");
+  }
+
+  return loadSurveyAnalyticsRuntimeForSurvey(data as PersistedSurvey, supabase);
 }

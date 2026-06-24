@@ -65,29 +65,95 @@ type SurveyAnalyticsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function FilterSelect({
+type FilterOption = {
+  value: string;
+  label: string;
+};
+
+function humanizeFilterLabel(value: string) {
+  const normalized = value.replace(/[_-]+/g, " ").trim();
+
+  if (!normalized) {
+    return "Unknown";
+  }
+
+  if (/^[a-z]{2}$/i.test(normalized)) {
+    return normalized.toUpperCase();
+  }
+
+  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function buildFilterHref(
+  searchParams: Record<string, string | string[] | undefined>,
+  name: string,
+  value: string,
+) {
+  const params = new URLSearchParams();
+
+  for (const [key, rawValue] of Object.entries(searchParams)) {
+    if (rawValue == null) {
+      continue;
+    }
+
+    const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+    for (const entry of values) {
+      params.append(key, entry);
+    }
+  }
+
+  params.delete(name);
+
+  if (value) {
+    params.set(name, value);
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : "?";
+}
+
+function FilterOptionGroup({
   name,
   label,
+  allLabel,
   value,
+  searchParams,
   options,
 }: {
   name: string;
   label: string;
+  allLabel: string;
   value: string;
-  options: Array<{ value: string; label: string }>;
+  searchParams: Record<string, string | string[] | undefined>;
+  options: FilterOption[];
 }) {
   return (
-    <label className="field">
-      <span>{label}</span>
-      <select name={name} defaultValue={value}>
-        <option value="">All</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <section className="analytics-filter-section">
+      <h3>{label}</h3>
+      <div className="analytics-filter-options">
+        <Link
+          href={buildFilterHref(searchParams, name, "")}
+          className={`analytics-filter-option${value ? "" : " is-active"}`}
+          aria-current={value ? undefined : "true"}
+        >
+          {allLabel}
+        </Link>
+        {options.map((option) => {
+          const isActive = value === option.value;
+
+          return (
+            <Link
+              key={option.value}
+              href={buildFilterHref(searchParams, name, isActive ? "" : option.value)}
+              className={`analytics-filter-option${isActive ? " is-active" : ""}`}
+              aria-current={isActive ? "true" : undefined}
+            >
+              {humanizeFilterLabel(option.label)}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -126,6 +192,7 @@ function RenderFieldTags({
 }
 
 function FilterRailForm({
+  searchParams,
   countryOptions,
   audienceOptions,
   languageOptions,
@@ -136,10 +203,11 @@ function FilterRailForm({
   selectedTag,
   selectedAsset,
 }: {
-  countryOptions: Array<{ value: string; label: string }>;
-  audienceOptions: Array<{ value: string; label: string }>;
-  languageOptions: Array<{ value: string; label: string }>;
-  assetOptions: Array<{ value: string; label: string }>;
+  searchParams: Record<string, string | string[] | undefined>;
+  countryOptions: FilterOption[];
+  audienceOptions: FilterOption[];
+  languageOptions: FilterOption[];
+  assetOptions: FilterOption[];
   selectedCountry: string;
   selectedAudience: string;
   selectedLanguage: string;
@@ -149,51 +217,53 @@ function FilterRailForm({
   return (
     <div className="analytics-filter-rail">
       <p className="analytics-filter-rail__heading">Cohort filter</p>
-      <form className="analytics-filter-form" action="">
-        <FilterSelect
-          name="country"
-          label="Country"
-          value={selectedCountry}
-          options={countryOptions}
-        />
-        <FilterSelect
+      <div className="analytics-filter-form">
+        <FilterOptionGroup
           name="audience"
-          label="Audience"
+          label="Behavioural archetypes"
+          allLabel="All archetypes"
           value={selectedAudience}
+          searchParams={searchParams}
           options={audienceOptions}
         />
-        <FilterSelect
+        <FilterOptionGroup
+          name="country"
+          label="Country"
+          allLabel="All countries"
+          value={selectedCountry}
+          searchParams={searchParams}
+          options={countryOptions}
+        />
+        <FilterOptionGroup
           name="language"
           label="Language"
+          allLabel="All languages"
           value={selectedLanguage}
+          searchParams={searchParams}
           options={languageOptions}
         />
-        <FilterSelect
+        <FilterOptionGroup
           name="tag"
           label="Trust band"
+          allLabel="All trust bands"
           value={selectedTag}
+          searchParams={searchParams}
           options={TAG_VALUES.map((tag) => ({
             value: tag,
             label: `${tag}${getHumanTag(tag) ? ` (${getHumanTag(tag)})` : ""}`,
           }))}
         />
         {assetOptions.length > 0 ? (
-          <FilterSelect
+          <FilterOptionGroup
             name="asset"
             label="DER asset"
+            allLabel="All assets"
             value={selectedAsset}
+            searchParams={searchParams}
             options={assetOptions}
           />
         ) : null}
-        <div className="analytics-filter-actions">
-          <button type="submit" className="button button--primary button--full">
-            Analyse cohort
-          </button>
-          <Link href="?" className="button button--secondary button--full">
-            Clear filters
-          </Link>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }
@@ -1245,8 +1315,8 @@ export default async function SurveyAnalyticsPage({
               metricKeys={["responses"]}
             />
             <BreakdownCard
-              title="Respondents by audience"
-              description="Pilot groups, public links or synthetic archetypes when the survey uses multiple audiences."
+              title="Respondents by behavioural archetype"
+              description="Human-readable respondent archetypes derived from the active survey links."
               rows={audienceBreakdown?.result.groups ?? []}
               groupField={audienceField?.key ?? "response.audience_label"}
               metricKeys={["responses"]}
@@ -1281,6 +1351,7 @@ export default async function SurveyAnalyticsPage({
       {/* Left rail — survey context + cohort filters */}
       <aside className="analytics-rail">
         <FilterRailForm
+          searchParams={resolvedSearchParams}
           countryOptions={countryOptions}
           audienceOptions={audienceOptions}
           languageOptions={languageOptions}
@@ -1291,17 +1362,6 @@ export default async function SurveyAnalyticsPage({
           selectedTag={selectedTag}
           selectedAsset={selectedAsset}
         />
-
-        <div className="analytics-rail__footer">
-          <Link href={appRoutes.surveyDetail(survey.id)} className="button button--secondary button--full">
-            Survey detail
-          </Link>
-          {survey.defaultPublicLinkUrl ? (
-            <Link href={survey.defaultPublicLinkUrl} className="button button--ghost button--full">
-              Public link
-            </Link>
-          ) : null}
-        </div>
       </aside>
 
       {/* Main content */}

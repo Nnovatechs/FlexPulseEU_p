@@ -66,7 +66,13 @@ export function getGroupLabel(row: SurveyAnalyticsQueryRow, fieldKey: string) {
   if (value == null || value === "") {
     return "Unknown";
   }
-  return String(value);
+
+  const label = String(value).replace(/[_-]+/g, " ").trim();
+  if (/^[a-z]{2}$/i.test(label)) {
+    return label.toUpperCase();
+  }
+
+  return label.replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 export function groupFieldsBySource(fields: SurveyAnalyticsFieldDefinition[]) {

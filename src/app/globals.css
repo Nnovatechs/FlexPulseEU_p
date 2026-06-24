@@ -3669,21 +3669,55 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .analytics-filter-form {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 1rem;
 }
 
-.analytics-shell .analytics-filter-form .field {
+.analytics-filter-section {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.45rem;
 }
 
-.analytics-shell .analytics-filter-form .field span {
+.analytics-filter-section h3 {
+  margin: 0;
   font-size: 0.67rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--an-muted);
+  color: var(--an-text-strong);
+}
+
+.analytics-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.analytics-filter-option {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.34rem 0.55rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 999px;
+  background: var(--an-surface-alt);
+  color: var(--an-muted-strong);
+  font-size: 0.76rem;
+  line-height: 1.15;
+  text-decoration: none;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.analytics-filter-option:hover {
+  background: var(--an-surface-hover);
+  border-color: rgba(91, 156, 246, 0.36);
+  color: var(--an-text-strong);
+}
+
+.analytics-filter-option.is-active {
+  background: var(--an-accent-soft);
+  border-color: rgba(91, 156, 246, 0.44);
+  color: var(--an-accent);
 }
 
 .analytics-shell .analytics-filter-form select,
@@ -3710,22 +3744,6 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   outline: none;
   border-color: var(--an-accent);
   box-shadow: 0 0 0 2px rgba(74, 140, 245, 0.15);
-}
-
-.analytics-filter-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-top: 0.75rem;
-}
-
-.analytics-rail__footer {
-  padding: 0.9rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-top: auto;
-  border-top: 1px solid var(--an-border);
 }
 
 /* ── Main content area ───────────────────────────────────────── */
@@ -4487,13 +4505,6 @@ body:has(.analytics-shell) {
 
   .analytics-filter-rail {
     min-width: 240px;
-  }
-
-  .analytics-rail__footer {
-    flex-direction: row;
-    width: 100%;
-    border-top: 1px solid var(--an-border);
-    margin-top: 0;
   }
 
   .analytics-sections-body {

@@ -272,7 +272,15 @@ export default async function SurveyEditPage({
 
   return (
     <div className="page-stack">
-      <PageHeader eyebrow="Survey editor" title={survey.name} />
+      <PageHeader
+        breadcrumbs={[
+          { label: "Surveys", href: appRoutes.dashboard },
+          { label: survey.name, href: appRoutes.surveyDetail(survey.id) },
+          { label: "Edit" },
+        ]}
+        eyebrow="Survey editor"
+        title={survey.name}
+      />
 
       {createdMessage ? (
         <div className="notice notice--info" role="status">

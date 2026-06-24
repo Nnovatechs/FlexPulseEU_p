@@ -138,6 +138,50 @@ textarea {
   gap: 0.75rem;
 }
 
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.65rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.breadcrumb__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.breadcrumb__item:not(:first-child)::before {
+  content: "/";
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.breadcrumb a {
+  color: var(--muted-strong);
+}
+
+.breadcrumb a:hover {
+  color: var(--accent);
+}
+
+.breadcrumb--analytics {
+  color: var(--an-muted);
+  margin-bottom: 0.85rem;
+}
+
+.breadcrumb--analytics a {
+  color: var(--an-muted-strong);
+}
+
+.breadcrumb--analytics a:hover {
+  color: var(--an-accent);
+}
+
 .icon-action-button {
   display: inline-flex;
   align-items: center;
@@ -325,24 +369,9 @@ textarea {
 
 .app-shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 290px minmax(0, 1fr);
-}
-
-.sidebar {
-  padding: 1.4rem;
-  border-right: 1px solid var(--border);
-  background: #f7f9fc;
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
-}
-
-.sidebar__brand {
-  display: flex;
-  gap: 0.9rem;
-  align-items: center;
-  padding: 0.8rem 0.2rem 1.2rem;
+  background: var(--background);
 }
 
 .brand-badge {
@@ -357,7 +386,6 @@ textarea {
   box-shadow: none;
 }
 
-.sidebar__eyebrow,
 .topbar__eyebrow,
 .section-header__eyebrow {
   margin: 0;
@@ -366,18 +394,6 @@ textarea {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.sidebar h1 {
-  margin: 0.15rem 0 0;
-  font-size: 1.05rem;
-  font-weight: 650;
-}
-
-.sidebar__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
 }
 
 .nav-link {
@@ -407,16 +423,43 @@ textarea {
 .app-shell__content {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
 }
 
 .topbar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
-  padding: 1.4rem 1.5rem;
+  padding: 1rem clamp(2rem, 4vw, 3.5rem);
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(16px);
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--foreground);
+}
+
+.brand-mark strong {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 1rem;
+  letter-spacing: -0.03em;
 }
 
 .topbar__controls {
@@ -426,7 +469,9 @@ textarea {
 }
 
 .app-shell__main {
-  padding: 1.6rem;
+  width: 100%;
+  flex: 1;
+  padding: 2rem clamp(2rem, 4vw, 3.5rem);
 }
 
 .user-chip {
@@ -1771,15 +1816,6 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 @media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-
   .metric-grid,
   .content-grid,
   .content-grid--form,
@@ -2688,6 +2724,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   .editable-question__header,
   .analytics-row,
   .workspace-strip,
+  .topbar__brand,
   .topbar__controls {
     flex-direction: column;
     align-items: flex-start;
@@ -2695,7 +2732,6 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 
   .app-shell__main,
   .topbar,
-  .sidebar,
   .login-card {
     padding: 1.2rem;
   }

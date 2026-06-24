@@ -35,6 +35,10 @@ export default async function SurveyDetailPage({
         </div>
       ) : null}
       <PageHeader
+        breadcrumbs={[
+          { label: "Surveys", href: appRoutes.dashboard },
+          { label: survey.title },
+        ]}
         eyebrow="Survey detail"
         title={survey.title}
         description="Overview of the survey configuration, lifecycle, and question set."

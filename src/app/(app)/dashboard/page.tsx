@@ -11,6 +11,7 @@ export default async function DashboardPage() {
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumbs={[{ label: "Workspace" }]}
         title="Surveys"
         description="Created surveys, lifecycle status, and current draft inventory."
         actions={

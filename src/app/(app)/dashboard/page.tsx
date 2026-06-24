@@ -2,14 +2,11 @@ import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { MetricGrid } from "@/components/surveys/metric-grid";
 import { SurveyList } from "@/components/surveys/survey-list";
-import { getDashboardMetrics, getSurveys } from "@/features/surveys/use-cases";
+import { getDashboardData } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 
 export default async function DashboardPage() {
-  const [metrics, surveys] = await Promise.all([
-    getDashboardMetrics(),
-    getSurveys(),
-  ]);
+  const { metrics, surveys } = await getDashboardData();
 
   return (
     <div className="page-stack">

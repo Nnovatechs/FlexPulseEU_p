@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getOwnedDefaultSurveyLink,
   getOwnedSurveyById,
+  listOwnedSurveyLinksForSurveyIds,
   listOwnedSurveys,
 } from "./generator-repository";
 import { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
@@ -98,17 +99,65 @@ function buildSurveyProjection(
 async function mapOwnedPersistedSurvey(
   survey: PersistedSurvey,
   responsesCount = 0,
+  defaultLink: PersistedSurveyLink | null = null,
 ): Promise<Survey> {
-  const defaultLink =
-    survey.status === "published"
-      ? await getOwnedDefaultSurveyLink(survey.id)
-      : null;
-
   return buildSurveyProjection(
     survey,
     defaultLink ? appRoutes.publicSurveyLink(defaultLink.link_token) : null,
     responsesCount,
   );
+}
+
+async function loadOwnedDefaultSurveyLinksBySurveyId(surveys: PersistedSurvey[]) {
+  const publishedSurveyIds = surveys
+    .filter((survey) => survey.status === "published")
+    .map((survey) => survey.id);
+
+  const links = await listOwnedSurveyLinksForSurveyIds(publishedSurveyIds);
+  const linksBySurveyId = new Map<string, PersistedSurveyLink>();
+
+  for (const link of links) {
+    const existing = linksBySurveyId.get(link.survey_id);
+    if (!existing || link.audience_token === "default") {
+      linksBySurveyId.set(link.survey_id, link);
+    }
+  }
+
+  return linksBySurveyId;
+}
+
+async function mapOwnedPersistedSurveys(
+  surveys: PersistedSurvey[],
+  responseCounts: Map<string, number>,
+): Promise<Survey[]> {
+  const linksBySurveyId = await loadOwnedDefaultSurveyLinksBySurveyId(surveys);
+
+  return Promise.all(
+    surveys.map((survey) =>
+      mapOwnedPersistedSurvey(
+        survey,
+        responseCounts.get(survey.id) ?? 0,
+        linksBySurveyId.get(survey.id) ?? null,
+      ),
+    ),
+  );
+}
+
+function buildDashboardMetrics(
+  surveys: PersistedSurvey[],
+  questionsAnswered: number,
+) {
+  const published = surveys.filter((survey) => survey.status === "published");
+
+  return {
+    totalSurveys: surveys.length,
+    publishedSurveys: published.length,
+    totalQuestions: surveys.reduce(
+      (accumulator, survey) => accumulator + survey.definition_json.questions.length,
+      0,
+    ),
+    questionsAnswered,
+  };
 }
 
 async function loadOwnedSurveyResponseCounts() {
@@ -154,11 +203,21 @@ export async function getSurveys(): Promise<Survey[]> {
 
   const surveys = allSurveys.filter((survey) => survey.status !== "archived");
 
-  return Promise.all(
-    surveys.map((survey) =>
-      mapOwnedPersistedSurvey(survey, responseCounts.get(survey.id) ?? 0),
-    ),
-  );
+  return mapOwnedPersistedSurveys(surveys, responseCounts);
+}
+
+export async function getDashboardData() {
+  const [allSurveys, responseCounts, questionsAnswered] = await Promise.all([
+    listOwnedSurveys(),
+    loadOwnedSurveyResponseCounts(),
+    countOwnedAnsweredQuestions(),
+  ]);
+  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
+
+  return {
+    metrics: buildDashboardMetrics(surveys, questionsAnswered),
+    surveys: await mapOwnedPersistedSurveys(surveys, responseCounts),
+  };
 }
 
 export async function getSurveyById(surveyId: string): Promise<Survey | null> {
@@ -168,7 +227,12 @@ export async function getSurveyById(surveyId: string): Promise<Survey | null> {
       countOwnedSurveyResponses(surveyId),
     ]);
 
-    return mapOwnedPersistedSurvey(survey, responsesCount);
+    const defaultLink =
+      survey.status === "published"
+        ? await getOwnedDefaultSurveyLink(survey.id)
+        : null;
+
+    return mapOwnedPersistedSurvey(survey, responsesCount, defaultLink);
   } catch {
     return null;
   }
@@ -254,21 +318,13 @@ async function countOwnedAnsweredQuestions() {
 }
 
 export async function getDashboardMetrics() {
-  const [surveys, questionsAnswered] = await Promise.all([
-    getSurveys(),
+  const [allSurveys, questionsAnswered] = await Promise.all([
+    listOwnedSurveys(),
     countOwnedAnsweredQuestions(),
   ]);
-  const published = surveys.filter((survey) => survey.status === "Published");
+  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
 
-  return {
-    totalSurveys: surveys.length,
-    publishedSurveys: published.length,
-    totalQuestions: surveys.reduce(
-      (accumulator, survey) => accumulator + survey.questionCount,
-      0,
-    ),
-    questionsAnswered,
-  };
+  return buildDashboardMetrics(surveys, questionsAnswered);
 }
 
 export async function getSurveyAnalyticsSchema(surveyId: string) {

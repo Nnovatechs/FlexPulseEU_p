@@ -370,6 +370,27 @@ export async function listOwnedSurveyLinks(
   return ((data ?? []) as SurveyLinkRow[]).map(mapSurveyLinkRow);
 }
 
+export async function listOwnedSurveyLinksForSurveyIds(
+  surveyIds: string[],
+): Promise<PersistedSurveyLink[]> {
+  if (surveyIds.length === 0) {
+    return [];
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("survey_links")
+    .select("*")
+    .in("survey_id", surveyIds)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to list survey links: ${error.message}`);
+  }
+
+  return ((data ?? []) as SurveyLinkRow[]).map(mapSurveyLinkRow);
+}
+
 export async function getOwnedDefaultSurveyLink(
   surveyId: string,
 ): Promise<PersistedSurveyLink | null> {

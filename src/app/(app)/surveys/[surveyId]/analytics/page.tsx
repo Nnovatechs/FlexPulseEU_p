@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/layout/page-header";
 import { FLEXPULSE_DER_ASSET_VALUES } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   classifySurveyAnalyticsEvidence,
@@ -27,12 +26,15 @@ import {
   getActiveProfileConditions,
   getConceptShortLabel,
   getConceptTitle,
+  getDeltaTone,
   getDifferenceLabel,
   getDominantTag,
   getEvidenceLabel,
   getEvidenceTone,
   getGroupLabel,
   getHumanTag,
+  getScoreTone,
+  getTagTone,
   getMetric,
   getMetricValue,
   getPrimaryProfileFields,
@@ -56,6 +58,7 @@ import {
   type ProfileCondition,
 } from "@/features/surveys/analytics/profile-explorer-utils";
 import { appRoutes } from "@/lib/config/routes";
+import { AnalyticsTabs, type AnalyticsTab } from "./analytics-tabs";
 
 type SurveyAnalyticsPageProps = {
   params: Promise<{ surveyId: string }>;
@@ -122,20 +125,7 @@ function RenderFieldTags({
   );
 }
 
-function AnalyticsTabs() {
-  return (
-    <nav className="analytics-tabs" aria-label="Analytics sections">
-      <a href="#profile-overview">Survey intelligence</a>
-      <a href="#segment-finder">Segment finder</a>
-      <a href="#cohort-explorer">Cohort explorer</a>
-      <a href="#compare-segments">Compare segments</a>
-      <a href="#distributions">Distributions</a>
-      <a href="#schema">Schema</a>
-    </nav>
-  );
-}
-
-function SegmentFilterPanel({
+function FilterRailForm({
   countryOptions,
   audienceOptions,
   languageOptions,
@@ -157,58 +147,54 @@ function SegmentFilterPanel({
   selectedAsset: string;
 }) {
   return (
-    <section className="surface-card filter-panel">
-      <div>
-        <h2>Ask a question about a cohort</h2>
-        <p>
-          Build a respondent selection and the dashboard will describe that cohort against the full
-          survey baseline.
-        </p>
-      </div>
-      <form className="filter-grid" action="">
+    <div className="analytics-filter-rail">
+      <p className="analytics-filter-rail__heading">Cohort filter</p>
+      <form className="analytics-filter-form" action="">
         <FilterSelect
           name="country"
-          label="Where are they?"
+          label="Country"
           value={selectedCountry}
           options={countryOptions}
         />
         <FilterSelect
           name="audience"
-          label="Which audience?"
+          label="Audience"
           value={selectedAudience}
           options={audienceOptions}
         />
         <FilterSelect
           name="language"
-          label="Response language"
+          label="Language"
           value={selectedLanguage}
           options={languageOptions}
         />
         <FilterSelect
           name="tag"
-          label="Trust/profile band"
+          label="Trust band"
           value={selectedTag}
           options={TAG_VALUES.map((tag) => ({
             value: tag,
-            label: `${tag} ${getHumanTag(tag) ? `(${getHumanTag(tag)})` : ""}`,
+            label: `${tag}${getHumanTag(tag) ? ` (${getHumanTag(tag)})` : ""}`,
           }))}
         />
-        <FilterSelect
-          name="asset"
-          label="Has DER asset"
-          value={selectedAsset}
-          options={assetOptions}
-        />
-        <div className="filter-actions">
-          <button type="submit" className="button button--primary">
+        {assetOptions.length > 0 ? (
+          <FilterSelect
+            name="asset"
+            label="DER asset"
+            value={selectedAsset}
+            options={assetOptions}
+          />
+        ) : null}
+        <div className="analytics-filter-actions">
+          <button type="submit" className="button button--primary button--full">
             Analyse cohort
           </button>
-          <Link href="?" className="button button--secondary">
+          <Link href="?" className="button button--secondary button--full">
             Clear filters
           </Link>
         </div>
       </form>
-    </section>
+    </div>
   );
 }
 
@@ -269,6 +255,7 @@ function SegmentOpportunityFinder({
       </div>
 
       <form className="segment-condition-list" action="">
+        <input type="hidden" name="view" value="segments" />
         {conditions.map((condition, index) => {
           const removeHref = buildHrefWithProfileConditions(
             searchParams,
@@ -336,9 +323,8 @@ function SegmentOpportunityFinder({
             <>
               {selectedRow ? <EvidenceBadge evidence={selectedRow.evidence} /> : null}
               <p>
-                Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. This block is
-                intentionally descriptive, not prescriptive: it reports the size and geographic mix of
-                the selected cohort without inventing a deployment recommendation.
+                Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. Size and
+                geographic mix of the selected cohort — descriptive, not a deployment recommendation.
               </p>
               {selectedRow?.evidence.suppress_detail ? (
                 <p className="evidence-warning">
@@ -479,17 +465,26 @@ function ProfileOverviewCard({
                   : null;
 
               return (
-                <div key={field.key} className="profile-score-card">
+                <div key={field.key} className="profile-score-card" data-tone={getScoreTone(average)}>
                   <span>{getConceptShortLabel(field)}</span>
                   <strong>{describeAverage(average)}</strong>
                   <small>
-                    {dominantTag
-                      ? `${getHumanTag(dominantTag.tag) ?? dominantTag.tag} dominant · ${formatPlainValue(
-                          dominantTag.value,
-                          "share",
-                        )}`
-                      : `score ${formatPlainValue(average)}`}
-                    {delta != null ? ` · ${getDifferenceLabel(delta)} vs baseline` : ""}
+                    {dominantTag ? (
+                      <span className="tag-band" data-tone={getTagTone(dominantTag.tag)}>
+                        {getHumanTag(dominantTag.tag) ?? dominantTag.tag} dominant ·{" "}
+                        {formatPlainValue(dominantTag.value, "share")}
+                      </span>
+                    ) : (
+                      `score ${formatPlainValue(average)}`
+                    )}
+                    {delta != null ? (
+                      <>
+                        {" · "}
+                        <span className="delta" data-tone={getDeltaTone(delta)}>
+                          {getDifferenceLabel(delta)} vs baseline
+                        </span>
+                      </>
+                    ) : null}
                   </small>
                 </div>
               );
@@ -539,18 +534,17 @@ function DifferentiatorsCard({
   return (
     <article className="surface-card">
       <h2>Key differentiators</h2>
-      <p>
-        Largest deviations from the full-survey baseline. This is the first layer of explainable
-        cohort analytics.
-      </p>
+      <p>Largest deviations from the full-survey baseline.</p>
       {strongest.length > 0 ? (
         <div className="stack-list">
           {strongest.map((entry) => (
             <div key={entry.label} className="analytics-row">
               <strong>{entry.label}</strong>
               <span>
-                {getDifferenceLabel(entry.delta)} vs baseline · selected{" "}
-                {formatPlainValue(entry.segmentValue)} · baseline{" "}
+                <span className="delta" data-tone={getDeltaTone(entry.delta)}>
+                  {getDifferenceLabel(entry.delta)} vs baseline
+                </span>{" "}
+                · selected {formatPlainValue(entry.segmentValue)} · baseline{" "}
                 {formatPlainValue(entry.baselineValue)} · n={entry.sampleSize}
                 {" · "}
                 <EvidenceBadge evidence={entry.evidence} />
@@ -584,10 +578,7 @@ function ConceptComparisonTable({
   return (
     <article className="surface-card surface-card--wide">
       <h2>Segment profile comparison</h2>
-      <p>
-        Compare the strongest available segment groups against the full-survey baseline. This
-        answers “how is this cohort different?” without requiring a manual spreadsheet export.
-      </p>
+      <p>Strongest segment groups versus the full-survey baseline.</p>
       {segmentRows.length > 0 && visibleFields.length > 0 ? (
         <div className="analytics-table-wrap">
           <table className="analytics-table">
@@ -624,9 +615,15 @@ function ConceptComparisonTable({
                     const delta = value != null && baseline != null ? value - baseline : null;
 
                     return (
-                      <td key={field.key}>
+                      <td key={field.key} data-tone={getScoreTone(value)}>
                         <strong>{formatPlainValue(value)}</strong>
-                        <small>{delta != null ? `${getDifferenceLabel(delta)} vs base` : ""}</small>
+                        {delta != null ? (
+                          <small className="delta" data-tone={getDeltaTone(delta)}>
+                            {getDifferenceLabel(delta)} vs base
+                          </small>
+                        ) : (
+                          <small />
+                        )}
                       </td>
                     );
                   })}
@@ -658,15 +655,22 @@ function TagDistributionCard({
       <p>Low, medium and high profile bands for the first tag-enabled concept.</p>
       {tagField && rows.length > 0 ? (
         <div className="stack-list">
-          {rows.map((row) => (
-            <div key={`${tagField.key}-${getGroupLabel(row, tagField.key)}`} className="analytics-row">
-              <strong>{getGroupLabel(row, tagField.key)}</strong>
-              <span>
-                {formatMetricValue(row.metrics.responses)} · sample{" "}
-                {row.metrics.responses.sample_size}
-              </span>
-            </div>
-          ))}
+          {rows.map((row) => {
+            const band = getGroupLabel(row, tagField.key);
+            return (
+              <div key={`${tagField.key}-${band}`} className="analytics-row">
+                <strong>
+                  <span className="tag-band" data-tone={getTagTone(band.toLowerCase())}>
+                    {band}
+                  </span>
+                </strong>
+                <span>
+                  {formatMetricValue(row.metrics.responses)} · sample{" "}
+                  {row.metrics.responses.sample_size}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="empty-state empty-state--inline">
@@ -721,19 +725,11 @@ function AssetDistributionCard({
 }
 
 function SurveyIntelligenceHero({
-  responseCount,
-  countryCount,
-  publishedAt,
-  surveyEvidence,
   profileFields,
   baselineRow,
   segmentRows,
   segmentField,
 }: {
-  responseCount: number;
-  countryCount: number;
-  publishedAt: string | null;
-  surveyEvidence: SurveyAnalyticsQueryRow["evidence"];
   profileFields: SurveyAnalyticsFieldDefinition[];
   baselineRow: SurveyAnalyticsQueryRow | null;
   segmentRows: SurveyAnalyticsQueryRow[];
@@ -763,11 +759,7 @@ function SurveyIntelligenceHero({
 
   return (
     <section className="intelligence-hero">
-      <p>
-        Survey intelligence · {responseCount} respondents · {countryCount || "No"} countries ·{" "}
-        {formatDateShort(publishedAt)}
-      </p>
-      <EvidenceBadge evidence={surveyEvidence} />
+      <p className="intelligence-hero__eyebrow">Headline reading</p>
       <h2>{headline}</h2>
       <span>{description}</span>
     </section>
@@ -795,82 +787,20 @@ function IntelligenceAxisCards({
         const range = getScoreRange(segmentRows, segmentField, field);
 
         return (
-          <article key={field.key} className="intelligence-axis-card">
+          <article key={field.key} className="intelligence-axis-card" data-tone={getScoreTone(value)}>
             <p>{getConceptTitle(field)}</p>
             <strong>{formatPlainValue(value)}</strong>
-            <span>Average mapped score across respondents · /5.0</span>
+            <span>Avg mapped score · /5.0</span>
             <div className="intelligence-score-bar">
-              <div style={{ width: getScoreBarWidth(value) }} />
+              <div data-tone={getScoreTone(value)} style={{ width: getScoreBarWidth(value) }} />
             </div>
             <small>
-              Lowest {segmentLabel} avg {formatPlainValue(range.low)} · Highest {segmentLabel} avg{" "}
+              Low {segmentLabel} {formatPlainValue(range.low)} · High {segmentLabel}{" "}
               {formatPlainValue(range.high)}
             </small>
           </article>
         );
       })}
-    </section>
-  );
-}
-
-function IntelligenceInsights({
-  baselineRow,
-  segmentRows,
-  segmentField,
-  profileFields,
-}: {
-  baselineRow: SurveyAnalyticsQueryRow | null;
-  segmentRows: SurveyAnalyticsQueryRow[];
-  segmentField: SurveyAnalyticsFieldDefinition | null;
-  profileFields: SurveyAnalyticsFieldDefinition[];
-}) {
-  const trustField = findConceptField(profileFields, ["trust"]);
-  const flexibilityField = findConceptField(profileFields, ["flexibility"]);
-  const comfortField = findConceptField(profileFields, ["comfort", "thermal"]);
-  const trustLeaders = getSegmentEntries(segmentRows, segmentField, trustField);
-  const flexibilityLeaders = getSegmentEntries(segmentRows, segmentField, flexibilityField);
-  const comfortLeaders = getSegmentEntries(segmentRows, segmentField, comfortField);
-  const trustBaseline = trustField ? getMetricValue(baselineRow, metricKeyFor("avg", trustField)) : null;
-  const flexibilityBaseline = flexibilityField
-    ? getMetricValue(baselineRow, metricKeyFor("avg", flexibilityField))
-    : null;
-  const comfortBaseline = comfortField
-    ? getMetricValue(baselineRow, metricKeyFor("avg", comfortField))
-    : null;
-  const activationLeader = flexibilityLeaders[0] ?? trustLeaders[0] ?? null;
-  const comfortBarrier = comfortLeaders[0] ?? null;
-
-  return (
-    <section className="surface-card">
-      <h2>Key intelligence</h2>
-      <div className="intelligence-insight-list">
-        {activationLeader ? (
-          <article className="intelligence-insight">
-            <strong>Highest flexibility score: {activationLeader.label}</strong>
-            <p>
-              Average flexibility willingness for this segment is{" "}
-              {formatPlainValue(activationLeader.value)} / 5 versus a survey average of{" "}
-              {formatPlainValue(flexibilityBaseline ?? trustBaseline)} / 5.
-            </p>
-          </article>
-        ) : null}
-        {comfortBarrier ? (
-          <article className="intelligence-insight">
-            <strong>Highest comfort-preservation score: {comfortBarrier.label}</strong>
-            <p>
-              Average thermal comfort norms for this segment is {formatPlainValue(
-                comfortBarrier.value,
-              )} / 5 versus a survey average of {formatPlainValue(comfortBaseline)} / 5.
-            </p>
-          </article>
-        ) : null}
-        {!activationLeader && !comfortBarrier ? (
-          <div className="empty-state empty-state--inline">
-            <h3>No deterministic insight yet</h3>
-            <p>Insights appear when at least one profile axis can be compared across segments.</p>
-          </div>
-        ) : null}
-      </div>
     </section>
   );
 }
@@ -1175,226 +1105,15 @@ export default async function SurveyAnalyticsPage({
         label: asset.replaceAll("_", " "),
       }))
     : [];
-  const assetWidgetRows = assetField
-    ? FLEXPULSE_DER_ASSET_VALUES.slice(0, 8)
-        .map((asset) => ({
-          label: asset.replaceAll("_", " "),
-          value: getMetricValue(baselineRow, `asset_${asset}`),
-          unit: "share" as const,
-        }))
-        .filter((row): row is { label: string; value: number; unit: "share" } => row.value != null)
-        .sort((left, right) => right.value - left.value)
-    : [];
-  const countryWidgetRows =
-    countryField && countryBreakdown
-      ? countryBreakdown.result.groups
-          .map((row) => ({
-            label: getGroupLabel(row, countryField.key),
-            value: row.metrics.responses.value,
-            unit: "count" as const,
-          }))
-          .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
-          .slice(0, MAX_BREAKDOWN_ROWS)
-      : [];
-  const tagWidgetRows =
-    tagProfileField && tagDistribution
-      ? tagDistribution.result.groups
-          .map((row) => ({
-            label: getGroupLabel(row, tagProfileField.key),
-            value: row.metrics.responses.value,
-            unit: "count" as const,
-          }))
-          .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
-          .slice(0, MAX_BREAKDOWN_ROWS)
-      : [];
-  const surveyEvidence = classifySurveyAnalyticsEvidence(
-    hasActiveFilters ? (selectedRow?.response_count ?? 0) : schema.ready_response_count,
-  );
+  const respondentsNow = hasActiveFilters
+    ? (selectedRow?.response_count ?? 0)
+    : schema.ready_response_count;
+  const surveyEvidence = classifySurveyAnalyticsEvidence(respondentsNow);
+  const selectedView = getSearchParam(resolvedSearchParams, "view") ?? "overview";
 
-  return (
-    <div className="page-stack">
-      <PageHeader
-        eyebrow="Profile Explorer"
-        title={`${survey.title} profile analytics`}
-        description="Explore mapped respondent profiles, compare segments, and inspect what makes each cohort different from the survey baseline."
-        actions={
-          <div className="button-row">
-            <Link href={appRoutes.surveyDetail(survey.id)} className="button button--secondary">
-              Open survey detail
-            </Link>
-            {survey.defaultPublicLinkUrl ? (
-              <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
-                Open public link
-              </Link>
-            ) : null}
-          </div>
-        }
-      />
-
-      <AnalyticsTabs />
-
-      {schema.ready_response_count === 0 ? (
-        <section className="surface-card">
-          <div className="empty-state">
-            <h3>No mapped responses yet</h3>
-            <p>
-              The analytics engine is available, but cohort profiles need mapped responses in
-              ready state. Use the sandbox seeder or collect responses to populate this explorer.
-            </p>
-            {schema.excluded_unmapped_count > 0 ? (
-              <p>
-                {schema.excluded_unmapped_count} response
-                {schema.excluded_unmapped_count === 1 ? "" : "s"} in ready state are excluded
-                because they could not be mapped yet.
-              </p>
-            ) : null}
-          </div>
-        </section>
-      ) : (
-        <>
-          <section id="profile-overview" className="analytics-intelligence-tab">
-            <SurveyIntelligenceHero
-              responseCount={
-                hasActiveFilters
-                  ? (selectedRow?.response_count ?? 0)
-                  : schema.ready_response_count
-              }
-              countryCount={countryOptions.length}
-              publishedAt={survey.publishedAt}
-              surveyEvidence={surveyEvidence}
-              profileFields={mainProfileFields}
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-            />
-            <IntelligenceAxisCards
-              fields={mainProfileFields}
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-            />
-            <RadarViewCard
-              fields={mainProfileFields}
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-            />
-
-            <div className="analytics-intelligence-layout">
-              <IntelligenceInsights
-                baselineRow={baselineRow}
-                segmentRows={segmentRows}
-                segmentField={primarySegmentField}
-                profileFields={mainProfileFields}
-              />
-              <div className="analytics-widget-stack">
-                {assetField ? (
-                  <ProgressListCard
-                    title="DER asset penetration"
-                    description="Share of respondents reporting each mapped DER asset."
-                    rows={assetWidgetRows}
-                  />
-                ) : null}
-                {countryField ? (
-                  <ProgressListCard
-                    title="Respondents by country"
-                    description="Respondent concentration across the strongest geographic cuts."
-                    rows={countryWidgetRows}
-                  />
-                ) : null}
-                {tagProfileField ? (
-                  <ProgressListCard
-                    title={`${getConceptShortLabel(tagProfileField)} distribution`}
-                    description="Low, medium and high bands generated by the mapping contract."
-                    rows={tagWidgetRows}
-                  />
-                ) : null}
-              </div>
-            </div>
-          </section>
-
-          <SegmentOpportunityFinder
-            searchParams={resolvedSearchParams}
-            tagFields={tagFields}
-            conditions={profileConditions}
-            activeConditions={activeProfileConditions}
-            selectedRow={selectedRow}
-            countryRows={selectedCountryBreakdown?.result.groups ?? []}
-            countryField={countryField}
-          />
-
-          <SegmentFilterPanel
-            countryOptions={countryOptions}
-            audienceOptions={audienceOptions}
-            languageOptions={languageOptions}
-            assetOptions={assetOptions}
-            selectedCountry={selectedCountry}
-            selectedAudience={selectedAudience}
-            selectedLanguage={selectedLanguage}
-            selectedTag={selectedTag}
-            selectedAsset={selectedAsset}
-          />
-
-          <section className="content-grid analytics-section-grid">
-            <ProfileOverviewCard
-              selectedRow={selectedRow}
-              baselineRow={baselineRow}
-              profileValueFields={profileValueFields}
-              tagFields={tagFields}
-              hasActiveFilters={hasActiveFilters}
-            />
-            <DifferentiatorsCard
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-              profileValueFields={profileValueFields}
-            />
-          </section>
-
-          <section id="cohort-explorer" className="content-grid">
-            <BreakdownCard
-              title="Cohorts by country"
-              description="Where respondents are concentrated. Use this as the first geographic cut before the map layer exists."
-              rows={countryBreakdown?.result.groups ?? []}
-              groupField={countryField?.key ?? "context.country_code"}
-              metricKeys={["responses"]}
-            />
-            <BreakdownCard
-              title="Cohorts by audience"
-              description="Compare pilot groups, public links or synthetic archetypes when the survey uses multiple audiences."
-              rows={audienceBreakdown?.result.groups ?? []}
-              groupField={audienceField?.key ?? "response.audience_label"}
-              metricKeys={["responses"]}
-            />
-            <BreakdownCard
-              title="Cohorts by language"
-              description="Useful for checking whether language or localization splits influence the observed profile mix."
-              rows={languageBreakdown?.result.groups ?? []}
-              groupField={languageField?.key ?? "context.survey_language"}
-              metricKeys={["responses"]}
-            />
-          </section>
-
-          <section id="compare-segments">
-            <ConceptComparisonTable
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-              profileValueFields={profileValueFields}
-            />
-          </section>
-
-          <section id="distributions" className="content-grid">
-            <TagDistributionCard
-              tagField={tagProfileField}
-              rows={tagDistribution?.result.groups ?? []}
-            />
-            <AssetDistributionCard baselineRow={baselineRow} assetField={assetField} />
-          </section>
-        </>
-      )}
-
-      <section id="schema" className="content-grid">
+  const schemaPanel = (
+    <>
+      <section className="content-grid">
         <article className="surface-card">
           <h2>Profile fields</h2>
           <p>Profile values and tags exposed by the measurement plan.</p>
@@ -1444,6 +1163,209 @@ export default async function SurveyAnalyticsPage({
           </div>
         </div>
       </section>
+    </>
+  );
+
+  const tabs: AnalyticsTab[] = [
+    {
+      id: "overview",
+      label: "Overview",
+      panel: (
+        <section className="analytics-intelligence-tab">
+          <SurveyIntelligenceHero
+            profileFields={mainProfileFields}
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+          />
+          <IntelligenceAxisCards
+            fields={mainProfileFields}
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+          />
+          <RadarViewCard
+            fields={mainProfileFields}
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+          />
+        </section>
+      ),
+    },
+    {
+      id: "segments",
+      label: "Segments",
+      panel: (
+        <div className="analytics-intelligence-tab">
+          <SegmentOpportunityFinder
+            searchParams={resolvedSearchParams}
+            tagFields={tagFields}
+            conditions={profileConditions}
+            activeConditions={activeProfileConditions}
+            selectedRow={selectedRow}
+            countryRows={selectedCountryBreakdown?.result.groups ?? []}
+            countryField={countryField}
+          />
+          <section className="content-grid analytics-section-grid">
+            <ProfileOverviewCard
+              selectedRow={selectedRow}
+              baselineRow={baselineRow}
+              profileValueFields={profileValueFields}
+              tagFields={tagFields}
+              hasActiveFilters={hasActiveFilters}
+            />
+            <DifferentiatorsCard
+              baselineRow={baselineRow}
+              segmentRows={segmentRows}
+              segmentField={primarySegmentField}
+              profileValueFields={profileValueFields}
+            />
+          </section>
+          <ConceptComparisonTable
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+            profileValueFields={profileValueFields}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "distributions",
+      label: "Distributions",
+      panel: (
+        <div className="analytics-intelligence-tab">
+          <section className="content-grid">
+            <BreakdownCard
+              title="Respondents by country"
+              description="Geographic concentration of mapped respondents — the first cut before the map layer."
+              rows={countryBreakdown?.result.groups ?? []}
+              groupField={countryField?.key ?? "context.country_code"}
+              metricKeys={["responses"]}
+            />
+            <BreakdownCard
+              title="Respondents by audience"
+              description="Pilot groups, public links or synthetic archetypes when the survey uses multiple audiences."
+              rows={audienceBreakdown?.result.groups ?? []}
+              groupField={audienceField?.key ?? "response.audience_label"}
+              metricKeys={["responses"]}
+            />
+            <BreakdownCard
+              title="Respondents by language"
+              description="Whether language or localization splits influence the observed profile mix."
+              rows={languageBreakdown?.result.groups ?? []}
+              groupField={languageField?.key ?? "context.survey_language"}
+              metricKeys={["responses"]}
+            />
+          </section>
+          <section className="content-grid">
+            <TagDistributionCard
+              tagField={tagProfileField}
+              rows={tagDistribution?.result.groups ?? []}
+            />
+            <AssetDistributionCard baselineRow={baselineRow} assetField={assetField} />
+          </section>
+        </div>
+      ),
+    },
+    {
+      id: "schema",
+      label: "Schema",
+      panel: <div className="analytics-intelligence-tab">{schemaPanel}</div>,
+    },
+  ];
+
+  return (
+    <div className="analytics-shell">
+      {/* Left rail — survey context + cohort filters */}
+      <aside className="analytics-rail">
+        <FilterRailForm
+          countryOptions={countryOptions}
+          audienceOptions={audienceOptions}
+          languageOptions={languageOptions}
+          assetOptions={assetOptions}
+          selectedCountry={selectedCountry}
+          selectedAudience={selectedAudience}
+          selectedLanguage={selectedLanguage}
+          selectedTag={selectedTag}
+          selectedAsset={selectedAsset}
+        />
+
+        <div className="analytics-rail__footer">
+          <Link href={appRoutes.surveyDetail(survey.id)} className="button button--secondary button--full">
+            Survey detail
+          </Link>
+          {survey.defaultPublicLinkUrl ? (
+            <Link href={survey.defaultPublicLinkUrl} className="button button--ghost button--full">
+              Public link
+            </Link>
+          ) : null}
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="analytics-content">
+        <header className="analytics-content__header">
+          <nav className="breadcrumb breadcrumb--analytics" aria-label="Breadcrumb">
+            <span className="breadcrumb__item">
+              <Link href={appRoutes.dashboard}>Surveys</Link>
+            </span>
+            <span className="breadcrumb__item">
+              <Link href={appRoutes.surveyDetail(survey.id)}>{survey.title}</Link>
+            </span>
+            <span className="breadcrumb__item">
+              <span>Analytics</span>
+            </span>
+          </nav>
+          <div className="analytics-kpi-strip">
+            <div className="analytics-kpi">
+              <span>Respondents</span>
+              <strong>{respondentsNow}</strong>
+            </div>
+            <div className="analytics-kpi">
+              <span>Countries</span>
+              <strong>{countryOptions.length || "—"}</strong>
+            </div>
+            <div className="analytics-kpi">
+              <span>Profile axes</span>
+              <strong>{mainProfileFields.length}</strong>
+            </div>
+            <div className="analytics-kpi">
+              <span>Published</span>
+              <strong>{formatDateShort(survey.publishedAt)}</strong>
+            </div>
+            <div className="analytics-kpi analytics-kpi--evidence">
+              <span>Evidence</span>
+              <EvidenceBadge evidence={surveyEvidence} />
+            </div>
+          </div>
+        </header>
+
+        {schema.ready_response_count === 0 ? (
+          <div className="analytics-sections-body">
+            <section className="surface-card">
+              <div className="empty-state">
+                <h3>No mapped responses yet</h3>
+                <p>
+                  The analytics engine is available, but cohort profiles need mapped responses in
+                  ready state. Use the sandbox seeder or collect responses to populate this explorer.
+                </p>
+                {schema.excluded_unmapped_count > 0 ? (
+                  <p>
+                    {schema.excluded_unmapped_count} response
+                    {schema.excluded_unmapped_count === 1 ? "" : "s"} in ready state are excluded
+                    because they could not be mapped yet.
+                  </p>
+                ) : null}
+              </div>
+            </section>
+            {schemaPanel}
+          </div>
+        ) : (
+          <AnalyticsTabs tabs={tabs} defaultTab={selectedView} />
+        )}
+      </div>
     </div>
   );
 }

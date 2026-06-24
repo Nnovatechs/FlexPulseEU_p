@@ -3565,3 +3565,948 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
     font-size: 1.5rem;
   }
 }
+
+/* ============================================================
+   Analytics Shell — Neutral intelligence dark theme
+   Monochromatic blacks/grays. Color is functional only — never decorative.
+   ============================================================ */
+
+.analytics-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: start;
+  margin: -1.6rem;
+  min-height: calc(100vh - 70px);
+
+  --an-bg: #0a0a0a;
+  --an-bg-alt: #0d0d0d;
+  --an-surface: #161616;
+  --an-surface-alt: #1f1f1f;
+  --an-surface-hover: #282828;
+  --an-border: #2b2b2b;
+  --an-border-mid: #383838;
+  /* Text hierarchy — legible on dark without max brightness */
+  --an-text: #dcdcdc;
+  --an-text-strong: #f8f8f8;
+  --an-muted: #767676;
+  --an-muted-strong: #bcbcbc;
+  /* Numeric data — pure white for maximum contrast */
+  --an-data: #ffffff;
+  /* Blue accent — interactive elements and active indicators */
+  --an-accent: #5b9cf6;
+  --an-accent-soft: rgba(91, 156, 246, 0.1);
+  /* Status — vivid functional colors, not decorative */
+  --an-status-ok: #3ecf7c;
+  --an-status-ok-bg: rgba(62, 207, 124, 0.08);
+  --an-status-ok-border: rgba(62, 207, 124, 0.22);
+  --an-status-warn: #f5a623;
+  --an-status-warn-bg: rgba(245, 166, 35, 0.08);
+  --an-status-warn-border: rgba(245, 166, 35, 0.22);
+  --an-status-err: #e85252;
+  --an-status-err-bg: rgba(232, 82, 82, 0.08);
+  --an-status-err-border: rgba(232, 82, 82, 0.22);
+  /* Segment teal — distinct from status-ok */
+  --an-segment: #3ab590;
+  --an-segment-bg: rgba(58, 181, 144, 0.08);
+  --an-segment-border: rgba(58, 181, 144, 0.22);
+}
+
+/* ── Left rail ──────────────────────────────────────────────── */
+
+.analytics-rail {
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+  background: var(--an-bg);
+  border-right: 1px solid var(--an-border);
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--an-border) transparent;
+}
+
+.analytics-rail__header {
+  padding: 1.1rem 1rem 0.9rem;
+  border-bottom: 1px solid var(--an-border);
+}
+
+.analytics-rail__survey-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--an-text-strong);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.analytics-rail__meta {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* ── Filter rail ─────────────────────────────────────────────── */
+
+.analytics-filter-rail {
+  padding: 0.9rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--an-border);
+  flex: 1;
+}
+
+.analytics-filter-rail__heading {
+  margin: 0 0 0.75rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--an-muted);
+}
+
+.analytics-filter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.analytics-shell .analytics-filter-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.analytics-shell .analytics-filter-form .field span {
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--an-muted);
+}
+
+.analytics-shell .analytics-filter-form select,
+.analytics-shell .segment-condition-row select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: var(--an-surface-alt);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888888' stroke-width='1.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 3px;
+  color: var(--an-text);
+  padding: 0.4rem 1.8rem 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  width: 100%;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.analytics-shell .analytics-filter-form select:focus,
+.analytics-shell .segment-condition-row select:focus {
+  outline: none;
+  border-color: var(--an-accent);
+  box-shadow: 0 0 0 2px rgba(74, 140, 245, 0.15);
+}
+
+.analytics-filter-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.analytics-rail__footer {
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: auto;
+  border-top: 1px solid var(--an-border);
+}
+
+/* ── Main content area ───────────────────────────────────────── */
+
+.analytics-content {
+  background: var(--an-bg-alt);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  min-height: 100%;
+}
+
+.analytics-content__header {
+  padding: 0.9rem 1.5rem 0.85rem;
+  border-bottom: 1px solid var(--an-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.analytics-content__eyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--an-accent);
+}
+
+/* ── Sections body — padded scroll area below the tab bar ───── */
+
+.analytics-sections-body {
+  padding: 1.6rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+/* ── Section navigation tab bar ─────────────────────────────── */
+
+.analytics-section-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--an-bg);
+  border-bottom: 1px solid var(--an-border-mid);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.analytics-section-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.analytics-section-nav__tab {
+  flex-shrink: 0;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.75rem 1.25rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--an-muted-strong);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.analytics-section-nav__tab:hover {
+  color: var(--an-text-strong);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.analytics-section-nav__tab.is-active {
+  color: var(--an-text-strong);
+  border-bottom-color: var(--an-accent);
+}
+
+.analytics-section-nav__tab:focus-visible {
+  outline: 2px solid var(--an-accent);
+  outline-offset: -2px;
+}
+
+.analytics-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Critical: the [hidden] attribute must win over the flex display above,
+   otherwise every tab panel stays visible and the page becomes one scroll. */
+.analytics-panel[hidden] {
+  display: none;
+}
+
+/* ── KPI strip — single home for population stats ───────────── */
+
+.analytics-kpi-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 0.85rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.analytics-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.6rem 1.1rem;
+  border-right: 1px solid var(--an-border);
+  min-width: 7rem;
+}
+
+.analytics-kpi:last-child {
+  border-right: none;
+}
+
+.analytics-kpi > span {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--an-muted);
+}
+
+.analytics-kpi > strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--an-data);
+  font-family: ui-monospace, "IBM Plex Mono", monospace;
+  letter-spacing: -0.01em;
+}
+
+.analytics-kpi--evidence {
+  justify-content: center;
+  margin-left: auto;
+  border-right: none;
+  border-left: 1px solid var(--an-border);
+}
+
+/* ── Semantic data tones — fixed green / amber / red scale ──── */
+
+.analytics-shell .delta[data-tone="pos"] {
+  color: var(--an-status-ok);
+  font-weight: 600;
+}
+
+.analytics-shell .delta[data-tone="neg"] {
+  color: var(--an-status-err);
+  font-weight: 600;
+}
+
+.analytics-shell .delta[data-tone="flat"] {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .tag-band {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 2px;
+  font-weight: 600;
+  font-size: 0.92em;
+  text-transform: capitalize;
+}
+
+.analytics-shell .tag-band[data-tone="high"] {
+  color: var(--an-status-ok);
+  background: var(--an-status-ok-bg);
+}
+
+.analytics-shell .tag-band[data-tone="mid"] {
+  color: var(--an-accent);
+  background: var(--an-accent-soft);
+}
+
+.analytics-shell .tag-band[data-tone="low"] {
+  color: var(--an-status-err);
+  background: var(--an-status-err-bg);
+}
+
+.analytics-shell .tag-band[data-tone="none"] {
+  color: var(--an-muted-strong);
+}
+
+/* Score bar — always informational blue (the number carries the value,
+   the bar is a gauge). No amber sea. */
+.analytics-shell .intelligence-score-bar div {
+  background: var(--an-accent);
+}
+
+.analytics-shell .intelligence-score-bar div[data-tone="high"] {
+  background: var(--an-status-ok);
+}
+
+.analytics-shell .intelligence-score-bar div[data-tone="low"] {
+  background: var(--an-status-err);
+}
+
+/* Axis card left accent — coloured ONLY at the extremes, so colour means
+   "something notable". Typical mid-range scores stay neutral. */
+.analytics-shell .intelligence-axis-card {
+  border-left: 2px solid var(--an-border-mid);
+}
+
+.analytics-shell .intelligence-axis-card[data-tone="high"] {
+  border-left-color: var(--an-status-ok);
+}
+
+.analytics-shell .intelligence-axis-card[data-tone="low"] {
+  border-left-color: var(--an-status-err);
+}
+
+/* Comparison table value colour only at the extremes. */
+.analytics-shell .analytics-table td[data-tone="high"] strong {
+  color: var(--an-status-ok);
+}
+
+.analytics-shell .analytics-table td[data-tone="low"] strong {
+  color: var(--an-status-err);
+}
+
+/* Hero eyebrow */
+.analytics-shell .intelligence-hero__eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--an-accent);
+}
+
+/* ── Dark overrides for existing components ─────────────────── */
+
+/* Surface cards — flat neutral, sharp corners */
+.analytics-shell .surface-card,
+.analytics-shell article.surface-card {
+  background: var(--an-surface);
+  border-color: var(--an-border-mid);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.analytics-shell .surface-card h2 {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--an-muted-strong);
+  margin: 0 0 0.5rem;
+}
+
+.analytics-shell .surface-card > p {
+  color: var(--an-muted-strong);
+  font-size: 0.875rem;
+}
+
+/* Intelligence hero — accent left-border, flat surface */
+.analytics-shell .intelligence-hero {
+  background: var(--an-surface);
+  border: 1px solid var(--an-border-mid);
+  border-left: 3px solid var(--an-accent);
+  border-radius: 4px;
+}
+
+.analytics-shell .intelligence-hero p {
+  color: var(--an-muted-strong);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+}
+
+.analytics-shell .intelligence-hero h2 {
+  color: var(--an-text-strong);
+}
+
+.analytics-shell .intelligence-hero span {
+  color: var(--an-muted-strong);
+}
+
+/* Axis cards — neutral dark alt, data values in white not green */
+.analytics-shell .intelligence-axis-card {
+  background: var(--an-surface-alt);
+  border-color: var(--an-border-mid);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.analytics-shell .intelligence-axis-card p {
+  color: var(--an-muted-strong);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.analytics-shell .intelligence-axis-card strong {
+  color: var(--an-data);
+  font-family: ui-monospace, "IBM Plex Mono", "Cascadia Code", monospace;
+  font-size: 2.2rem;
+}
+
+.analytics-shell .intelligence-axis-card span,
+.analytics-shell .intelligence-axis-card small {
+  color: var(--an-muted-strong);
+  font-size: 0.72rem;
+}
+
+.analytics-shell .intelligence-score-bar {
+  background: var(--an-border-mid);
+}
+
+.analytics-shell .intelligence-score-bar div {
+  background: var(--an-muted-strong);
+}
+
+/* Radar — neutral strokes, muted fills */
+.analytics-shell .radar-grid {
+  stroke: var(--an-border-mid);
+}
+
+.analytics-shell .radar-axis {
+  stroke: var(--an-border-mid);
+}
+
+.analytics-shell .radar-label {
+  fill: var(--an-muted-strong);
+  font-size: 0.73rem;
+}
+
+.analytics-shell .radar-card__header p {
+  color: var(--an-accent);
+}
+
+.analytics-shell .radar-series--baseline {
+  fill: rgba(168, 168, 168, 0.05);
+  stroke: #a8a8a8;
+  stroke-width: 1.5px;
+  stroke-dasharray: 4 3;
+}
+
+.analytics-shell .radar-series--accent {
+  fill: rgba(91, 156, 246, 0.1);
+  stroke: #5b9cf6;
+  stroke-width: 2px;
+}
+
+.analytics-shell .radar-series--secondary {
+  fill: rgba(62, 207, 124, 0.09);
+  stroke: #3ecf7c;
+  stroke-width: 2px;
+}
+
+.analytics-shell .radar-dot.radar-series--baseline {
+  background: #a8a8a8;
+  width: 5px;
+  height: 5px;
+}
+
+.analytics-shell .radar-dot.radar-series--accent {
+  background: #5b9cf6;
+  width: 6px;
+  height: 6px;
+}
+
+.analytics-shell .radar-dot.radar-series--secondary {
+  background: #3ecf7c;
+  width: 6px;
+  height: 6px;
+}
+
+.analytics-shell .radar-legend__item strong {
+  color: var(--an-text);
+  font-size: 0.83rem;
+  font-weight: 500;
+}
+
+.analytics-shell .radar-legend__item small {
+  color: var(--an-muted-strong);
+}
+
+/* Evidence badges — functional color only */
+.analytics-shell .evidence-badge {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--an-border-mid);
+  color: var(--an-muted-strong);
+  font-size: 0.72rem;
+}
+
+.analytics-shell .evidence-badge--ok {
+  background: var(--an-status-ok-bg);
+  border-color: var(--an-status-ok-border);
+  color: var(--an-status-ok);
+}
+
+.analytics-shell .evidence-badge--warning {
+  background: var(--an-status-warn-bg);
+  border-color: var(--an-status-warn-border);
+  color: var(--an-status-warn);
+}
+
+.analytics-shell .evidence-badge--critical {
+  background: var(--an-status-err-bg);
+  border-color: var(--an-status-err-border);
+  color: var(--an-status-err);
+}
+
+.analytics-shell .evidence-badge--info {
+  background: var(--an-accent-soft);
+  border-color: rgba(91, 156, 246, 0.28);
+  color: var(--an-accent);
+}
+
+/* Analytics rows */
+.analytics-shell .analytics-row {
+  border-color: var(--an-border);
+}
+
+.analytics-shell .analytics-row strong {
+  color: var(--an-text);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.analytics-shell .analytics-row span {
+  color: var(--an-muted-strong);
+  font-size: 0.82rem;
+}
+
+/* Table */
+.analytics-shell .analytics-table {
+  color: var(--an-text);
+}
+
+.analytics-shell .analytics-table th {
+  color: var(--an-muted-strong);
+  border-color: var(--an-border-mid);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--an-surface-alt);
+}
+
+.analytics-shell .analytics-table td {
+  border-color: var(--an-border);
+  color: var(--an-text);
+}
+
+.analytics-shell .analytics-table td strong {
+  color: var(--an-data);
+  font-family: ui-monospace, "IBM Plex Mono", monospace;
+}
+
+.analytics-shell .analytics-table td small {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .analytics-table tr:hover td {
+  background: var(--an-surface-hover);
+}
+
+/* Profile score cards — data values in white */
+.analytics-shell .profile-panel {
+  background: var(--an-surface);
+  border-color: var(--an-border-mid);
+  border-radius: 4px;
+}
+
+.analytics-shell .profile-score-card {
+  background: var(--an-surface-alt);
+  border-color: var(--an-border-mid);
+  border-radius: 3px;
+}
+
+.analytics-shell .profile-score-card strong {
+  color: var(--an-data);
+  font-family: ui-monospace, "IBM Plex Mono", monospace;
+}
+
+.analytics-shell .profile-score-card span,
+.analytics-shell .profile-score-card small {
+  color: var(--an-muted-strong);
+  font-size: 0.78rem;
+}
+
+/* Intelligence insights */
+.analytics-shell .intelligence-insight {
+  background: var(--an-surface-alt);
+  border-color: var(--an-border-mid);
+  border-radius: 3px;
+}
+
+.analytics-shell .intelligence-insight strong {
+  color: var(--an-text-strong);
+  font-weight: 500;
+}
+
+.analytics-shell .intelligence-insight p {
+  color: var(--an-muted-strong);
+  font-size: 0.875rem;
+}
+
+/* Progress list — data values near-white */
+.analytics-shell .intelligence-progress-row span {
+  color: var(--an-muted-strong);
+  font-size: 0.82rem;
+}
+
+.analytics-shell .intelligence-progress-row strong {
+  color: var(--an-data);
+  font-family: ui-monospace, "IBM Plex Mono", monospace;
+}
+
+.analytics-shell .intelligence-progress-row div {
+  background: var(--an-border-mid);
+}
+
+.analytics-shell .intelligence-progress-row i {
+  background: var(--an-muted-strong);
+}
+
+/* Segment finder */
+.analytics-shell .segment-finder {
+  background: var(--an-surface);
+  border-color: var(--an-border-mid);
+  border-radius: 4px;
+  border-left: 3px solid var(--an-segment);
+}
+
+.analytics-shell .segment-finder h2 {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .segment-finder > p {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .segment-condition-row > span:first-child {
+  background: var(--an-segment-bg);
+  border-color: var(--an-segment-border);
+  color: var(--an-segment);
+}
+
+.analytics-shell .segment-condition-row small {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .segment-condition-remove {
+  background: var(--an-surface-alt);
+  border-color: var(--an-border-mid);
+  color: var(--an-muted-strong);
+  border-radius: 3px;
+}
+
+.analytics-shell .segment-opportunity-card {
+  background: var(--an-surface-alt);
+  border-color: var(--an-border-mid);
+  border-radius: 4px;
+  border-left: 3px solid var(--an-segment);
+}
+
+.analytics-shell .segment-opportunity-card__header p {
+  color: var(--an-segment);
+}
+
+.analytics-shell .segment-opportunity-card__header strong {
+  color: var(--an-text-strong);
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.analytics-shell .segment-opportunity-card p:last-child {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .evidence-warning {
+  color: var(--an-muted-strong);
+}
+
+/* Buttons */
+.analytics-shell .button--primary {
+  background: var(--an-accent);
+  border-color: var(--an-accent);
+  border-radius: 3px;
+  color: #fff;
+  font-weight: 500;
+}
+
+.analytics-shell .button--primary:hover:not(:disabled) {
+  background: #5f9ef8;
+  opacity: 1;
+}
+
+.analytics-shell .button--secondary {
+  background: transparent;
+  border-color: var(--an-border-mid);
+  border-radius: 3px;
+  color: var(--an-text);
+}
+
+.analytics-shell .button--secondary:hover:not(:disabled) {
+  background: var(--an-surface-hover);
+  opacity: 1;
+}
+
+.analytics-shell .button--ghost {
+  background: transparent;
+  border-color: var(--an-border);
+  border-radius: 3px;
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .button--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--an-text);
+  opacity: 1;
+}
+
+/* Tags — monospace schema tags */
+.analytics-shell .tag {
+  background: var(--an-surface-alt);
+  border-color: var(--an-border-mid);
+  border-radius: 2px;
+  color: var(--an-muted-strong);
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+}
+
+/* Empty state */
+.analytics-shell .empty-state h3 {
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .empty-state p {
+  color: var(--an-muted-strong);
+}
+
+/* Stack list */
+.analytics-shell .stack-list strong {
+  color: var(--an-text);
+  font-weight: 500;
+}
+
+/* Section layout */
+.analytics-shell .analytics-intelligence-tab {
+  gap: 1.25rem;
+}
+
+/* Widget card */
+.analytics-shell .intelligence-widget {
+  background: var(--an-surface);
+  border-color: var(--an-border-mid);
+  border-radius: 4px;
+}
+
+/* ── Extend dark mode to the app shell topbar via :has() ────── */
+
+body:has(.analytics-shell) {
+  background: #0c0c0c;
+}
+
+.app-shell:has(.analytics-shell) {
+  background: #0c0c0c;
+}
+
+.app-shell:has(.analytics-shell) .app-shell__content {
+  background: #0c0c0c;
+}
+
+.app-shell:has(.analytics-shell) .topbar {
+  background: #111111;
+  border-bottom: 1px solid #262626;
+  box-shadow: none;
+}
+
+.app-shell:has(.analytics-shell) .topbar .topbar__eyebrow {
+  color: #888888;
+  font-size: 0.67rem;
+  letter-spacing: 0.06em;
+}
+
+.app-shell:has(.analytics-shell) .topbar strong {
+  color: #e0e0e0;
+  font-weight: 600;
+}
+
+.app-shell:has(.analytics-shell) .brand-badge {
+  background: #222222;
+  border: 1px solid #333333;
+  color: #888888;
+  box-shadow: none;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.app-shell:has(.analytics-shell) .user-chip {
+  background: #1a1a1a;
+  border: 1px solid #262626;
+  border-radius: 4px;
+}
+
+.app-shell:has(.analytics-shell) .user-chip strong {
+  color: #d0d0d0;
+  font-weight: 500;
+}
+
+.app-shell:has(.analytics-shell) .user-chip p {
+  color: #686868;
+}
+
+.app-shell:has(.analytics-shell) .user-chip__avatar {
+  background: #2a2a2a;
+  color: #888888;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.app-shell:has(.analytics-shell) .topbar .button--ghost {
+  background: transparent;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  color: #686868;
+  font-size: 0.78rem;
+}
+
+.app-shell:has(.analytics-shell) .topbar .button--ghost:hover:not(:disabled) {
+  background: #1e1e1e;
+  color: #a0a0a0;
+  transform: none;
+}
+
+/* Responsive: collapse rail on smaller screens */
+@media (max-width: 1100px) {
+  .analytics-shell {
+    grid-template-columns: 1fr;
+    margin: -1.6rem -1.6rem 0;
+  }
+
+  .analytics-rail {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--an-border);
+  }
+
+  .analytics-rail__header {
+    width: 100%;
+  }
+
+  .analytics-filter-rail {
+    min-width: 240px;
+  }
+
+  .analytics-rail__footer {
+    flex-direction: row;
+    width: 100%;
+    border-top: 1px solid var(--an-border);
+    margin-top: 0;
+  }
+
+  .analytics-sections-body {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .analytics-shell {
+    margin: -1.2rem;
+  }
+
+  .analytics-sections-body {
+    padding: 1rem;
+  }
+}

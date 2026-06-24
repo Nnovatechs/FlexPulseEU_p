@@ -383,6 +383,9 @@ export function getEvidenceTone(label: SurveyAnalyticsQueryRow["evidence"]["labe
   if (label === "low") {
     return "warning";
   }
+  if (label === "directional") {
+    return "info";
+  }
   return "ok";
 }
 
@@ -410,6 +413,47 @@ export function getDifferenceLabel(value: number | null) {
 
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}`;
+}
+
+/**
+ * Semantic tone for a 1-5 behavioural score. Colour is reserved for the
+ * extremes so it actually *highlights* something: a genuinely high score
+ * reads green, a genuinely low one reads red, and the broad mid-range stays
+ * neutral (informational blue) rather than painting everything amber.
+ */
+export function getScoreTone(value: number | null | undefined): "high" | "mid" | "low" | "none" {
+  if (value == null) {
+    return "none";
+  }
+  if (value >= 4) {
+    return "high";
+  }
+  if (value <= 2) {
+    return "low";
+  }
+  return "mid";
+}
+
+/** Semantic tone for a delta vs baseline: positive=green, negative=red. */
+export function getDeltaTone(value: number | null | undefined): "pos" | "neg" | "flat" {
+  if (value == null || Math.abs(value) < 0.05) {
+    return "flat";
+  }
+  return value > 0 ? "pos" : "neg";
+}
+
+/** Semantic tone for a low/medium/high profile band, matching the score scale. */
+export function getTagTone(tag: string | null | undefined): "high" | "mid" | "low" | "none" {
+  switch (tag) {
+    case "high":
+      return "high";
+    case "medium":
+      return "mid";
+    case "low":
+      return "low";
+    default:
+      return "none";
+  }
 }
 
 export function buildBaselineMetrics(

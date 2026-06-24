@@ -67,7 +67,12 @@ export function getGroupLabel(row: SurveyAnalyticsQueryRow, fieldKey: string) {
     return "Unknown";
   }
 
-  const label = String(value).replace(/[_-]+/g, " ").trim();
+  const raw = String(value);
+  if (raw === "neutral" || raw === "neutral_mainstream") {
+    return "Neutral Position";
+  }
+
+  const label = raw.replace(/[_-]+/g, " ").trim();
   if (/^[a-z]{2}$/i.test(label)) {
     return label.toUpperCase();
   }

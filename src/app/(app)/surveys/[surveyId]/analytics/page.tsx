@@ -18,7 +18,6 @@ import {
   buildSegmentMetrics,
   buildSelectedFilters,
   describeAverage,
-  findConceptField,
   formatCompactCount,
   formatDateShort,
   formatMetricValue,
@@ -42,7 +41,6 @@ import {
   getScoreBarWidth,
   getScoreRange,
   getSearchParam,
-  getSegmentEntries,
   getSegmentFieldLabel,
   getSingleGroup,
   getVisibleProfileConditions,
@@ -59,6 +57,11 @@ import {
 } from "@/features/surveys/analytics/profile-explorer-utils";
 import { appRoutes } from "@/lib/config/routes";
 import { AnalyticsTabs, type AnalyticsTab } from "./analytics-tabs";
+import {
+  buildSurveyInsights,
+  MIN_INSIGHT_SAMPLE,
+  MIN_MEANINGFUL_DELTA,
+} from "@/features/surveys/analytics/overview-insights";
 
 type SurveyAnalyticsPageProps = {
   params: Promise<{ surveyId: string }>;
@@ -80,8 +83,10 @@ const ARCHETYPE_DESCRIPTIONS: Record<string, string> = {
     "Savings-led respondents with high flexibility and moderate trust. Price signals and clear bill impact are the strongest hooks.",
   comfort_first:
     "Comfort-protective households with low tolerance for temperature or routine disruption. Automation needs strict comfort guarantees.",
+  neutral:
+    "Neutral position with mid-scale answers and no strong behavioural pull. Useful for deciding whether sharper country or archetype splits matter more than broad messaging.",
   neutral_mainstream:
-    "Centrist baseline cohort with mostly mid-scale answers. Useful as the reference group for comparing stronger behavioural signals.",
+    "Neutral position with mid-scale answers and no strong behavioural pull. Useful for deciding whether sharper country or archetype splits matter more than broad messaging.",
   der_engaged:
     "Asset-rich DER users with practical familiarity and high flexibility. Often more ready for advanced flexibility propositions.",
   contradictory:
@@ -95,6 +100,10 @@ function getArchetypeDescription(value: string) {
 }
 
 function humanizeFilterLabel(value: string) {
+  if (value === "neutral" || value === "neutral_mainstream") {
+    return "Neutral Position";
+  }
+
   const normalized = value.replace(/[_-]+/g, " ").trim();
 
   if (!normalized) {
@@ -820,44 +829,62 @@ function AssetDistributionCard({
   );
 }
 
-function SurveyIntelligenceHero({
+function SurveyInsightPanel({
   profileFields,
   baselineRow,
-  segmentRows,
-  segmentField,
+  countryRows,
+  countryField,
+  audienceRows,
+  audienceField,
 }: {
   profileFields: SurveyAnalyticsFieldDefinition[];
   baselineRow: SurveyAnalyticsQueryRow | null;
-  segmentRows: SurveyAnalyticsQueryRow[];
-  segmentField: SurveyAnalyticsFieldDefinition | null;
+  countryRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
+  audienceRows: SurveyAnalyticsQueryRow[];
+  audienceField: SurveyAnalyticsFieldDefinition | null;
 }) {
-  const trustField = findConceptField(profileFields, ["trust"]);
-  const flexibilityField = findConceptField(profileFields, ["flexibility"]);
-  const comfortField = findConceptField(profileFields, ["comfort", "thermal"]);
-  const flexibilityLeaders = getSegmentEntries(segmentRows, segmentField, flexibilityField);
-  const comfortLeaders = getSegmentEntries(segmentRows, segmentField, comfortField);
-  const trustAverage = trustField
-    ? getMetricValue(baselineRow, metricKeyFor("avg", trustField))
-    : null;
-  const activationLeader = flexibilityLeaders[0]?.label ?? "the strongest cohort";
-  const comfortBarrier = comfortLeaders[0]?.label ?? "comfort-protective cohorts";
-
-  const headline =
-    flexibilityField && comfortField
-      ? `Highest flexibility average: ${activationLeader}. Highest comfort-preservation average: ${comfortBarrier}.`
-      : `This survey currently exposes ${profileFields.length} primary behavioural axes.`;
-  const description =
-    trustAverage != null
-      ? `Baseline trust in automation is ${formatPlainValue(
-          trustAverage,
-        )}/5 across mapped respondents. Values shown below are direct averages of mapped profile scores on a 1-5 scale.`
-      : `Values shown below are direct averages of mapped profile scores on a 1-5 scale, grouped by the strongest available segment field when ranges are displayed.`;
+  const insights = buildSurveyInsights({
+    baselineRow,
+    profileFields,
+    countryRows,
+    countryField,
+    audienceRows,
+    audienceField,
+  });
 
   return (
-    <section className="intelligence-hero">
-      <p className="intelligence-hero__eyebrow">Headline reading</p>
-      <h2>{headline}</h2>
-      <span>{description}</span>
+    <section className="intelligence-hero intelligence-hero--insights">
+      <p className="intelligence-hero__eyebrow">Overview insights</p>
+      <h2>Product signals worth acting on</h2>
+      <span>
+        Generated from mapped responses using transparent thresholds: minimum n={MIN_INSIGHT_SAMPLE}
+        {" "}per compared group and minimum delta {MIN_MEANINGFUL_DELTA.toFixed(2)} on the 1-5 profile scale.
+      </span>
+      <ul className="semantic-insight-list">
+        {insights.length > 0 ? (
+          insights.slice(0, 4).map((insight) => (
+            <li key={`${insight.tone}-${insight.title}`} className="semantic-insight-item" data-tone={insight.tone}>
+              <div>
+                <strong>{insight.title}</strong>
+                <p>{insight.body}</p>
+              </div>
+              <small>{insight.evidence}</small>
+            </li>
+          ))
+        ) : (
+          <li className="semantic-insight-item" data-tone="mainstream">
+            <div>
+              <strong>Not enough evidence for overview insights yet</strong>
+              <p>
+                The survey needs mapped responses with enough sample size per group before the system
+                surfaces product signals.
+              </p>
+            </div>
+            <small>Minimum n={MIN_INSIGHT_SAMPLE} per reported group.</small>
+          </li>
+        )}
+      </ul>
     </section>
   );
 }
@@ -1170,6 +1197,13 @@ export default async function SurveyAnalyticsPage({
           metrics: [{ key: "responses", kind: "count" }],
         })
       : null;
+  const profileByAudience =
+    hasMappedResponses && audienceField && profileValueFields.length > 0
+      ? runPreview({
+          group_by: [audienceField.key],
+          metrics: segmentMetrics,
+        })
+      : null;
   const profileBySegment =
     hasMappedResponses && profileValueFields.length > 0 && primarySegmentField
       ? runPreview({
@@ -1281,11 +1315,13 @@ export default async function SurveyAnalyticsPage({
       label: "Overview",
       panel: (
         <section className="analytics-intelligence-tab">
-          <SurveyIntelligenceHero
+          <SurveyInsightPanel
             profileFields={mainProfileFields}
             baselineRow={baselineRow}
-            segmentRows={segmentRows}
-            segmentField={primarySegmentField}
+            countryRows={profileBySegment?.result.groups ?? []}
+            countryField={primarySegmentField?.key === "context.country_code" ? primarySegmentField : countryField}
+            audienceRows={profileByAudience?.result.groups ?? []}
+            audienceField={audienceField}
           />
           <IntelligenceAxisCards
             fields={mainProfileFields}

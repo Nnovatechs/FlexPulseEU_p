@@ -2,9 +2,12 @@ export type SurveyQuestion = {
   id: string;
   key: string;
   title: string;
-  description: string;
   type: string;
+  typeKey: string;
   required: boolean;
+  optionLabels?: string[];
+  scaleSummary?: string;
+  numericSummary?: string;
 };
 
 export type SurveyStatus = "Draft" | "Published" | "Archived";

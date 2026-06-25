@@ -6,17 +6,39 @@ type QuestionListProps = {
 
 export function QuestionList({ questions }: QuestionListProps) {
   return (
-    <div className="stack-list">
+    <div className="survey-detail-questions">
       {questions.map((question, index) => (
-        <article key={question.id} className="question-card">
-          <div className="question-card__index">{index + 1}</div>
-          <div className="question-card__body">
-            <div className="question-card__topline">
-              <h3>{question.title}</h3>
-              <span className="meta-pill">{question.type}</span>
+        <article key={question.id} className="qov-card qov-card--preview qov-card--detail">
+          <div className="qov-card__main">
+            <div className="qov-card__header">
+              <span className="qov-card__number">{index + 1}</span>
+              <span className="qov-card__title">{question.title}</span>
+              <span className={`qov-card__type qov-card__type--${question.typeKey}`}>
+                {question.type}
+              </span>
             </div>
-            <p>{question.description || "No description yet."}</p>
-            <small>{question.required ? "Required" : "Optional"}</small>
+
+            {question.optionLabels && question.optionLabels.length > 0 ? (
+              <div className="qov-card__options">
+                {question.optionLabels.map((label) => (
+                  <span key={label} className="qov-card__option">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            {question.scaleSummary ? (
+              <p className="qov-card__meta muted">{question.scaleSummary}</p>
+            ) : null}
+
+            {question.numericSummary ? (
+              <p className="qov-card__meta muted">{question.numericSummary}</p>
+            ) : null}
+
+            <p className="qov-card__meta muted">
+              {question.required ? "Required" : "Optional"}
+            </p>
           </div>
         </article>
       ))}

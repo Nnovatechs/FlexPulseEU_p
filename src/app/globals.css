@@ -2617,6 +2617,13 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   gap: 0.5rem;
 }
 
+.survey-detail-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .preview-tab__survey-flags,
 .preview-tab__question-flags {
   display: flex;

@@ -8,7 +8,7 @@ import {
   listOwnedSurveyLinksForSurveyIds,
   listOwnedSurveys,
 } from "./generator-repository";
-import { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
+import { PersistedSurvey, PersistedSurveyLink, SurveyQuestionDefinition } from "./generator-types";
 import {
   buildSurveyAnalyticsSchema,
   runSurveyAnalyticsQuery,
@@ -29,7 +29,35 @@ const loadCachedSurveyAnalyticsRuntime = unstable_cache(
 );
 
 function formatQuestionType(value: string) {
-  return value.replaceAll("_", " ");
+  const labels: Record<string, string> = {
+    single_choice: "Single choice",
+    multiple_choice: "Multiple choice",
+    rating_scale: "Rating scale",
+    free_text: "Free text",
+    numeric: "Numeric",
+    boolean: "Boolean",
+  };
+
+  return labels[value] ?? value.replaceAll("_", " ");
+}
+
+function buildScaleSummary(
+  scale: NonNullable<SurveyQuestionDefinition["scale"]>,
+) {
+  return `Scale ${scale.min}${scale.min_label ? ` (${scale.min_label})` : ""} → ${scale.max}${scale.max_label ? ` (${scale.max_label})` : ""}`;
+}
+
+function buildNumericSummary(
+  numeric: NonNullable<SurveyQuestionDefinition["numeric"]>,
+) {
+  const parts = ["Numeric"];
+  if (numeric.unit) {
+    parts.push(numeric.unit);
+  }
+  if (numeric.min != null && numeric.max != null) {
+    parts.push(`${numeric.min}–${numeric.max}`);
+  }
+  return parts.join(" · ");
 }
 
 function toTitleCase(value: string) {
@@ -79,9 +107,14 @@ function buildSurveyProjection(
         id: question.question_key,
         key: question.question_key,
         title: translations?.title?.trim() || question.question_key,
-        description: translations?.description?.trim() || "",
         type: formatQuestionType(question.type),
+        typeKey: question.type,
         required: question.required,
+        optionLabels: question.options?.map(
+          (option) => translations?.options?.[option.option_key] ?? option.option_key,
+        ),
+        scaleSummary: question.scale ? buildScaleSummary(question.scale) : undefined,
+        numericSummary: question.numeric ? buildNumericSummary(question.numeric) : undefined,
       };
     });
 

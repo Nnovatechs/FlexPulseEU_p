@@ -9,26 +9,20 @@ type FilterOption = {
 };
 
 export type ComparisonSelectionState = {
-  audience: string;
+  profileBand: string;
   country: string;
   language: string;
-  tag: string;
   asset: string;
 };
 
 type ComparisonBuilderProps = {
   leftSelection: ComparisonSelectionState;
   rightSelection: ComparisonSelectionState;
+  profileBandOptions: FilterOption[];
   countryOptions: FilterOption[];
-  audienceOptions: FilterOption[];
   languageOptions: FilterOption[];
   assetOptions: FilterOption[];
 };
-
-const TAG_OPTIONS = ["low", "medium", "high"].map((tag) => ({
-  value: tag,
-  label: `${tag} (${tag})`,
-}));
 
 function humanizeFilterLabel(value: string) {
   if (value === "neutral" || value === "neutral_mainstream") {
@@ -105,7 +99,7 @@ function ComparisonColumn({
   selection,
   setSelection,
   countryOptions,
-  audienceOptions,
+  profileBandOptions,
   languageOptions,
   assetOptions,
 }: {
@@ -113,8 +107,8 @@ function ComparisonColumn({
   title: string;
   selection: ComparisonSelectionState;
   setSelection: (selection: ComparisonSelectionState) => void;
+  profileBandOptions: FilterOption[];
   countryOptions: FilterOption[];
-  audienceOptions: FilterOption[];
   languageOptions: FilterOption[];
   assetOptions: FilterOption[];
 }) {
@@ -125,11 +119,11 @@ function ComparisonColumn({
         <strong>{title}</strong>
       </div>
       <ComparisonOptionGroup
-        label="Behavioural archetype"
-        allLabel="All archetypes"
-        value={selection.audience}
-        options={audienceOptions}
-        onSelect={(value) => setSelection(toggleSelection(selection, "audience", value))}
+        label="Profile axis band"
+        allLabel="All profile bands"
+        value={selection.profileBand}
+        options={profileBandOptions}
+        onSelect={(value) => setSelection(toggleSelection(selection, "profileBand", value))}
       />
       <ComparisonOptionGroup
         label="Country"
@@ -144,13 +138,6 @@ function ComparisonColumn({
         value={selection.language}
         options={languageOptions}
         onSelect={(value) => setSelection(toggleSelection(selection, "language", value))}
-      />
-      <ComparisonOptionGroup
-        label="Trust band"
-        allLabel="All trust bands"
-        value={selection.tag}
-        options={TAG_OPTIONS}
-        onSelect={(value) => setSelection(toggleSelection(selection, "tag", value))}
       />
       {assetOptions.length > 0 ? (
         <ComparisonOptionGroup
@@ -174,10 +161,9 @@ function ComparisonHiddenInputs({
 }) {
   return (
     <>
-      <input type="hidden" name={`${prefix}_audience`} value={selection.audience} />
+      <input type="hidden" name={`${prefix}_profile_band`} value={selection.profileBand} />
       <input type="hidden" name={`${prefix}_country`} value={selection.country} />
       <input type="hidden" name={`${prefix}_language`} value={selection.language} />
-      <input type="hidden" name={`${prefix}_tag`} value={selection.tag} />
       <input type="hidden" name={`${prefix}_asset`} value={selection.asset} />
     </>
   );
@@ -186,8 +172,8 @@ function ComparisonHiddenInputs({
 export function ComparisonBuilder({
   leftSelection,
   rightSelection,
+  profileBandOptions,
   countryOptions,
-  audienceOptions,
   languageOptions,
   assetOptions,
 }: ComparisonBuilderProps) {
@@ -210,8 +196,8 @@ export function ComparisonBuilder({
         title="Segment A"
         selection={left}
         setSelection={setLeft}
+        profileBandOptions={profileBandOptions}
         countryOptions={countryOptions}
-        audienceOptions={audienceOptions}
         languageOptions={languageOptions}
         assetOptions={assetOptions}
       />
@@ -223,8 +209,8 @@ export function ComparisonBuilder({
         title="Segment B"
         selection={right}
         setSelection={setRight}
+        profileBandOptions={profileBandOptions}
         countryOptions={countryOptions}
-        audienceOptions={audienceOptions}
         languageOptions={languageOptions}
         assetOptions={assetOptions}
       />

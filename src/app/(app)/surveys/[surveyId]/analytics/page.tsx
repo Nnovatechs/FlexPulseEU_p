@@ -59,9 +59,12 @@ import { appRoutes } from "@/lib/config/routes";
 import { AnalyticsTabs, type AnalyticsTab } from "./analytics-tabs";
 import { ComparisonBuilder, type ComparisonSelectionState } from "./comparison-builder";
 import {
+  buildJointBandShareCandidates,
   buildSurveyInsights,
+  INSIGHT_THRESHOLDS,
   MIN_INSIGHT_SAMPLE,
   MIN_MEANINGFUL_DELTA,
+  type JointBandShare,
 } from "@/features/surveys/analytics/overview-insights";
 
 type SurveyAnalyticsPageProps = {
@@ -76,31 +79,6 @@ type FilterOption = {
 };
 
 type ComparisonSelection = ComparisonSelectionState;
-
-const ARCHETYPE_DESCRIPTIONS: Record<string, string> = {
-  automation_ready:
-    "High trust in automation, high willingness to flex demand, and low comfort rigidity. Usually the easiest cohort for automated flexibility offers.",
-  control_protective:
-    "Low trust, low flexibility willingness, and high need for direct control. This cohort needs opt-outs, manual control, and strong reassurance.",
-  price_optimizer:
-    "Savings-led respondents with high flexibility and moderate trust. Price signals and clear bill impact are the strongest hooks.",
-  comfort_first:
-    "Comfort-protective households with low tolerance for temperature or routine disruption. Automation needs strict comfort guarantees.",
-  neutral:
-    "Neutral position with mid-scale answers and no strong behavioural pull. Useful for deciding whether sharper country or archetype splits matter more than broad messaging.",
-  neutral_mainstream:
-    "Neutral position with mid-scale answers and no strong behavioural pull. Useful for deciding whether sharper country or archetype splits matter more than broad messaging.",
-  der_engaged:
-    "Asset-rich DER users with practical familiarity and high flexibility. Often more ready for advanced flexibility propositions.",
-  contradictory:
-    "Respondents who trust technical reliability but still feel discomfort with autonomous control. Good for spotting messaging or control-design tension.",
-  partial_sparse:
-    "Sparse or incomplete responses used to test evidence thresholds and null handling. Treat as directional, not a strong product signal.",
-};
-
-function getArchetypeDescription(value: string) {
-  return ARCHETYPE_DESCRIPTIONS[value] ?? null;
-}
 
 function humanizeFilterLabel(value: string) {
   if (value === "neutral" || value === "neutral_mainstream") {
@@ -195,6 +173,53 @@ function FilterOptionGroup({
   );
 }
 
+function ProfileBandFilterGroup({
+  searchParams,
+  tagFields,
+  selectedValue,
+  options,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+  tagFields: SurveyAnalyticsFieldDefinition[];
+  selectedValue: string;
+  options: FilterOption[];
+}) {
+  if (options.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="analytics-filter-section">
+      <h3>Profile axis bands</h3>
+      <div className="analytics-filter-options">
+        <Link
+          href={buildHrefWithProfileConditions(searchParams, [])}
+          className={`analytics-filter-option${selectedValue ? "" : " is-active"}`}
+          aria-current={selectedValue ? undefined : "true"}
+        >
+          All profile bands
+        </Link>
+        {options.map((option) => {
+          const isActive = selectedValue === option.value;
+          return (
+            <Link
+              key={option.value}
+              href={buildHrefWithProfileConditions(
+                searchParams,
+                isActive ? [] : parseProfileBandValue(option.value, tagFields),
+              )}
+              className={`analytics-filter-option${isActive ? " is-active" : ""}`}
+              aria-current={isActive ? "true" : undefined}
+            >
+              {option.label}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function EvidenceBadge({
   evidence,
 }: {
@@ -231,6 +256,8 @@ function RenderFieldTags({
 
 function FilterRailForm({
   searchParams,
+  profileBandOptions,
+  tagFields,
   countryOptions,
   audienceOptions,
   languageOptions,
@@ -240,8 +267,11 @@ function FilterRailForm({
   selectedLanguage,
   selectedTag,
   selectedAsset,
+  selectedProfileBand,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
+  profileBandOptions: FilterOption[];
+  tagFields: SurveyAnalyticsFieldDefinition[];
   countryOptions: FilterOption[];
   audienceOptions: FilterOption[];
   languageOptions: FilterOption[];
@@ -251,18 +281,17 @@ function FilterRailForm({
   selectedLanguage: string;
   selectedTag: string;
   selectedAsset: string;
+  selectedProfileBand: string;
 }) {
   return (
     <div className="analytics-filter-rail">
       <p className="analytics-filter-rail__heading">Cohort filter</p>
       <div className="analytics-filter-form">
-        <FilterOptionGroup
-          name="audience"
-          label="Behavioural archetypes"
-          allLabel="All archetypes"
-          value={selectedAudience}
+        <ProfileBandFilterGroup
           searchParams={searchParams}
-          options={audienceOptions}
+          tagFields={tagFields}
+          selectedValue={selectedProfileBand}
+          options={profileBandOptions}
         />
         <FilterOptionGroup
           name="country"
@@ -301,17 +330,27 @@ function FilterRailForm({
             options={assetOptions}
           />
         ) : null}
+        <FilterOptionGroup
+          name="audience"
+          label="Response cohort"
+          allLabel="All cohorts"
+          value={selectedAudience}
+          searchParams={searchParams}
+          options={audienceOptions}
+        />
       </div>
     </div>
   );
 }
 
-function describeComparisonSelection(selection: ComparisonSelection) {
+function describeComparisonSelection(selection: ComparisonSelection, profileBandOptions: FilterOption[] = []) {
+  const profileBandLabel = selection.profileBand
+    ? profileBandOptions.find((option) => option.value === selection.profileBand)?.label
+    : null;
   const parts = [
-    selection.audience ? humanizeFilterLabel(selection.audience) : null,
+    profileBandLabel ? humanizeFilterLabel(profileBandLabel) : null,
     selection.country ? humanizeFilterLabel(selection.country) : null,
     selection.language ? humanizeFilterLabel(selection.language) : null,
-    selection.tag ? `${humanizeFilterLabel(selection.tag)} trust` : null,
     selection.asset ? humanizeFilterLabel(selection.asset) : null,
   ].filter(Boolean);
 
@@ -320,11 +359,37 @@ function describeComparisonSelection(selection: ComparisonSelection) {
 
 function areComparisonSelectionsEqual(left: ComparisonSelection, right: ComparisonSelection) {
   return (
-    left.audience === right.audience &&
+    left.profileBand === right.profileBand &&
     left.country === right.country &&
     left.language === right.language &&
-    left.tag === right.tag &&
     left.asset === right.asset
+  );
+}
+
+function encodeProfileBandValue(fieldKey: string, tag: string) {
+  return `${fieldKey}::${tag}`;
+}
+
+function parseProfileBandValue(value: string, tagFields: SurveyAnalyticsFieldDefinition[]): ProfileCondition[] {
+  const [fieldKey, tag] = value.split("::");
+  if (!fieldKey || !tag || !TAG_VALUES.includes(tag as (typeof TAG_VALUES)[number])) {
+    return [];
+  }
+
+  return tagFields.some((field) => field.key === fieldKey)
+    ? [{ fieldKey, tag }]
+    : [];
+}
+
+function buildProfileBandOptions(
+  tagFields: SurveyAnalyticsFieldDefinition[],
+  tags: readonly string[] = TAG_VALUES,
+) {
+  return tagFields.flatMap((field) =>
+    tags.map((tag) => ({
+      value: encodeProfileBandValue(field.key, tag),
+      label: `${getConceptShortLabel(field).replace(/\s+tag$/i, "")} · ${getHumanTag(tag) ?? humanizeFilterLabel(tag)}`,
+    })),
   );
 }
 
@@ -521,8 +586,8 @@ function ComparisonCountryRepresentation({
 }
 
 function ComparisonWorkbench({
+  profileBandOptions,
   countryOptions,
-  audienceOptions,
   languageOptions,
   assetOptions,
   leftSelection,
@@ -536,8 +601,8 @@ function ComparisonWorkbench({
   countryField,
   profileFields,
 }: {
+  profileBandOptions: FilterOption[];
   countryOptions: FilterOption[];
-  audienceOptions: FilterOption[];
   languageOptions: FilterOption[];
   assetOptions: FilterOption[];
   leftSelection: ComparisonSelection;
@@ -551,8 +616,8 @@ function ComparisonWorkbench({
   countryField: SurveyAnalyticsFieldDefinition | null;
   profileFields: SurveyAnalyticsFieldDefinition[];
 }) {
-  const leftLabel = describeComparisonSelection(leftSelection);
-  const rightLabel = describeComparisonSelection(rightSelection);
+  const leftLabel = describeComparisonSelection(leftSelection, profileBandOptions);
+  const rightLabel = describeComparisonSelection(rightSelection, profileBandOptions);
   const leftTotal = getMetricValue(leftRow, "responses") ?? 0;
   const rightTotal = getMetricValue(rightRow, "responses") ?? 0;
 
@@ -561,8 +626,8 @@ function ComparisonWorkbench({
       <ComparisonBuilder
         leftSelection={leftSelection}
         rightSelection={rightSelection}
+        profileBandOptions={profileBandOptions}
         countryOptions={countryOptions}
-        audienceOptions={audienceOptions}
         languageOptions={languageOptions}
         assetOptions={assetOptions}
       />
@@ -1145,26 +1210,29 @@ function AssetDistributionCard({
 
 function SurveyInsightPanel({
   profileFields,
+  tagFields,
   baselineRow,
+  jointBandShares,
   countryRows,
+  countryBandRows,
   countryField,
-  audienceRows,
-  audienceField,
 }: {
   profileFields: SurveyAnalyticsFieldDefinition[];
+  tagFields: SurveyAnalyticsFieldDefinition[];
   baselineRow: SurveyAnalyticsQueryRow | null;
+  jointBandShares: JointBandShare[];
   countryRows: SurveyAnalyticsQueryRow[];
+  countryBandRows: SurveyAnalyticsQueryRow[];
   countryField: SurveyAnalyticsFieldDefinition | null;
-  audienceRows: SurveyAnalyticsQueryRow[];
-  audienceField: SurveyAnalyticsFieldDefinition | null;
 }) {
   const insights = buildSurveyInsights({
     baselineRow,
     profileFields,
+    tagFields,
+    jointBandShares,
     countryRows,
+    countryBandRows,
     countryField,
-    audienceRows,
-    audienceField,
   });
 
   return (
@@ -1172,7 +1240,8 @@ function SurveyInsightPanel({
       <h2>Overview insights</h2>
       <span>
         Generated from mapped responses using transparent thresholds: minimum n={MIN_INSIGHT_SAMPLE}
-        {" "}per compared group and minimum delta {MIN_MEANINGFUL_DELTA.toFixed(2)} on the 1-5 profile scale.
+        {" "}per compared group, band share flags from {Math.round(INSIGHT_THRESHOLDS.dominantBandShare * 100)}%,
+        {" "}and minimum average delta {MIN_MEANINGFUL_DELTA.toFixed(2)} on the 1-5 profile scale.
       </span>
       <ul className="semantic-insight-list">
         {insights.length > 0 ? (
@@ -1460,19 +1529,19 @@ export default async function SurveyAnalyticsPage({
   const selectedAsset = getSearchParam(resolvedSearchParams, "asset") ?? "";
   const compareRequested = getSearchParam(resolvedSearchParams, "compare") === "1";
   const leftComparison: ComparisonSelection = {
-    audience: getSearchParam(resolvedSearchParams, "compare_a_audience") ?? "",
+    profileBand: getSearchParam(resolvedSearchParams, "compare_a_profile_band") ?? "",
     country: getSearchParam(resolvedSearchParams, "compare_a_country") ?? "",
     language: getSearchParam(resolvedSearchParams, "compare_a_language") ?? "",
-    tag: getSearchParam(resolvedSearchParams, "compare_a_tag") ?? "",
     asset: getSearchParam(resolvedSearchParams, "compare_a_asset") ?? "",
   };
   const rightComparison: ComparisonSelection = {
-    audience: getSearchParam(resolvedSearchParams, "compare_b_audience") ?? "",
+    profileBand: getSearchParam(resolvedSearchParams, "compare_b_profile_band") ?? "",
     country: getSearchParam(resolvedSearchParams, "compare_b_country") ?? "",
     language: getSearchParam(resolvedSearchParams, "compare_b_language") ?? "",
-    tag: getSearchParam(resolvedSearchParams, "compare_b_tag") ?? "",
     asset: getSearchParam(resolvedSearchParams, "compare_b_asset") ?? "",
   };
+  const leftComparisonProfileConditions = parseProfileBandValue(leftComparison.profileBand, tagFields);
+  const rightComparisonProfileConditions = parseProfileBandValue(rightComparison.profileBand, tagFields);
   const activeProfileConditions = getActiveProfileConditions(resolvedSearchParams);
   const profileConditions = getVisibleProfileConditions(resolvedSearchParams, tagFields);
   const selectedFilters = buildSelectedFilters({
@@ -1497,11 +1566,11 @@ export default async function SurveyAnalyticsPage({
     tagFields,
     assetField,
     selectedCountry: leftComparison.country,
-    selectedAudience: leftComparison.audience,
+    selectedAudience: null,
     selectedLanguage: leftComparison.language,
-    selectedTag: leftComparison.tag,
+    selectedTag: null,
     selectedAsset: leftComparison.asset,
-    profileConditions: [],
+    profileConditions: leftComparisonProfileConditions,
   });
   const rightComparisonFilters = buildSelectedFilters({
     countryField,
@@ -1511,11 +1580,11 @@ export default async function SurveyAnalyticsPage({
     tagFields,
     assetField,
     selectedCountry: rightComparison.country,
-    selectedAudience: rightComparison.audience,
+    selectedAudience: null,
     selectedLanguage: rightComparison.language,
-    selectedTag: rightComparison.tag,
+    selectedTag: null,
     selectedAsset: rightComparison.asset,
-    profileConditions: [],
+    profileConditions: rightComparisonProfileConditions,
   });
   const comparisonHasDifferentSelections = !areComparisonSelectionsEqual(leftComparison, rightComparison);
   const hasActiveFilters = selectedFilters.length > 0;
@@ -1568,10 +1637,10 @@ export default async function SurveyAnalyticsPage({
           metrics: [{ key: "responses", kind: "count" }],
         })
       : null;
-  const profileByAudience =
-    hasMappedResponses && audienceField && profileValueFields.length > 0
+  const profileByCountry =
+    hasMappedResponses && countryField && profileValueFields.length > 0
       ? runPreview({
-          group_by: [audienceField.key],
+          group_by: [countryField.key],
           metrics: segmentMetrics,
         })
       : null;
@@ -1580,6 +1649,13 @@ export default async function SurveyAnalyticsPage({
       ? runPreview({
           group_by: [primarySegmentField.key],
           metrics: segmentMetrics,
+        })
+      : null;
+  const profileByCountryWithBands =
+    hasMappedResponses && countryField && tagFields.length > 0
+      ? runPreview({
+          group_by: [countryField.key],
+          metrics: baselineMetrics,
         })
       : null;
   const tagDistribution =
@@ -1619,14 +1695,49 @@ export default async function SurveyAnalyticsPage({
   const leftComparisonRow = getSingleGroup(leftComparisonProfile);
   const rightComparisonRow = getSingleGroup(rightComparisonProfile);
   const segmentRows = profileBySegment?.result.groups ?? [];
+  const countryBandRows = profileByCountryWithBands?.result.groups ?? [];
+  const jointBandShares: JointBandShare[] =
+    hasMappedResponses && baselineRow
+      ? buildJointBandShareCandidates(tagFields, mainProfileFields).flatMap((candidate) => {
+          const filtered = runPreview({
+            filters: [
+              { field: candidate.fieldA.key, op: "eq", value: candidate.tagA },
+              { field: candidate.fieldB.key, op: "eq", value: candidate.tagB },
+            ],
+            metrics: [{ key: "responses", kind: "count" }],
+          });
+          const row = getSingleGroup(filtered);
+          const matchedCount = getMetricValue(row, "responses") ?? 0;
+          const sampleSize = baselineRow.response_count;
+
+          if (sampleSize === 0) {
+            return [];
+          }
+
+          return [
+            {
+              fieldA: candidate.fieldA,
+              tagA: candidate.tagA,
+              fieldB: candidate.fieldB,
+              tagB: candidate.tagB,
+              share: matchedCount / sampleSize,
+              matchedCount,
+              sampleSize,
+            },
+          ];
+        })
+      : [];
+  const sidebarProfileBandOptions = buildProfileBandOptions(tagFields, ["low", "high"]);
+  const comparisonProfileBandOptions = buildProfileBandOptions(tagFields);
+  const selectedProfileBand =
+    activeProfileConditions.length === 1
+      ? encodeProfileBandValue(activeProfileConditions[0].fieldKey, activeProfileConditions[0].tag)
+      : "";
   const countryOptions = countryField
     ? optionsFromRows(countryBreakdown?.result.groups ?? [], countryField.key)
     : [];
   const audienceOptions = audienceField
-    ? optionsFromRows(audienceBreakdown?.result.groups ?? [], audienceField.key).map((option) => ({
-        ...option,
-        description: getArchetypeDescription(option.value) ?? undefined,
-      }))
+    ? optionsFromRows(audienceBreakdown?.result.groups ?? [], audienceField.key)
     : [];
   const languageOptions = languageField
     ? optionsFromRows(languageBreakdown?.result.groups ?? [], languageField.key)
@@ -1706,11 +1817,12 @@ export default async function SurveyAnalyticsPage({
         <section className="analytics-intelligence-tab">
           <SurveyInsightPanel
             profileFields={mainProfileFields}
+            tagFields={tagFields}
             baselineRow={baselineRow}
-            countryRows={profileBySegment?.result.groups ?? []}
+            jointBandShares={jointBandShares}
+            countryRows={profileByCountry?.result.groups ?? []}
+            countryBandRows={countryBandRows}
             countryField={primarySegmentField?.key === "context.country_code" ? primarySegmentField : countryField}
-            audienceRows={profileByAudience?.result.groups ?? []}
-            audienceField={audienceField}
           />
           <IntelligenceAxisCards
             fields={mainProfileFields}
@@ -1770,8 +1882,8 @@ export default async function SurveyAnalyticsPage({
       label: "Comparison",
       panel: (
         <ComparisonWorkbench
+          profileBandOptions={comparisonProfileBandOptions}
           countryOptions={countryOptions}
-          audienceOptions={audienceOptions}
           languageOptions={languageOptions}
           assetOptions={assetOptions}
           leftSelection={leftComparison}
@@ -1801,8 +1913,8 @@ export default async function SurveyAnalyticsPage({
               metricKeys={["responses"]}
             />
             <BreakdownCard
-              title="Respondents by behavioural archetype"
-              description="Human-readable respondent archetypes derived from the active survey links."
+              title="Respondents by response cohort"
+              description="Response cohorts from survey-link metadata or seeded synthetic cohorts."
               rows={audienceBreakdown?.result.groups ?? []}
               groupField={audienceField?.key ?? "response.audience_label"}
               metricKeys={["responses"]}
@@ -1838,6 +1950,8 @@ export default async function SurveyAnalyticsPage({
       <aside className="analytics-rail">
         <FilterRailForm
           searchParams={resolvedSearchParams}
+          profileBandOptions={sidebarProfileBandOptions}
+          tagFields={tagFields}
           countryOptions={countryOptions}
           audienceOptions={audienceOptions}
           languageOptions={languageOptions}
@@ -1847,6 +1961,7 @@ export default async function SurveyAnalyticsPage({
           selectedLanguage={selectedLanguage}
           selectedTag={selectedTag}
           selectedAsset={selectedAsset}
+          selectedProfileBand={selectedProfileBand}
         />
       </aside>
 

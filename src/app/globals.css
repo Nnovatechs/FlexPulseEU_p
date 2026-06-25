@@ -4043,6 +4043,11 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   border-radius: 4px;
 }
 
+.analytics-shell .intelligence-hero--insights {
+  border-left-color: var(--an-muted-strong);
+  border-radius: 2px;
+}
+
 .analytics-shell .intelligence-hero p {
   color: var(--an-muted-strong);
   font-size: 0.68rem;
@@ -4084,7 +4089,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .semantic-insight-item[data-tone="representation"]::before {
-  background: var(--an-accent);
+  background: var(--an-status-err);
 }
 
 .semantic-insight-item[data-tone="country"]::before {
@@ -4469,6 +4474,283 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   color: var(--an-muted-strong);
 }
 
+/* Comparison workbench */
+.analytics-shell .comparison-workbench {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.analytics-shell .comparison-workbench:has(.comparison-builder.is-loading)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 4px;
+  background: rgba(10, 10, 10, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.analytics-shell .comparison-loading-panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 51;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 999px;
+  background: var(--an-bg);
+  color: var(--an-text-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+}
+
+.analytics-shell .comparison-loading-panel span {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--an-border-mid);
+  border-top-color: var(--an-text-strong);
+  border-radius: 50%;
+  animation: comparison-spin 0.8s linear infinite;
+}
+
+.analytics-shell .comparison-loading-panel strong {
+  font: inherit;
+}
+
+@keyframes comparison-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.analytics-shell .comparison-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 4px;
+  background: var(--an-surface);
+}
+
+.analytics-shell .comparison-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.analytics-shell .comparison-column__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.analytics-shell .comparison-column__header span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 50%;
+  color: var(--an-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.analytics-shell .comparison-column__header strong {
+  color: var(--an-text-strong);
+  font-size: 0.95rem;
+}
+
+.analytics-shell .comparison-vs {
+  align-self: center;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 50%;
+  background: var(--an-bg);
+  color: var(--an-muted-strong);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.analytics-shell .comparison-filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.analytics-shell .comparison-filter-section h4 {
+  margin: 0;
+  color: var(--an-text-strong);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.analytics-shell .comparison-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.analytics-shell .comparison-filter-option {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.34rem 0.55rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 999px;
+  background: var(--an-surface-alt);
+  color: var(--an-muted-strong);
+  font-size: 0.76rem;
+  font-family: inherit;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.analytics-shell .comparison-filter-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.analytics-shell .comparison-filter-option:hover {
+  background: var(--an-surface-hover);
+  border-color: rgba(91, 156, 246, 0.36);
+  color: var(--an-text-strong);
+}
+
+.analytics-shell .comparison-filter-option:has(input:checked),
+.analytics-shell .comparison-filter-option.is-active {
+  background: var(--an-accent-soft);
+  border-color: rgba(91, 156, 246, 0.44);
+  color: var(--an-accent);
+}
+
+.analytics-shell .comparison-filter-option--all:has(input:checked),
+.analytics-shell .comparison-filter-option--all.is-active {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--an-border-mid);
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .comparison-builder__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25rem;
+}
+
+.analytics-shell .button.button--primary.comparison-submit-button {
+  min-width: 11rem;
+  border-radius: 999px;
+  background: var(--an-bg);
+  border-color: #444444;
+  color: var(--an-text-strong);
+  letter-spacing: 0.02em;
+}
+
+.analytics-shell .button.button--primary.comparison-submit-button:hover:not(:disabled) {
+  background: #161616;
+  border-color: var(--an-muted-strong);
+  color: var(--an-text-strong);
+}
+
+.analytics-shell .button.button--primary.comparison-submit-button[aria-busy="true"] {
+  color: var(--an-muted-strong);
+  opacity: 0.8;
+}
+
+.analytics-shell .comparison-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.analytics-shell .comparison-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.analytics-shell .comparison-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.analytics-shell .comparison-summary-card strong {
+  color: var(--an-text-strong);
+  font-size: 1rem;
+}
+
+.analytics-shell .comparison-summary-card p {
+  margin: 0;
+  color: var(--an-muted-strong);
+}
+
+.analytics-shell .comparison-country-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.analytics-shell .comparison-country-row {
+  display: grid;
+  grid-template-columns: minmax(4rem, 8rem) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: center;
+}
+
+.analytics-shell .comparison-country-row strong {
+  color: var(--an-text-strong);
+}
+
+.analytics-shell .comparison-country-row div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.analytics-shell .comparison-country-row span {
+  color: var(--an-muted-strong);
+  font-size: 0.72rem;
+}
+
+.analytics-shell .comparison-country-row i {
+  display: block;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--an-accent);
+}
+
+.analytics-shell .comparison-country-row div:last-child i {
+  background: var(--an-status-ok);
+}
+
 /* Buttons */
 .analytics-shell .button--primary {
   background: var(--an-accent);
@@ -4629,6 +4911,19 @@ body:has(.analytics-shell) {
   .analytics-shell {
     grid-template-columns: 1fr;
     margin: -1.6rem -1.6rem 0;
+  }
+
+  .analytics-shell .comparison-builder {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-shell .comparison-vs {
+    justify-self: center;
+  }
+
+  .analytics-shell .comparison-summary-grid,
+  .analytics-shell .comparison-country-row {
+    grid-template-columns: 1fr;
   }
 
   .analytics-rail {

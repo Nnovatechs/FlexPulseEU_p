@@ -57,6 +57,7 @@ import {
 } from "@/features/surveys/analytics/profile-explorer-utils";
 import { appRoutes } from "@/lib/config/routes";
 import { AnalyticsTabs, type AnalyticsTab } from "./analytics-tabs";
+import { ComparisonBuilder, type ComparisonSelectionState } from "./comparison-builder";
 import {
   buildSurveyInsights,
   MIN_INSIGHT_SAMPLE,
@@ -73,6 +74,8 @@ type FilterOption = {
   label: string;
   description?: string;
 };
+
+type ComparisonSelection = ComparisonSelectionState;
 
 const ARCHETYPE_DESCRIPTIONS: Record<string, string> = {
   automation_ready:
@@ -299,6 +302,317 @@ function FilterRailForm({
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function describeComparisonSelection(selection: ComparisonSelection) {
+  const parts = [
+    selection.audience ? humanizeFilterLabel(selection.audience) : null,
+    selection.country ? humanizeFilterLabel(selection.country) : null,
+    selection.language ? humanizeFilterLabel(selection.language) : null,
+    selection.tag ? `${humanizeFilterLabel(selection.tag)} trust` : null,
+    selection.asset ? humanizeFilterLabel(selection.asset) : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : "All mapped respondents";
+}
+
+function areComparisonSelectionsEqual(left: ComparisonSelection, right: ComparisonSelection) {
+  return (
+    left.audience === right.audience &&
+    left.country === right.country &&
+    left.language === right.language &&
+    left.tag === right.tag &&
+    left.asset === right.asset
+  );
+}
+
+function ComparisonRadarCard({
+  fields,
+  leftRow,
+  rightRow,
+  leftLabel,
+  rightLabel,
+}: {
+  fields: SurveyAnalyticsFieldDefinition[];
+  leftRow: SurveyAnalyticsQueryRow | null;
+  rightRow: SurveyAnalyticsQueryRow | null;
+  leftLabel: string;
+  rightLabel: string;
+}) {
+  const visibleFields = fields.slice(0, MAX_RADAR_AXES);
+  const series = [
+    leftRow
+      ? {
+          label: leftLabel,
+          colorClass: "radar-series--accent",
+          row: leftRow,
+          responses: getMetricValue(leftRow, "responses") ?? 0,
+        }
+      : null,
+    rightRow
+      ? {
+          label: rightLabel,
+          colorClass: "radar-series--secondary",
+          row: rightRow,
+          responses: getMetricValue(rightRow, "responses") ?? 0,
+        }
+      : null,
+  ].filter(
+    (
+      entry,
+    ): entry is {
+      label: string;
+      colorClass: string;
+      row: SurveyAnalyticsQueryRow;
+      responses: number;
+    } => Boolean(entry),
+  );
+  const cx = 180;
+  const cy = 190;
+  const radius = 118;
+  const levels = [0.25, 0.5, 0.75, 1];
+
+  if (visibleFields.length < 3 || series.length < 2) {
+    return (
+      <article className="surface-card radar-card">
+        <h2>Profile-axis radar</h2>
+        <div className="empty-state empty-state--inline">
+          <h3>Not enough comparable data</h3>
+          <p>Comparison radar needs two matching segments and at least three profile axes.</p>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="surface-card radar-card comparison-radar-card">
+      <div className="radar-card__header">
+        <div>
+          <h2>Profile-axis radar</h2>
+          <p>Average mapped profile score for each compared segment on the main 1-5 axes.</p>
+        </div>
+      </div>
+      <div className="radar-chart-shell">
+        <svg viewBox="0 0 360 380" role="img" aria-label="Radar comparison of selected segments">
+          {levels.map((level) => (
+            <polygon
+              key={level}
+              points={buildRadarGridPolygon(visibleFields.length, cx, cy, radius * level)}
+              className="radar-grid"
+            />
+          ))}
+          {visibleFields.map((field, index) => {
+            const angle = -Math.PI / 2 + (index / visibleFields.length) * Math.PI * 2;
+            const axisPoint = polarPoint(cx, cy, radius, angle);
+            const labelPoint = polarPoint(cx, cy, radius + 28, angle);
+
+            return (
+              <g key={field.key}>
+                <line x1={cx} y1={cy} x2={axisPoint.x} y2={axisPoint.y} className="radar-axis" />
+                <text x={labelPoint.x} y={labelPoint.y} className="radar-label" textAnchor="middle">
+                  {getRadarAxisLabel(field)}
+                </text>
+              </g>
+            );
+          })}
+          {series.map((entry) => {
+            const values = visibleFields.map((field) => {
+              const key = metricKeyFor("avg", field);
+              return getMetricValue(entry.row, key) ?? 0;
+            });
+
+            return (
+              <g key={entry.label}>
+                <polygon
+                  points={buildRadarPolygon(values, cx, cy, radius)}
+                  className={`radar-area ${entry.colorClass}`}
+                />
+                <polyline
+                  points={buildRadarPolygon(values, cx, cy, radius)}
+                  className={`radar-line ${entry.colorClass}`}
+                />
+              </g>
+            );
+          })}
+        </svg>
+        <div className="radar-legend">
+          {series.map((entry) => (
+            <div key={entry.label} className="radar-legend__item">
+              <span className={`radar-dot ${entry.colorClass}`} />
+              <strong>{entry.label}</strong>
+              <small>{formatCompactCount(entry.responses)} respondents</small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ComparisonCountryRepresentation({
+  leftRows,
+  rightRows,
+  countryField,
+  leftTotal,
+  rightTotal,
+}: {
+  leftRows: SurveyAnalyticsQueryRow[];
+  rightRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
+  leftTotal: number;
+  rightTotal: number;
+}) {
+  const countries = Array.from(
+    new Set([
+      ...leftRows.map((row) => (countryField ? getGroupLabel(row, countryField.key) : "Unknown")),
+      ...rightRows.map((row) => (countryField ? getGroupLabel(row, countryField.key) : "Unknown")),
+    ]),
+  ).slice(0, MAX_BREAKDOWN_ROWS);
+
+  if (!countryField || countries.length === 0) {
+    return (
+      <article className="surface-card">
+        <h2>Country representation</h2>
+        <div className="empty-state empty-state--inline">
+          <h3>No country split available</h3>
+          <p>This comparison appears when mapped responses include country context.</p>
+        </div>
+      </article>
+    );
+  }
+
+  const countryKey = countryField.key;
+
+  function valueFor(rows: SurveyAnalyticsQueryRow[], country: string) {
+    const row = rows.find((candidate) => getGroupLabel(candidate, countryKey) === country);
+    return getMetricValue(row, "responses") ?? 0;
+  }
+
+  return (
+    <article className="surface-card comparison-country-card">
+      <h2>Country representation</h2>
+      <p>Share of each selected segment represented in each country.</p>
+      <div className="comparison-country-list">
+        {countries.map((country) => {
+          const leftValue = valueFor(leftRows, country);
+          const rightValue = valueFor(rightRows, country);
+          const leftShare = leftTotal > 0 ? leftValue / leftTotal : 0;
+          const rightShare = rightTotal > 0 ? rightValue / rightTotal : 0;
+
+          return (
+            <div key={country} className="comparison-country-row">
+              <strong>{country}</strong>
+              <div>
+                <span>A {formatPlainValue(leftShare, "share")}</span>
+                <i style={{ width: `${Math.max(2, leftShare * 100)}%` }} />
+              </div>
+              <div>
+                <span>B {formatPlainValue(rightShare, "share")}</span>
+                <i style={{ width: `${Math.max(2, rightShare * 100)}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function ComparisonWorkbench({
+  countryOptions,
+  audienceOptions,
+  languageOptions,
+  assetOptions,
+  leftSelection,
+  rightSelection,
+  compared,
+  comparable,
+  leftRow,
+  rightRow,
+  leftCountryRows,
+  rightCountryRows,
+  countryField,
+  profileFields,
+}: {
+  countryOptions: FilterOption[];
+  audienceOptions: FilterOption[];
+  languageOptions: FilterOption[];
+  assetOptions: FilterOption[];
+  leftSelection: ComparisonSelection;
+  rightSelection: ComparisonSelection;
+  compared: boolean;
+  comparable: boolean;
+  leftRow: SurveyAnalyticsQueryRow | null;
+  rightRow: SurveyAnalyticsQueryRow | null;
+  leftCountryRows: SurveyAnalyticsQueryRow[];
+  rightCountryRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
+  profileFields: SurveyAnalyticsFieldDefinition[];
+}) {
+  const leftLabel = describeComparisonSelection(leftSelection);
+  const rightLabel = describeComparisonSelection(rightSelection);
+  const leftTotal = getMetricValue(leftRow, "responses") ?? 0;
+  const rightTotal = getMetricValue(rightRow, "responses") ?? 0;
+
+  return (
+    <div className="comparison-workbench">
+      <ComparisonBuilder
+        leftSelection={leftSelection}
+        rightSelection={rightSelection}
+        countryOptions={countryOptions}
+        audienceOptions={audienceOptions}
+        languageOptions={languageOptions}
+        assetOptions={assetOptions}
+      />
+
+      {!compared ? (
+        <section className="surface-card">
+          <div className="empty-state empty-state--inline">
+            <h3>Choose two cohorts to compare</h3>
+            <p>Select filters for Segment A and Segment B, then press Compare to run the comparison.</p>
+          </div>
+        </section>
+      ) : !comparable ? (
+        <section className="surface-card">
+          <div className="empty-state empty-state--inline">
+            <h3>Choose two different cohorts</h3>
+            <p>Segment A and Segment B currently use the same filters, so there is no useful comparison.</p>
+          </div>
+        </section>
+      ) : (
+        <section className="comparison-results">
+          <div className="comparison-summary-grid">
+            <article className="surface-card comparison-summary-card">
+              <h2>Segment A</h2>
+              <strong>{leftLabel}</strong>
+              {leftRow ? <EvidenceBadge evidence={leftRow.evidence} /> : null}
+              <p>{formatCompactCount(leftTotal)} matching respondents</p>
+            </article>
+            <article className="surface-card comparison-summary-card">
+              <h2>Segment B</h2>
+              <strong>{rightLabel}</strong>
+              {rightRow ? <EvidenceBadge evidence={rightRow.evidence} /> : null}
+              <p>{formatCompactCount(rightTotal)} matching respondents</p>
+            </article>
+          </div>
+          <ComparisonRadarCard
+            fields={profileFields}
+            leftRow={leftRow}
+            rightRow={rightRow}
+            leftLabel="Segment A"
+            rightLabel="Segment B"
+          />
+          <ComparisonCountryRepresentation
+            leftRows={leftCountryRows}
+            rightRows={rightCountryRows}
+            countryField={countryField}
+            leftTotal={leftTotal}
+            rightTotal={rightTotal}
+          />
+        </section>
+      )}
     </div>
   );
 }
@@ -855,8 +1169,7 @@ function SurveyInsightPanel({
 
   return (
     <section className="intelligence-hero intelligence-hero--insights">
-      <p className="intelligence-hero__eyebrow">Overview insights</p>
-      <h2>Product signals worth acting on</h2>
+      <h2>Overview insights</h2>
       <span>
         Generated from mapped responses using transparent thresholds: minimum n={MIN_INSIGHT_SAMPLE}
         {" "}per compared group and minimum delta {MIN_MEANINGFUL_DELTA.toFixed(2)} on the 1-5 profile scale.
@@ -1145,6 +1458,21 @@ export default async function SurveyAnalyticsPage({
   const selectedLanguage = getSearchParam(resolvedSearchParams, "language") ?? "";
   const selectedTag = getSearchParam(resolvedSearchParams, "tag") ?? "";
   const selectedAsset = getSearchParam(resolvedSearchParams, "asset") ?? "";
+  const compareRequested = getSearchParam(resolvedSearchParams, "compare") === "1";
+  const leftComparison: ComparisonSelection = {
+    audience: getSearchParam(resolvedSearchParams, "compare_a_audience") ?? "",
+    country: getSearchParam(resolvedSearchParams, "compare_a_country") ?? "",
+    language: getSearchParam(resolvedSearchParams, "compare_a_language") ?? "",
+    tag: getSearchParam(resolvedSearchParams, "compare_a_tag") ?? "",
+    asset: getSearchParam(resolvedSearchParams, "compare_a_asset") ?? "",
+  };
+  const rightComparison: ComparisonSelection = {
+    audience: getSearchParam(resolvedSearchParams, "compare_b_audience") ?? "",
+    country: getSearchParam(resolvedSearchParams, "compare_b_country") ?? "",
+    language: getSearchParam(resolvedSearchParams, "compare_b_language") ?? "",
+    tag: getSearchParam(resolvedSearchParams, "compare_b_tag") ?? "",
+    asset: getSearchParam(resolvedSearchParams, "compare_b_asset") ?? "",
+  };
   const activeProfileConditions = getActiveProfileConditions(resolvedSearchParams);
   const profileConditions = getVisibleProfileConditions(resolvedSearchParams, tagFields);
   const selectedFilters = buildSelectedFilters({
@@ -1161,6 +1489,35 @@ export default async function SurveyAnalyticsPage({
     selectedAsset,
     profileConditions: activeProfileConditions,
   });
+  const leftComparisonFilters = buildSelectedFilters({
+    countryField,
+    audienceField,
+    languageField,
+    tagField: tagProfileField,
+    tagFields,
+    assetField,
+    selectedCountry: leftComparison.country,
+    selectedAudience: leftComparison.audience,
+    selectedLanguage: leftComparison.language,
+    selectedTag: leftComparison.tag,
+    selectedAsset: leftComparison.asset,
+    profileConditions: [],
+  });
+  const rightComparisonFilters = buildSelectedFilters({
+    countryField,
+    audienceField,
+    languageField,
+    tagField: tagProfileField,
+    tagFields,
+    assetField,
+    selectedCountry: rightComparison.country,
+    selectedAudience: rightComparison.audience,
+    selectedLanguage: rightComparison.language,
+    selectedTag: rightComparison.tag,
+    selectedAsset: rightComparison.asset,
+    profileConditions: [],
+  });
+  const comparisonHasDifferentSelections = !areComparisonSelectionsEqual(leftComparison, rightComparison);
   const hasActiveFilters = selectedFilters.length > 0;
 
   const hasMappedResponses = schema.ready_response_count > 0;
@@ -1176,6 +1533,20 @@ export default async function SurveyAnalyticsPage({
         metrics: baselineMetrics,
       })
     : null;
+  const leftComparisonProfile =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections
+      ? runPreview({
+          filters: leftComparisonFilters,
+          metrics: baselineMetrics,
+        })
+      : null;
+  const rightComparisonProfile =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections
+      ? runPreview({
+          filters: rightComparisonFilters,
+          metrics: baselineMetrics,
+        })
+      : null;
   const languageBreakdown =
     hasMappedResponses && languageField
       ? runPreview({
@@ -1226,9 +1597,27 @@ export default async function SurveyAnalyticsPage({
           metrics: [{ key: "responses", kind: "count" }],
         })
       : null;
+  const leftComparisonCountryBreakdown =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections && countryField
+      ? runPreview({
+          filters: leftComparisonFilters,
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const rightComparisonCountryBreakdown =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections && countryField
+      ? runPreview({
+          filters: rightComparisonFilters,
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
 
   const baselineRow = getSingleGroup(baselineProfile);
   const selectedRow = getSingleGroup(selectedProfile);
+  const leftComparisonRow = getSingleGroup(leftComparisonProfile);
+  const rightComparisonRow = getSingleGroup(rightComparisonProfile);
   const segmentRows = profileBySegment?.result.groups ?? [];
   const countryOptions = countryField
     ? optionsFromRows(countryBreakdown?.result.groups ?? [], countryField.key)
@@ -1374,6 +1763,28 @@ export default async function SurveyAnalyticsPage({
             profileValueFields={profileValueFields}
           />
         </div>
+      ),
+    },
+    {
+      id: "comparison",
+      label: "Comparison",
+      panel: (
+        <ComparisonWorkbench
+          countryOptions={countryOptions}
+          audienceOptions={audienceOptions}
+          languageOptions={languageOptions}
+          assetOptions={assetOptions}
+          leftSelection={leftComparison}
+          rightSelection={rightComparison}
+          compared={compareRequested}
+          comparable={comparisonHasDifferentSelections}
+          leftRow={leftComparisonRow}
+          rightRow={rightComparisonRow}
+          leftCountryRows={leftComparisonCountryBreakdown?.result.groups ?? []}
+          rightCountryRows={rightComparisonCountryBreakdown?.result.groups ?? []}
+          countryField={countryField}
+          profileFields={mainProfileFields}
+        />
       ),
     },
     {

@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   title: "FlexPulseEU",
   description:
     "Professional project foundation for future population surveys and semantic mapping capabilities.",
+  icons: {
+    icon: [{ url: "/brand/flexpulse-favicon.png", type: "image/png" }],
+    apple: [{ url: "/brand/flexpulse-logo.png", type: "image/png" }],
+  },
 };
 
 type RootLayoutProps = Readonly<{

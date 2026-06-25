@@ -374,16 +374,18 @@ textarea {
   background: var(--background);
 }
 
-.brand-badge {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: white;
-  font-weight: 800;
-  box-shadow: none;
+.brand-logo {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  /* White-source PNG: render dark on light surfaces. */
+  filter: brightness(0);
+}
+
+.app-shell:has(.analytics-shell) .brand-logo {
+  /* Same asset reads white on the analytics dark topbar. */
+  filter: brightness(0) invert(1);
 }
 
 .topbar__eyebrow,
@@ -452,6 +454,14 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 0.8rem;
+  color: var(--foreground);
+}
+
+.brand-mark__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
   color: var(--foreground);
 }
 
@@ -4862,26 +4872,15 @@ body:has(.analytics-shell) {
   box-shadow: none;
 }
 
-.app-shell:has(.analytics-shell) .topbar .topbar__eyebrow {
-  color: #888888;
-  font-size: 0.67rem;
-  letter-spacing: 0.06em;
+.app-shell:has(.analytics-shell) .topbar .brand-mark__title {
+  color: #e0e0e0;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .app-shell:has(.analytics-shell) .topbar strong {
   color: #e0e0e0;
   font-weight: 600;
-}
-
-.app-shell:has(.analytics-shell) .brand-badge {
-  background: #222222;
-  border: 1px solid #333333;
-  color: #888888;
-  box-shadow: none;
-  border-radius: 3px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
 }
 
 .app-shell:has(.analytics-shell) .user-chip {

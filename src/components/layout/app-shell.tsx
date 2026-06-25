@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ReactNode } from "react";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { signOutAction } from "@/lib/auth/actions";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -15,12 +16,9 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
       <div className="app-shell__content">
         <header className="topbar">
           <div className="topbar__brand">
-            <Link href={appRoutes.dashboard} className="brand-mark" aria-label="FlexPulseEU surveys">
-              <span className="brand-badge">FP</span>
-              <span>
-                <span className="topbar__eyebrow">FlexPulseEU</span>
-                <strong>Research surveys</strong>
-              </span>
+            <Link href={appRoutes.dashboard} className="brand-mark" aria-label="FlexPulse-EU">
+              <BrandLogo size={40} priority />
+              <span className="brand-mark__title">FlexPulse-EU</span>
             </Link>
           </div>
           <div className="topbar__controls">

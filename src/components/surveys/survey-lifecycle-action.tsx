@@ -1,8 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { archiveSurveyAction, deleteSurveyDraftAction } from "@/features/surveys/actions";
 import type { SurveyStatus } from "@/features/surveys/types";
+import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 
 type SurveyLifecycleActionProps = {
   surveyId: string;
@@ -46,6 +47,7 @@ export function SurveyLifecycleAction({
   status,
 }: SurveyLifecycleActionProps) {
   const [isPending, startTransition] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   if (status === "Archived") {
     return null;
@@ -64,15 +66,23 @@ export function SurveyLifecycleAction({
 
     const formData = new FormData();
     formData.set("surveyId", surveyId);
+    setActionError(null);
 
     startTransition(async () => {
-      if (isDraft) {
-        await deleteSurveyDraftAction(formData);
-        return;
-      }
+      try {
+        if (isDraft) {
+          await deleteSurveyDraftAction(formData);
+          return;
+        }
 
-      if (status === "Published") {
-        await archiveSurveyAction(formData);
+        if (status === "Published") {
+          await archiveSurveyAction(formData);
+        }
+      } catch (err) {
+        rethrowNextNavigationError(err);
+        setActionError(
+          err instanceof Error ? err.message : "Action failed. Please try again.",
+        );
       }
     });
   }
@@ -83,8 +93,8 @@ export function SurveyLifecycleAction({
       className={`icon-action-button${isDraft ? " icon-action-button--danger" : " icon-action-button--archive"}`}
       disabled={isPending}
       onClick={handleClick}
-      aria-label={actionLabel}
-      title={actionLabel}
+      aria-label={actionError ? `${actionLabel}: ${actionError}` : actionLabel}
+      title={actionError ?? actionLabel}
     >
       {isDraft ? <TrashIcon /> : <ArchiveIcon />}
     </button>

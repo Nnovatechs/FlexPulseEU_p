@@ -52,7 +52,7 @@ export default async function SurveyDetailPage({
                 Edit survey
               </Link>
             ) : null}
-            {survey.defaultPublicLinkUrl ? (
+            {survey.defaultPublicLinkUrl && survey.status !== "Archived" ? (
               <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
                 Open public link
               </Link>

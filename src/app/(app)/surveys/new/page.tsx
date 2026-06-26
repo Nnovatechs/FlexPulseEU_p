@@ -15,6 +15,10 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumbs={[
+          { label: "Surveys", href: appRoutes.dashboard },
+          { label: "New survey" },
+        ]}
         eyebrow="New survey"
         title="Create a survey"
         description="Give the survey a name and choose its primary language. You can refine everything else in the editor."

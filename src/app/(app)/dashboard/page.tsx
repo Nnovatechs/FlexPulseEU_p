@@ -2,18 +2,16 @@ import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { MetricGrid } from "@/components/surveys/metric-grid";
 import { SurveyList } from "@/components/surveys/survey-list";
-import { getDashboardMetrics, getSurveys } from "@/features/surveys/use-cases";
+import { getDashboardData } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 
 export default async function DashboardPage() {
-  const [metrics, surveys] = await Promise.all([
-    getDashboardMetrics(),
-    getSurveys(),
-  ]);
+  const { metrics, surveys } = await getDashboardData();
 
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumbs={[{ label: "Workspace" }]}
         title="Surveys"
         description="Created surveys, lifecycle status, and current draft inventory."
         actions={
@@ -31,34 +29,22 @@ export default async function DashboardPage() {
             hint: "Current portfolio",
           },
           {
-            label: "Published",
+            label: "Surveys published",
             value: String(metrics.publishedSurveys),
             hint: "Published definitions",
-          },
-          {
-            label: "Drafts",
-            value: String(metrics.draftSurveys),
-            hint: "Editable surveys",
           },
           {
             label: "Questions",
             value: String(metrics.totalQuestions),
             hint: "Across all drafts and published surveys",
           },
+          {
+            label: "Questions answered",
+            value: String(metrics.questionsAnswered),
+            hint: "Individual answers collected from submissions",
+          },
         ]}
       />
-
-      <section className="workspace-strip">
-        <div className="workspace-strip__copy">
-          <h2>Survey workspace</h2>
-          <p>Create a new survey or continue refining an existing one.</p>
-        </div>
-        <div className="workspace-strip__actions">
-          <Link href={appRoutes.surveyNew} className="button button--primary">
-            New survey
-          </Link>
-        </div>
-      </section>
 
       <SurveyList surveys={surveys} />
     </div>

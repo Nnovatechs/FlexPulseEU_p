@@ -5,6 +5,7 @@ import {
   seedAnalyticsSandboxForSession,
 } from "@/features/surveys/analytics-sandbox";
 import { requireCurrentSession } from "@/lib/auth/session";
+import { appRoutes } from "@/lib/config/routes";
 
 async function seedAnalyticsSandboxAction() {
   "use server";
@@ -22,6 +23,10 @@ export default async function AnalyticsSandboxPage() {
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumbs={[
+          { label: "Surveys", href: appRoutes.dashboard },
+          { label: "Internal sandbox" },
+        ]}
         eyebrow="Internal sandbox"
         title="Analytics sandbox dataset"
         description="Generate a private synthetic mapper/profiling dataset in your account, then inspect it through the normal survey analytics page."

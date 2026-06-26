@@ -10,6 +10,10 @@ export default async function SurveysPage() {
   return (
     <div className="page-stack">
       <PageHeader
+        breadcrumbs={[
+          { label: "Surveys", href: appRoutes.dashboard },
+          { label: "Library" },
+        ]}
         title="Survey library"
         description="Draft, published, and archived surveys in one place."
         actions={

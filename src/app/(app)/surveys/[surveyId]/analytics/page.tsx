@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/layout/page-header";
 import { FLEXPULSE_DER_ASSET_VALUES } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   classifySurveyAnalyticsEvidence,
@@ -19,7 +18,6 @@ import {
   buildSegmentMetrics,
   buildSelectedFilters,
   describeAverage,
-  findConceptField,
   formatCompactCount,
   formatDateShort,
   formatMetricValue,
@@ -27,12 +25,15 @@ import {
   getActiveProfileConditions,
   getConceptShortLabel,
   getConceptTitle,
+  getDeltaTone,
   getDifferenceLabel,
   getDominantTag,
   getEvidenceLabel,
   getEvidenceTone,
   getGroupLabel,
   getHumanTag,
+  getScoreTone,
+  getTagTone,
   getMetric,
   getMetricValue,
   getPrimaryProfileFields,
@@ -40,7 +41,6 @@ import {
   getScoreBarWidth,
   getScoreRange,
   getSearchParam,
-  getSegmentEntries,
   getSegmentFieldLabel,
   getSingleGroup,
   getVisibleProfileConditions,
@@ -56,35 +56,167 @@ import {
   type ProfileCondition,
 } from "@/features/surveys/analytics/profile-explorer-utils";
 import { appRoutes } from "@/lib/config/routes";
+import { AnalyticsTabs, type AnalyticsTab } from "./analytics-tabs";
+import { ComparisonBuilder, type ComparisonSelectionState } from "./comparison-builder";
+import {
+  buildJointBandShareCandidates,
+  buildSurveyInsights,
+  INSIGHT_THRESHOLDS,
+  MIN_INSIGHT_SAMPLE,
+  MIN_MEANINGFUL_DELTA,
+  type JointBandShare,
+} from "@/features/surveys/analytics/overview-insights";
 
 type SurveyAnalyticsPageProps = {
   params: Promise<{ surveyId: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function FilterSelect({
+type FilterOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+type ComparisonSelection = ComparisonSelectionState;
+
+function humanizeFilterLabel(value: string) {
+  if (value === "neutral" || value === "neutral_mainstream") {
+    return "Neutral Position";
+  }
+
+  const normalized = value.replace(/[_-]+/g, " ").trim();
+
+  if (!normalized) {
+    return "Unknown";
+  }
+
+  if (/^[a-z]{2}$/i.test(normalized)) {
+    return normalized.toUpperCase();
+  }
+
+  return normalized.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function buildFilterHref(
+  searchParams: Record<string, string | string[] | undefined>,
+  name: string,
+  value: string,
+) {
+  const params = new URLSearchParams();
+
+  for (const [key, rawValue] of Object.entries(searchParams)) {
+    if (rawValue == null) {
+      continue;
+    }
+
+    const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+    for (const entry of values) {
+      params.append(key, entry);
+    }
+  }
+
+  params.delete(name);
+
+  if (value) {
+    params.set(name, value);
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : "?";
+}
+
+function FilterOptionGroup({
   name,
   label,
+  allLabel,
   value,
+  searchParams,
   options,
 }: {
   name: string;
   label: string;
+  allLabel: string;
   value: string;
-  options: Array<{ value: string; label: string }>;
+  searchParams: Record<string, string | string[] | undefined>;
+  options: FilterOption[];
 }) {
   return (
-    <label className="field">
-      <span>{label}</span>
-      <select name={name} defaultValue={value}>
-        <option value="">All</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <section className="analytics-filter-section">
+      <h3>{label}</h3>
+      <div className="analytics-filter-options">
+        <Link
+          href={buildFilterHref(searchParams, name, "")}
+          className={`analytics-filter-option${value ? "" : " is-active"}`}
+          aria-current={value ? undefined : "true"}
+        >
+          {allLabel}
+        </Link>
+        {options.map((option) => {
+          const isActive = value === option.value;
+
+          return (
+            <Link
+              key={option.value}
+              href={buildFilterHref(searchParams, name, isActive ? "" : option.value)}
+              className={`analytics-filter-option${isActive ? " is-active" : ""}`}
+              aria-current={isActive ? "true" : undefined}
+              title={option.description}
+              data-tooltip={option.description}
+            >
+              {humanizeFilterLabel(option.label)}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ProfileBandFilterGroup({
+  searchParams,
+  tagFields,
+  selectedValue,
+  options,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+  tagFields: SurveyAnalyticsFieldDefinition[];
+  selectedValue: string;
+  options: FilterOption[];
+}) {
+  if (options.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="analytics-filter-section">
+      <h3>Profile axis bands</h3>
+      <div className="analytics-filter-options">
+        <Link
+          href={buildHrefWithProfileConditions(searchParams, [])}
+          className={`analytics-filter-option${selectedValue ? "" : " is-active"}`}
+          aria-current={selectedValue ? undefined : "true"}
+        >
+          All profile bands
+        </Link>
+        {options.map((option) => {
+          const isActive = selectedValue === option.value;
+          return (
+            <Link
+              key={option.value}
+              href={buildHrefWithProfileConditions(
+                searchParams,
+                isActive ? [] : parseProfileBandValue(option.value, tagFields),
+              )}
+              className={`analytics-filter-option${isActive ? " is-active" : ""}`}
+              aria-current={isActive ? "true" : undefined}
+            >
+              {option.label}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -122,20 +254,10 @@ function RenderFieldTags({
   );
 }
 
-function AnalyticsTabs() {
-  return (
-    <nav className="analytics-tabs" aria-label="Analytics sections">
-      <a href="#profile-overview">Survey intelligence</a>
-      <a href="#segment-finder">Segment finder</a>
-      <a href="#cohort-explorer">Cohort explorer</a>
-      <a href="#compare-segments">Compare segments</a>
-      <a href="#distributions">Distributions</a>
-      <a href="#schema">Schema</a>
-    </nav>
-  );
-}
-
-function SegmentFilterPanel({
+function FilterRailForm({
+  searchParams,
+  profileBandOptions,
+  tagFields,
   countryOptions,
   audienceOptions,
   languageOptions,
@@ -145,70 +267,418 @@ function SegmentFilterPanel({
   selectedLanguage,
   selectedTag,
   selectedAsset,
+  selectedProfileBand,
 }: {
-  countryOptions: Array<{ value: string; label: string }>;
-  audienceOptions: Array<{ value: string; label: string }>;
-  languageOptions: Array<{ value: string; label: string }>;
-  assetOptions: Array<{ value: string; label: string }>;
+  searchParams: Record<string, string | string[] | undefined>;
+  profileBandOptions: FilterOption[];
+  tagFields: SurveyAnalyticsFieldDefinition[];
+  countryOptions: FilterOption[];
+  audienceOptions: FilterOption[];
+  languageOptions: FilterOption[];
+  assetOptions: FilterOption[];
   selectedCountry: string;
   selectedAudience: string;
   selectedLanguage: string;
   selectedTag: string;
   selectedAsset: string;
+  selectedProfileBand: string;
 }) {
   return (
-    <section className="surface-card filter-panel">
-      <div>
-        <h2>Ask a question about a cohort</h2>
-        <p>
-          Build a respondent selection and the dashboard will describe that cohort against the full
-          survey baseline.
-        </p>
-      </div>
-      <form className="filter-grid" action="">
-        <FilterSelect
+    <div className="analytics-filter-rail">
+      <p className="analytics-filter-rail__heading">Cohort filter</p>
+      <div className="analytics-filter-form">
+        <ProfileBandFilterGroup
+          searchParams={searchParams}
+          tagFields={tagFields}
+          selectedValue={selectedProfileBand}
+          options={profileBandOptions}
+        />
+        <FilterOptionGroup
           name="country"
-          label="Where are they?"
+          label="Country"
+          allLabel="All countries"
           value={selectedCountry}
+          searchParams={searchParams}
           options={countryOptions}
         />
-        <FilterSelect
-          name="audience"
-          label="Which audience?"
-          value={selectedAudience}
-          options={audienceOptions}
-        />
-        <FilterSelect
+        <FilterOptionGroup
           name="language"
-          label="Response language"
+          label="Language"
+          allLabel="All languages"
           value={selectedLanguage}
+          searchParams={searchParams}
           options={languageOptions}
         />
-        <FilterSelect
+        <FilterOptionGroup
           name="tag"
-          label="Trust/profile band"
+          label="Trust band"
+          allLabel="All trust bands"
           value={selectedTag}
+          searchParams={searchParams}
           options={TAG_VALUES.map((tag) => ({
             value: tag,
-            label: `${tag} ${getHumanTag(tag) ? `(${getHumanTag(tag)})` : ""}`,
+            label: `${tag}${getHumanTag(tag) ? ` (${getHumanTag(tag)})` : ""}`,
           }))}
         />
-        <FilterSelect
-          name="asset"
-          label="Has DER asset"
-          value={selectedAsset}
-          options={assetOptions}
+        {assetOptions.length > 0 ? (
+          <FilterOptionGroup
+            name="asset"
+            label="DER asset"
+            allLabel="All assets"
+            value={selectedAsset}
+            searchParams={searchParams}
+            options={assetOptions}
+          />
+        ) : null}
+        <FilterOptionGroup
+          name="audience"
+          label="Response cohort"
+          allLabel="All cohorts"
+          value={selectedAudience}
+          searchParams={searchParams}
+          options={audienceOptions}
         />
-        <div className="filter-actions">
-          <button type="submit" className="button button--primary">
-            Analyse cohort
-          </button>
-          <Link href="?" className="button button--secondary">
-            Clear filters
-          </Link>
+      </div>
+    </div>
+  );
+}
+
+function describeComparisonSelection(selection: ComparisonSelection, profileBandOptions: FilterOption[] = []) {
+  const profileBandLabel = selection.profileBand
+    ? profileBandOptions.find((option) => option.value === selection.profileBand)?.label
+    : null;
+  const parts = [
+    profileBandLabel ? humanizeFilterLabel(profileBandLabel) : null,
+    selection.country ? humanizeFilterLabel(selection.country) : null,
+    selection.language ? humanizeFilterLabel(selection.language) : null,
+    selection.asset ? humanizeFilterLabel(selection.asset) : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : "All mapped respondents";
+}
+
+function areComparisonSelectionsEqual(left: ComparisonSelection, right: ComparisonSelection) {
+  return (
+    left.profileBand === right.profileBand &&
+    left.country === right.country &&
+    left.language === right.language &&
+    left.asset === right.asset
+  );
+}
+
+function encodeProfileBandValue(fieldKey: string, tag: string) {
+  return `${fieldKey}::${tag}`;
+}
+
+function parseProfileBandValue(value: string, tagFields: SurveyAnalyticsFieldDefinition[]): ProfileCondition[] {
+  const [fieldKey, tag] = value.split("::");
+  if (!fieldKey || !tag || !TAG_VALUES.includes(tag as (typeof TAG_VALUES)[number])) {
+    return [];
+  }
+
+  return tagFields.some((field) => field.key === fieldKey)
+    ? [{ fieldKey, tag }]
+    : [];
+}
+
+function buildProfileBandOptions(
+  tagFields: SurveyAnalyticsFieldDefinition[],
+  tags: readonly string[] = TAG_VALUES,
+) {
+  return tagFields.flatMap((field) =>
+    tags.map((tag) => ({
+      value: encodeProfileBandValue(field.key, tag),
+      label: `${getConceptShortLabel(field).replace(/\s+tag$/i, "")} · ${getHumanTag(tag) ?? humanizeFilterLabel(tag)}`,
+    })),
+  );
+}
+
+function ComparisonRadarCard({
+  fields,
+  leftRow,
+  rightRow,
+  leftLabel,
+  rightLabel,
+}: {
+  fields: SurveyAnalyticsFieldDefinition[];
+  leftRow: SurveyAnalyticsQueryRow | null;
+  rightRow: SurveyAnalyticsQueryRow | null;
+  leftLabel: string;
+  rightLabel: string;
+}) {
+  const visibleFields = fields.slice(0, MAX_RADAR_AXES);
+  const series = [
+    leftRow
+      ? {
+          label: leftLabel,
+          colorClass: "radar-series--accent",
+          row: leftRow,
+          responses: getMetricValue(leftRow, "responses") ?? 0,
+        }
+      : null,
+    rightRow
+      ? {
+          label: rightLabel,
+          colorClass: "radar-series--secondary",
+          row: rightRow,
+          responses: getMetricValue(rightRow, "responses") ?? 0,
+        }
+      : null,
+  ].filter(
+    (
+      entry,
+    ): entry is {
+      label: string;
+      colorClass: string;
+      row: SurveyAnalyticsQueryRow;
+      responses: number;
+    } => Boolean(entry),
+  );
+  const cx = 180;
+  const cy = 190;
+  const radius = 118;
+  const levels = [0.25, 0.5, 0.75, 1];
+
+  if (visibleFields.length < 3 || series.length < 2) {
+    return (
+      <article className="surface-card radar-card">
+        <h2>Profile-axis radar</h2>
+        <div className="empty-state empty-state--inline">
+          <h3>Not enough comparable data</h3>
+          <p>Comparison radar needs two matching segments and at least three profile axes.</p>
         </div>
-      </form>
-    </section>
+      </article>
+    );
+  }
+
+  return (
+    <article className="surface-card radar-card comparison-radar-card">
+      <div className="radar-card__header">
+        <div>
+          <h2>Profile-axis radar</h2>
+          <p>Average mapped profile score for each compared segment on the main 1-5 axes.</p>
+        </div>
+      </div>
+      <div className="radar-chart-shell">
+        <svg viewBox="0 0 360 380" role="img" aria-label="Radar comparison of selected segments">
+          {levels.map((level) => (
+            <polygon
+              key={level}
+              points={buildRadarGridPolygon(visibleFields.length, cx, cy, radius * level)}
+              className="radar-grid"
+            />
+          ))}
+          {visibleFields.map((field, index) => {
+            const angle = -Math.PI / 2 + (index / visibleFields.length) * Math.PI * 2;
+            const axisPoint = polarPoint(cx, cy, radius, angle);
+            const labelPoint = polarPoint(cx, cy, radius + 28, angle);
+
+            return (
+              <g key={field.key}>
+                <line x1={cx} y1={cy} x2={axisPoint.x} y2={axisPoint.y} className="radar-axis" />
+                <text x={labelPoint.x} y={labelPoint.y} className="radar-label" textAnchor="middle">
+                  {getRadarAxisLabel(field)}
+                </text>
+              </g>
+            );
+          })}
+          {series.map((entry) => {
+            const values = visibleFields.map((field) => {
+              const key = metricKeyFor("avg", field);
+              return getMetricValue(entry.row, key) ?? 0;
+            });
+
+            return (
+              <g key={entry.label}>
+                <polygon
+                  points={buildRadarPolygon(values, cx, cy, radius)}
+                  className={`radar-area ${entry.colorClass}`}
+                />
+                <polyline
+                  points={buildRadarPolygon(values, cx, cy, radius)}
+                  className={`radar-line ${entry.colorClass}`}
+                />
+              </g>
+            );
+          })}
+        </svg>
+        <div className="radar-legend">
+          {series.map((entry) => (
+            <div key={entry.label} className="radar-legend__item">
+              <span className={`radar-dot ${entry.colorClass}`} />
+              <strong>{entry.label}</strong>
+              <small>{formatCompactCount(entry.responses)} respondents</small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ComparisonCountryRepresentation({
+  leftRows,
+  rightRows,
+  countryField,
+  leftTotal,
+  rightTotal,
+}: {
+  leftRows: SurveyAnalyticsQueryRow[];
+  rightRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
+  leftTotal: number;
+  rightTotal: number;
+}) {
+  const countries = Array.from(
+    new Set([
+      ...leftRows.map((row) => (countryField ? getGroupLabel(row, countryField.key) : "Unknown")),
+      ...rightRows.map((row) => (countryField ? getGroupLabel(row, countryField.key) : "Unknown")),
+    ]),
+  ).slice(0, MAX_BREAKDOWN_ROWS);
+
+  if (!countryField || countries.length === 0) {
+    return (
+      <article className="surface-card">
+        <h2>Country representation</h2>
+        <div className="empty-state empty-state--inline">
+          <h3>No country split available</h3>
+          <p>This comparison appears when mapped responses include country context.</p>
+        </div>
+      </article>
+    );
+  }
+
+  const countryKey = countryField.key;
+
+  function valueFor(rows: SurveyAnalyticsQueryRow[], country: string) {
+    const row = rows.find((candidate) => getGroupLabel(candidate, countryKey) === country);
+    return getMetricValue(row, "responses") ?? 0;
+  }
+
+  return (
+    <article className="surface-card comparison-country-card">
+      <h2>Country representation</h2>
+      <p>Share of each selected segment represented in each country.</p>
+      <div className="comparison-country-list">
+        {countries.map((country) => {
+          const leftValue = valueFor(leftRows, country);
+          const rightValue = valueFor(rightRows, country);
+          const leftShare = leftTotal > 0 ? leftValue / leftTotal : 0;
+          const rightShare = rightTotal > 0 ? rightValue / rightTotal : 0;
+
+          return (
+            <div key={country} className="comparison-country-row">
+              <strong>{country}</strong>
+              <div>
+                <span>A {formatPlainValue(leftShare, "share")}</span>
+                <i style={{ width: `${Math.max(2, leftShare * 100)}%` }} />
+              </div>
+              <div>
+                <span>B {formatPlainValue(rightShare, "share")}</span>
+                <i style={{ width: `${Math.max(2, rightShare * 100)}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function ComparisonWorkbench({
+  profileBandOptions,
+  countryOptions,
+  languageOptions,
+  assetOptions,
+  leftSelection,
+  rightSelection,
+  compared,
+  comparable,
+  leftRow,
+  rightRow,
+  leftCountryRows,
+  rightCountryRows,
+  countryField,
+  profileFields,
+}: {
+  profileBandOptions: FilterOption[];
+  countryOptions: FilterOption[];
+  languageOptions: FilterOption[];
+  assetOptions: FilterOption[];
+  leftSelection: ComparisonSelection;
+  rightSelection: ComparisonSelection;
+  compared: boolean;
+  comparable: boolean;
+  leftRow: SurveyAnalyticsQueryRow | null;
+  rightRow: SurveyAnalyticsQueryRow | null;
+  leftCountryRows: SurveyAnalyticsQueryRow[];
+  rightCountryRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
+  profileFields: SurveyAnalyticsFieldDefinition[];
+}) {
+  const leftLabel = describeComparisonSelection(leftSelection, profileBandOptions);
+  const rightLabel = describeComparisonSelection(rightSelection, profileBandOptions);
+  const leftTotal = getMetricValue(leftRow, "responses") ?? 0;
+  const rightTotal = getMetricValue(rightRow, "responses") ?? 0;
+
+  return (
+    <div className="comparison-workbench">
+      <ComparisonBuilder
+        leftSelection={leftSelection}
+        rightSelection={rightSelection}
+        profileBandOptions={profileBandOptions}
+        countryOptions={countryOptions}
+        languageOptions={languageOptions}
+        assetOptions={assetOptions}
+      />
+
+      {!compared ? (
+        <section className="surface-card">
+          <div className="empty-state empty-state--inline">
+            <h3>Choose two cohorts to compare</h3>
+            <p>Select filters for Segment A and Segment B, then press Compare to run the comparison.</p>
+          </div>
+        </section>
+      ) : !comparable ? (
+        <section className="surface-card">
+          <div className="empty-state empty-state--inline">
+            <h3>Choose two different cohorts</h3>
+            <p>Segment A and Segment B currently use the same filters, so there is no useful comparison.</p>
+          </div>
+        </section>
+      ) : (
+        <section className="comparison-results">
+          <div className="comparison-summary-grid">
+            <article className="surface-card comparison-summary-card">
+              <h2>Segment A</h2>
+              <strong>{leftLabel}</strong>
+              {leftRow ? <EvidenceBadge evidence={leftRow.evidence} /> : null}
+              <p>{formatCompactCount(leftTotal)} matching respondents</p>
+            </article>
+            <article className="surface-card comparison-summary-card">
+              <h2>Segment B</h2>
+              <strong>{rightLabel}</strong>
+              {rightRow ? <EvidenceBadge evidence={rightRow.evidence} /> : null}
+              <p>{formatCompactCount(rightTotal)} matching respondents</p>
+            </article>
+          </div>
+          <ComparisonRadarCard
+            fields={profileFields}
+            leftRow={leftRow}
+            rightRow={rightRow}
+            leftLabel="Segment A"
+            rightLabel="Segment B"
+          />
+          <ComparisonCountryRepresentation
+            leftRows={leftCountryRows}
+            rightRows={rightCountryRows}
+            countryField={countryField}
+            leftTotal={leftTotal}
+            rightTotal={rightTotal}
+          />
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -269,6 +739,7 @@ function SegmentOpportunityFinder({
       </div>
 
       <form className="segment-condition-list" action="">
+        <input type="hidden" name="view" value="segments" />
         {conditions.map((condition, index) => {
           const removeHref = buildHrefWithProfileConditions(
             searchParams,
@@ -336,9 +807,8 @@ function SegmentOpportunityFinder({
             <>
               {selectedRow ? <EvidenceBadge evidence={selectedRow.evidence} /> : null}
               <p>
-                Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. This block is
-                intentionally descriptive, not prescriptive: it reports the size and geographic mix of
-                the selected cohort without inventing a deployment recommendation.
+                Matched respondents: <strong>{formatPlainValue(matchedRespondents)}</strong>. Size and
+                geographic mix of the selected cohort — descriptive, not a deployment recommendation.
               </p>
               {selectedRow?.evidence.suppress_detail ? (
                 <p className="evidence-warning">
@@ -479,17 +949,26 @@ function ProfileOverviewCard({
                   : null;
 
               return (
-                <div key={field.key} className="profile-score-card">
+                <div key={field.key} className="profile-score-card" data-tone={getScoreTone(average)}>
                   <span>{getConceptShortLabel(field)}</span>
                   <strong>{describeAverage(average)}</strong>
                   <small>
-                    {dominantTag
-                      ? `${getHumanTag(dominantTag.tag) ?? dominantTag.tag} dominant · ${formatPlainValue(
-                          dominantTag.value,
-                          "share",
-                        )}`
-                      : `score ${formatPlainValue(average)}`}
-                    {delta != null ? ` · ${getDifferenceLabel(delta)} vs baseline` : ""}
+                    {dominantTag ? (
+                      <span className="tag-band" data-tone={getTagTone(dominantTag.tag)}>
+                        {getHumanTag(dominantTag.tag) ?? dominantTag.tag} dominant ·{" "}
+                        {formatPlainValue(dominantTag.value, "share")}
+                      </span>
+                    ) : (
+                      `score ${formatPlainValue(average)}`
+                    )}
+                    {delta != null ? (
+                      <>
+                        {" · "}
+                        <span className="delta" data-tone={getDeltaTone(delta)}>
+                          {getDifferenceLabel(delta)} vs baseline
+                        </span>
+                      </>
+                    ) : null}
                   </small>
                 </div>
               );
@@ -539,18 +1018,17 @@ function DifferentiatorsCard({
   return (
     <article className="surface-card">
       <h2>Key differentiators</h2>
-      <p>
-        Largest deviations from the full-survey baseline. This is the first layer of explainable
-        cohort analytics.
-      </p>
+      <p>Largest deviations from the full-survey baseline.</p>
       {strongest.length > 0 ? (
         <div className="stack-list">
           {strongest.map((entry) => (
             <div key={entry.label} className="analytics-row">
               <strong>{entry.label}</strong>
               <span>
-                {getDifferenceLabel(entry.delta)} vs baseline · selected{" "}
-                {formatPlainValue(entry.segmentValue)} · baseline{" "}
+                <span className="delta" data-tone={getDeltaTone(entry.delta)}>
+                  {getDifferenceLabel(entry.delta)} vs baseline
+                </span>{" "}
+                · selected {formatPlainValue(entry.segmentValue)} · baseline{" "}
                 {formatPlainValue(entry.baselineValue)} · n={entry.sampleSize}
                 {" · "}
                 <EvidenceBadge evidence={entry.evidence} />
@@ -584,10 +1062,7 @@ function ConceptComparisonTable({
   return (
     <article className="surface-card surface-card--wide">
       <h2>Segment profile comparison</h2>
-      <p>
-        Compare the strongest available segment groups against the full-survey baseline. This
-        answers “how is this cohort different?” without requiring a manual spreadsheet export.
-      </p>
+      <p>Strongest segment groups versus the full-survey baseline.</p>
       {segmentRows.length > 0 && visibleFields.length > 0 ? (
         <div className="analytics-table-wrap">
           <table className="analytics-table">
@@ -624,9 +1099,15 @@ function ConceptComparisonTable({
                     const delta = value != null && baseline != null ? value - baseline : null;
 
                     return (
-                      <td key={field.key}>
+                      <td key={field.key} data-tone={getScoreTone(value)}>
                         <strong>{formatPlainValue(value)}</strong>
-                        <small>{delta != null ? `${getDifferenceLabel(delta)} vs base` : ""}</small>
+                        {delta != null ? (
+                          <small className="delta" data-tone={getDeltaTone(delta)}>
+                            {getDifferenceLabel(delta)} vs base
+                          </small>
+                        ) : (
+                          <small />
+                        )}
                       </td>
                     );
                   })}
@@ -658,15 +1139,22 @@ function TagDistributionCard({
       <p>Low, medium and high profile bands for the first tag-enabled concept.</p>
       {tagField && rows.length > 0 ? (
         <div className="stack-list">
-          {rows.map((row) => (
-            <div key={`${tagField.key}-${getGroupLabel(row, tagField.key)}`} className="analytics-row">
-              <strong>{getGroupLabel(row, tagField.key)}</strong>
-              <span>
-                {formatMetricValue(row.metrics.responses)} · sample{" "}
-                {row.metrics.responses.sample_size}
-              </span>
-            </div>
-          ))}
+          {rows.map((row) => {
+            const band = getGroupLabel(row, tagField.key);
+            return (
+              <div key={`${tagField.key}-${band}`} className="analytics-row">
+                <strong>
+                  <span className="tag-band" data-tone={getTagTone(band.toLowerCase())}>
+                    {band}
+                  </span>
+                </strong>
+                <span>
+                  {formatMetricValue(row.metrics.responses)} · sample{" "}
+                  {row.metrics.responses.sample_size}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="empty-state empty-state--inline">
@@ -720,56 +1208,65 @@ function AssetDistributionCard({
   );
 }
 
-function SurveyIntelligenceHero({
-  responseCount,
-  countryCount,
-  publishedAt,
-  surveyEvidence,
+function SurveyInsightPanel({
   profileFields,
+  tagFields,
   baselineRow,
-  segmentRows,
-  segmentField,
+  jointBandShares,
+  countryRows,
+  countryBandRows,
+  countryField,
 }: {
-  responseCount: number;
-  countryCount: number;
-  publishedAt: string | null;
-  surveyEvidence: SurveyAnalyticsQueryRow["evidence"];
   profileFields: SurveyAnalyticsFieldDefinition[];
+  tagFields: SurveyAnalyticsFieldDefinition[];
   baselineRow: SurveyAnalyticsQueryRow | null;
-  segmentRows: SurveyAnalyticsQueryRow[];
-  segmentField: SurveyAnalyticsFieldDefinition | null;
+  jointBandShares: JointBandShare[];
+  countryRows: SurveyAnalyticsQueryRow[];
+  countryBandRows: SurveyAnalyticsQueryRow[];
+  countryField: SurveyAnalyticsFieldDefinition | null;
 }) {
-  const trustField = findConceptField(profileFields, ["trust"]);
-  const flexibilityField = findConceptField(profileFields, ["flexibility"]);
-  const comfortField = findConceptField(profileFields, ["comfort", "thermal"]);
-  const flexibilityLeaders = getSegmentEntries(segmentRows, segmentField, flexibilityField);
-  const comfortLeaders = getSegmentEntries(segmentRows, segmentField, comfortField);
-  const trustAverage = trustField
-    ? getMetricValue(baselineRow, metricKeyFor("avg", trustField))
-    : null;
-  const activationLeader = flexibilityLeaders[0]?.label ?? "the strongest cohort";
-  const comfortBarrier = comfortLeaders[0]?.label ?? "comfort-protective cohorts";
-
-  const headline =
-    flexibilityField && comfortField
-      ? `Highest flexibility average: ${activationLeader}. Highest comfort-preservation average: ${comfortBarrier}.`
-      : `This survey currently exposes ${profileFields.length} primary behavioural axes.`;
-  const description =
-    trustAverage != null
-      ? `Baseline trust in automation is ${formatPlainValue(
-          trustAverage,
-        )}/5 across mapped respondents. Values shown below are direct averages of mapped profile scores on a 1-5 scale.`
-      : `Values shown below are direct averages of mapped profile scores on a 1-5 scale, grouped by the strongest available segment field when ranges are displayed.`;
+  const insights = buildSurveyInsights({
+    baselineRow,
+    profileFields,
+    tagFields,
+    jointBandShares,
+    countryRows,
+    countryBandRows,
+    countryField,
+  });
 
   return (
-    <section className="intelligence-hero">
-      <p>
-        Survey intelligence · {responseCount} respondents · {countryCount || "No"} countries ·{" "}
-        {formatDateShort(publishedAt)}
-      </p>
-      <EvidenceBadge evidence={surveyEvidence} />
-      <h2>{headline}</h2>
-      <span>{description}</span>
+    <section className="intelligence-hero intelligence-hero--insights">
+      <h2>Overview insights</h2>
+      <span>
+        Generated from mapped responses using transparent thresholds: minimum n={MIN_INSIGHT_SAMPLE}
+        {" "}per compared group, band share flags from {Math.round(INSIGHT_THRESHOLDS.dominantBandShare * 100)}%,
+        {" "}and minimum average delta {MIN_MEANINGFUL_DELTA.toFixed(2)} on the 1-5 profile scale.
+      </span>
+      <ul className="semantic-insight-list">
+        {insights.length > 0 ? (
+          insights.slice(0, 4).map((insight) => (
+            <li key={`${insight.tone}-${insight.title}`} className="semantic-insight-item" data-tone={insight.tone}>
+              <div>
+                <strong>{insight.title}</strong>
+                <p>{insight.body}</p>
+              </div>
+              <small>{insight.evidence}</small>
+            </li>
+          ))
+        ) : (
+          <li className="semantic-insight-item" data-tone="mainstream">
+            <div>
+              <strong>Not enough evidence for overview insights yet</strong>
+              <p>
+                The survey needs mapped responses with enough sample size per group before the system
+                surfaces product signals.
+              </p>
+            </div>
+            <small>Minimum n={MIN_INSIGHT_SAMPLE} per reported group.</small>
+          </li>
+        )}
+      </ul>
     </section>
   );
 }
@@ -795,82 +1292,20 @@ function IntelligenceAxisCards({
         const range = getScoreRange(segmentRows, segmentField, field);
 
         return (
-          <article key={field.key} className="intelligence-axis-card">
+          <article key={field.key} className="intelligence-axis-card" data-tone={getScoreTone(value)}>
             <p>{getConceptTitle(field)}</p>
             <strong>{formatPlainValue(value)}</strong>
-            <span>Average mapped score across respondents · /5.0</span>
+            <span>Avg mapped score · /5.0</span>
             <div className="intelligence-score-bar">
-              <div style={{ width: getScoreBarWidth(value) }} />
+              <div data-tone={getScoreTone(value)} style={{ width: getScoreBarWidth(value) }} />
             </div>
             <small>
-              Lowest {segmentLabel} avg {formatPlainValue(range.low)} · Highest {segmentLabel} avg{" "}
+              Low {segmentLabel} {formatPlainValue(range.low)} · High {segmentLabel}{" "}
               {formatPlainValue(range.high)}
             </small>
           </article>
         );
       })}
-    </section>
-  );
-}
-
-function IntelligenceInsights({
-  baselineRow,
-  segmentRows,
-  segmentField,
-  profileFields,
-}: {
-  baselineRow: SurveyAnalyticsQueryRow | null;
-  segmentRows: SurveyAnalyticsQueryRow[];
-  segmentField: SurveyAnalyticsFieldDefinition | null;
-  profileFields: SurveyAnalyticsFieldDefinition[];
-}) {
-  const trustField = findConceptField(profileFields, ["trust"]);
-  const flexibilityField = findConceptField(profileFields, ["flexibility"]);
-  const comfortField = findConceptField(profileFields, ["comfort", "thermal"]);
-  const trustLeaders = getSegmentEntries(segmentRows, segmentField, trustField);
-  const flexibilityLeaders = getSegmentEntries(segmentRows, segmentField, flexibilityField);
-  const comfortLeaders = getSegmentEntries(segmentRows, segmentField, comfortField);
-  const trustBaseline = trustField ? getMetricValue(baselineRow, metricKeyFor("avg", trustField)) : null;
-  const flexibilityBaseline = flexibilityField
-    ? getMetricValue(baselineRow, metricKeyFor("avg", flexibilityField))
-    : null;
-  const comfortBaseline = comfortField
-    ? getMetricValue(baselineRow, metricKeyFor("avg", comfortField))
-    : null;
-  const activationLeader = flexibilityLeaders[0] ?? trustLeaders[0] ?? null;
-  const comfortBarrier = comfortLeaders[0] ?? null;
-
-  return (
-    <section className="surface-card">
-      <h2>Key intelligence</h2>
-      <div className="intelligence-insight-list">
-        {activationLeader ? (
-          <article className="intelligence-insight">
-            <strong>Highest flexibility score: {activationLeader.label}</strong>
-            <p>
-              Average flexibility willingness for this segment is{" "}
-              {formatPlainValue(activationLeader.value)} / 5 versus a survey average of{" "}
-              {formatPlainValue(flexibilityBaseline ?? trustBaseline)} / 5.
-            </p>
-          </article>
-        ) : null}
-        {comfortBarrier ? (
-          <article className="intelligence-insight">
-            <strong>Highest comfort-preservation score: {comfortBarrier.label}</strong>
-            <p>
-              Average thermal comfort norms for this segment is {formatPlainValue(
-                comfortBarrier.value,
-              )} / 5 versus a survey average of {formatPlainValue(comfortBaseline)} / 5.
-            </p>
-          </article>
-        ) : null}
-        {!activationLeader && !comfortBarrier ? (
-          <div className="empty-state empty-state--inline">
-            <h3>No deterministic insight yet</h3>
-            <p>Insights appear when at least one profile axis can be compared across segments.</p>
-          </div>
-        ) : null}
-      </div>
     </section>
   );
 }
@@ -887,6 +1322,14 @@ function RadarViewCard({
   segmentField: SurveyAnalyticsFieldDefinition | null;
 }) {
   const visibleFields = fields.slice(0, MAX_RADAR_AXES);
+  const segmentSeriesClasses = [
+    "radar-series--accent",
+    "radar-series--secondary",
+    "radar-series--tertiary",
+    "radar-series--quaternary",
+    "radar-series--quinary",
+    "radar-series--senary",
+  ];
   const series = [
     baselineRow
       ? {
@@ -900,10 +1343,9 @@ function RadarViewCard({
       .filter((row) => !row.evidence.suppress_detail)
       .slice()
       .sort((left, right) => (right.response_count ?? 0) - (left.response_count ?? 0))
-      .slice(0, 2)
       .map((row, index) => ({
         label: getGroupLabel(row, segmentField?.key ?? ""),
-        colorClass: index === 0 ? "radar-series--accent" : "radar-series--secondary",
+        colorClass: segmentSeriesClasses[index % segmentSeriesClasses.length],
         row,
         responses: row.response_count ?? 0,
       })),
@@ -922,6 +1364,10 @@ function RadarViewCard({
   const cy = 190;
   const radius = 118;
   const levels = [0.25, 0.5, 0.75, 1];
+  const comparisonLabel =
+    segmentField?.key === "context.country_code"
+      ? "countries"
+      : `${getSegmentFieldLabel(segmentField)} groups`;
 
   if (visibleFields.length < 3 || series.length < 2) {
     return (
@@ -941,8 +1387,7 @@ function RadarViewCard({
         <div>
           <h2>Radar view</h2>
           <p>
-            Baseline vs top {Math.min(2, series.length - 1)} {getSegmentFieldLabel(segmentField)} groups
-            across the main profile axes.
+            Baseline vs all {comparisonLabel} across the main profile axes.
             {fields.length > MAX_RADAR_AXES ? ` Showing first ${MAX_RADAR_AXES} axes.` : ""}
           </p>
         </div>
@@ -1082,6 +1527,21 @@ export default async function SurveyAnalyticsPage({
   const selectedLanguage = getSearchParam(resolvedSearchParams, "language") ?? "";
   const selectedTag = getSearchParam(resolvedSearchParams, "tag") ?? "";
   const selectedAsset = getSearchParam(resolvedSearchParams, "asset") ?? "";
+  const compareRequested = getSearchParam(resolvedSearchParams, "compare") === "1";
+  const leftComparison: ComparisonSelection = {
+    profileBand: getSearchParam(resolvedSearchParams, "compare_a_profile_band") ?? "",
+    country: getSearchParam(resolvedSearchParams, "compare_a_country") ?? "",
+    language: getSearchParam(resolvedSearchParams, "compare_a_language") ?? "",
+    asset: getSearchParam(resolvedSearchParams, "compare_a_asset") ?? "",
+  };
+  const rightComparison: ComparisonSelection = {
+    profileBand: getSearchParam(resolvedSearchParams, "compare_b_profile_band") ?? "",
+    country: getSearchParam(resolvedSearchParams, "compare_b_country") ?? "",
+    language: getSearchParam(resolvedSearchParams, "compare_b_language") ?? "",
+    asset: getSearchParam(resolvedSearchParams, "compare_b_asset") ?? "",
+  };
+  const leftComparisonProfileConditions = parseProfileBandValue(leftComparison.profileBand, tagFields);
+  const rightComparisonProfileConditions = parseProfileBandValue(rightComparison.profileBand, tagFields);
   const activeProfileConditions = getActiveProfileConditions(resolvedSearchParams);
   const profileConditions = getVisibleProfileConditions(resolvedSearchParams, tagFields);
   const selectedFilters = buildSelectedFilters({
@@ -1098,6 +1558,35 @@ export default async function SurveyAnalyticsPage({
     selectedAsset,
     profileConditions: activeProfileConditions,
   });
+  const leftComparisonFilters = buildSelectedFilters({
+    countryField,
+    audienceField,
+    languageField,
+    tagField: tagProfileField,
+    tagFields,
+    assetField,
+    selectedCountry: leftComparison.country,
+    selectedAudience: null,
+    selectedLanguage: leftComparison.language,
+    selectedTag: null,
+    selectedAsset: leftComparison.asset,
+    profileConditions: leftComparisonProfileConditions,
+  });
+  const rightComparisonFilters = buildSelectedFilters({
+    countryField,
+    audienceField,
+    languageField,
+    tagField: tagProfileField,
+    tagFields,
+    assetField,
+    selectedCountry: rightComparison.country,
+    selectedAudience: null,
+    selectedLanguage: rightComparison.language,
+    selectedTag: null,
+    selectedAsset: rightComparison.asset,
+    profileConditions: rightComparisonProfileConditions,
+  });
+  const comparisonHasDifferentSelections = !areComparisonSelectionsEqual(leftComparison, rightComparison);
   const hasActiveFilters = selectedFilters.length > 0;
 
   const hasMappedResponses = schema.ready_response_count > 0;
@@ -1113,6 +1602,20 @@ export default async function SurveyAnalyticsPage({
         metrics: baselineMetrics,
       })
     : null;
+  const leftComparisonProfile =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections
+      ? runPreview({
+          filters: leftComparisonFilters,
+          metrics: baselineMetrics,
+        })
+      : null;
+  const rightComparisonProfile =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections
+      ? runPreview({
+          filters: rightComparisonFilters,
+          metrics: baselineMetrics,
+        })
+      : null;
   const languageBreakdown =
     hasMappedResponses && languageField
       ? runPreview({
@@ -1134,11 +1637,25 @@ export default async function SurveyAnalyticsPage({
           metrics: [{ key: "responses", kind: "count" }],
         })
       : null;
+  const profileByCountry =
+    hasMappedResponses && countryField && profileValueFields.length > 0
+      ? runPreview({
+          group_by: [countryField.key],
+          metrics: segmentMetrics,
+        })
+      : null;
   const profileBySegment =
     hasMappedResponses && profileValueFields.length > 0 && primarySegmentField
       ? runPreview({
           group_by: [primarySegmentField.key],
           metrics: segmentMetrics,
+        })
+      : null;
+  const profileByCountryWithBands =
+    hasMappedResponses && countryField && tagFields.length > 0
+      ? runPreview({
+          group_by: [countryField.key],
+          metrics: baselineMetrics,
         })
       : null;
   const tagDistribution =
@@ -1156,10 +1673,66 @@ export default async function SurveyAnalyticsPage({
           metrics: [{ key: "responses", kind: "count" }],
         })
       : null;
+  const leftComparisonCountryBreakdown =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections && countryField
+      ? runPreview({
+          filters: leftComparisonFilters,
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
+  const rightComparisonCountryBreakdown =
+    hasMappedResponses && compareRequested && comparisonHasDifferentSelections && countryField
+      ? runPreview({
+          filters: rightComparisonFilters,
+          group_by: [countryField.key],
+          metrics: [{ key: "responses", kind: "count" }],
+        })
+      : null;
 
   const baselineRow = getSingleGroup(baselineProfile);
   const selectedRow = getSingleGroup(selectedProfile);
+  const leftComparisonRow = getSingleGroup(leftComparisonProfile);
+  const rightComparisonRow = getSingleGroup(rightComparisonProfile);
   const segmentRows = profileBySegment?.result.groups ?? [];
+  const countryBandRows = profileByCountryWithBands?.result.groups ?? [];
+  const jointBandShares: JointBandShare[] =
+    hasMappedResponses && baselineRow
+      ? buildJointBandShareCandidates(tagFields, mainProfileFields).flatMap((candidate) => {
+          const filtered = runPreview({
+            filters: [
+              { field: candidate.fieldA.key, op: "eq", value: candidate.tagA },
+              { field: candidate.fieldB.key, op: "eq", value: candidate.tagB },
+            ],
+            metrics: [{ key: "responses", kind: "count" }],
+          });
+          const row = getSingleGroup(filtered);
+          const matchedCount = getMetricValue(row, "responses") ?? 0;
+          const sampleSize = baselineRow.response_count;
+
+          if (sampleSize === 0) {
+            return [];
+          }
+
+          return [
+            {
+              fieldA: candidate.fieldA,
+              tagA: candidate.tagA,
+              fieldB: candidate.fieldB,
+              tagB: candidate.tagB,
+              share: matchedCount / sampleSize,
+              matchedCount,
+              sampleSize,
+            },
+          ];
+        })
+      : [];
+  const sidebarProfileBandOptions = buildProfileBandOptions(tagFields, ["low", "high"]);
+  const comparisonProfileBandOptions = buildProfileBandOptions(tagFields);
+  const selectedProfileBand =
+    activeProfileConditions.length === 1
+      ? encodeProfileBandValue(activeProfileConditions[0].fieldKey, activeProfileConditions[0].tag)
+      : "";
   const countryOptions = countryField
     ? optionsFromRows(countryBreakdown?.result.groups ?? [], countryField.key)
     : [];
@@ -1175,226 +1748,15 @@ export default async function SurveyAnalyticsPage({
         label: asset.replaceAll("_", " "),
       }))
     : [];
-  const assetWidgetRows = assetField
-    ? FLEXPULSE_DER_ASSET_VALUES.slice(0, 8)
-        .map((asset) => ({
-          label: asset.replaceAll("_", " "),
-          value: getMetricValue(baselineRow, `asset_${asset}`),
-          unit: "share" as const,
-        }))
-        .filter((row): row is { label: string; value: number; unit: "share" } => row.value != null)
-        .sort((left, right) => right.value - left.value)
-    : [];
-  const countryWidgetRows =
-    countryField && countryBreakdown
-      ? countryBreakdown.result.groups
-          .map((row) => ({
-            label: getGroupLabel(row, countryField.key),
-            value: row.metrics.responses.value,
-            unit: "count" as const,
-          }))
-          .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
-          .slice(0, MAX_BREAKDOWN_ROWS)
-      : [];
-  const tagWidgetRows =
-    tagProfileField && tagDistribution
-      ? tagDistribution.result.groups
-          .map((row) => ({
-            label: getGroupLabel(row, tagProfileField.key),
-            value: row.metrics.responses.value,
-            unit: "count" as const,
-          }))
-          .filter((row): row is { label: string; value: number; unit: "count" } => row.value != null)
-          .slice(0, MAX_BREAKDOWN_ROWS)
-      : [];
-  const surveyEvidence = classifySurveyAnalyticsEvidence(
-    hasActiveFilters ? (selectedRow?.response_count ?? 0) : schema.ready_response_count,
-  );
+  const respondentsNow = hasActiveFilters
+    ? (selectedRow?.response_count ?? 0)
+    : schema.ready_response_count;
+  const surveyEvidence = classifySurveyAnalyticsEvidence(respondentsNow);
+  const selectedView = getSearchParam(resolvedSearchParams, "view") ?? "overview";
 
-  return (
-    <div className="page-stack">
-      <PageHeader
-        eyebrow="Profile Explorer"
-        title={`${survey.title} profile analytics`}
-        description="Explore mapped respondent profiles, compare segments, and inspect what makes each cohort different from the survey baseline."
-        actions={
-          <div className="button-row">
-            <Link href={appRoutes.surveyDetail(survey.id)} className="button button--secondary">
-              Open survey detail
-            </Link>
-            {survey.defaultPublicLinkUrl ? (
-              <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
-                Open public link
-              </Link>
-            ) : null}
-          </div>
-        }
-      />
-
-      <AnalyticsTabs />
-
-      {schema.ready_response_count === 0 ? (
-        <section className="surface-card">
-          <div className="empty-state">
-            <h3>No mapped responses yet</h3>
-            <p>
-              The analytics engine is available, but cohort profiles need mapped responses in
-              ready state. Use the sandbox seeder or collect responses to populate this explorer.
-            </p>
-            {schema.excluded_unmapped_count > 0 ? (
-              <p>
-                {schema.excluded_unmapped_count} response
-                {schema.excluded_unmapped_count === 1 ? "" : "s"} in ready state are excluded
-                because they could not be mapped yet.
-              </p>
-            ) : null}
-          </div>
-        </section>
-      ) : (
-        <>
-          <section id="profile-overview" className="analytics-intelligence-tab">
-            <SurveyIntelligenceHero
-              responseCount={
-                hasActiveFilters
-                  ? (selectedRow?.response_count ?? 0)
-                  : schema.ready_response_count
-              }
-              countryCount={countryOptions.length}
-              publishedAt={survey.publishedAt}
-              surveyEvidence={surveyEvidence}
-              profileFields={mainProfileFields}
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-            />
-            <IntelligenceAxisCards
-              fields={mainProfileFields}
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-            />
-            <RadarViewCard
-              fields={mainProfileFields}
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-            />
-
-            <div className="analytics-intelligence-layout">
-              <IntelligenceInsights
-                baselineRow={baselineRow}
-                segmentRows={segmentRows}
-                segmentField={primarySegmentField}
-                profileFields={mainProfileFields}
-              />
-              <div className="analytics-widget-stack">
-                {assetField ? (
-                  <ProgressListCard
-                    title="DER asset penetration"
-                    description="Share of respondents reporting each mapped DER asset."
-                    rows={assetWidgetRows}
-                  />
-                ) : null}
-                {countryField ? (
-                  <ProgressListCard
-                    title="Respondents by country"
-                    description="Respondent concentration across the strongest geographic cuts."
-                    rows={countryWidgetRows}
-                  />
-                ) : null}
-                {tagProfileField ? (
-                  <ProgressListCard
-                    title={`${getConceptShortLabel(tagProfileField)} distribution`}
-                    description="Low, medium and high bands generated by the mapping contract."
-                    rows={tagWidgetRows}
-                  />
-                ) : null}
-              </div>
-            </div>
-          </section>
-
-          <SegmentOpportunityFinder
-            searchParams={resolvedSearchParams}
-            tagFields={tagFields}
-            conditions={profileConditions}
-            activeConditions={activeProfileConditions}
-            selectedRow={selectedRow}
-            countryRows={selectedCountryBreakdown?.result.groups ?? []}
-            countryField={countryField}
-          />
-
-          <SegmentFilterPanel
-            countryOptions={countryOptions}
-            audienceOptions={audienceOptions}
-            languageOptions={languageOptions}
-            assetOptions={assetOptions}
-            selectedCountry={selectedCountry}
-            selectedAudience={selectedAudience}
-            selectedLanguage={selectedLanguage}
-            selectedTag={selectedTag}
-            selectedAsset={selectedAsset}
-          />
-
-          <section className="content-grid analytics-section-grid">
-            <ProfileOverviewCard
-              selectedRow={selectedRow}
-              baselineRow={baselineRow}
-              profileValueFields={profileValueFields}
-              tagFields={tagFields}
-              hasActiveFilters={hasActiveFilters}
-            />
-            <DifferentiatorsCard
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-              profileValueFields={profileValueFields}
-            />
-          </section>
-
-          <section id="cohort-explorer" className="content-grid">
-            <BreakdownCard
-              title="Cohorts by country"
-              description="Where respondents are concentrated. Use this as the first geographic cut before the map layer exists."
-              rows={countryBreakdown?.result.groups ?? []}
-              groupField={countryField?.key ?? "context.country_code"}
-              metricKeys={["responses"]}
-            />
-            <BreakdownCard
-              title="Cohorts by audience"
-              description="Compare pilot groups, public links or synthetic archetypes when the survey uses multiple audiences."
-              rows={audienceBreakdown?.result.groups ?? []}
-              groupField={audienceField?.key ?? "response.audience_label"}
-              metricKeys={["responses"]}
-            />
-            <BreakdownCard
-              title="Cohorts by language"
-              description="Useful for checking whether language or localization splits influence the observed profile mix."
-              rows={languageBreakdown?.result.groups ?? []}
-              groupField={languageField?.key ?? "context.survey_language"}
-              metricKeys={["responses"]}
-            />
-          </section>
-
-          <section id="compare-segments">
-            <ConceptComparisonTable
-              baselineRow={baselineRow}
-              segmentRows={segmentRows}
-              segmentField={primarySegmentField}
-              profileValueFields={profileValueFields}
-            />
-          </section>
-
-          <section id="distributions" className="content-grid">
-            <TagDistributionCard
-              tagField={tagProfileField}
-              rows={tagDistribution?.result.groups ?? []}
-            />
-            <AssetDistributionCard baselineRow={baselineRow} assetField={assetField} />
-          </section>
-        </>
-      )}
-
-      <section id="schema" className="content-grid">
+  const schemaPanel = (
+    <>
+      <section className="content-grid">
         <article className="surface-card">
           <h2>Profile fields</h2>
           <p>Profile values and tags exposed by the measurement plan.</p>
@@ -1444,6 +1806,227 @@ export default async function SurveyAnalyticsPage({
           </div>
         </div>
       </section>
+    </>
+  );
+
+  const tabs: AnalyticsTab[] = [
+    {
+      id: "overview",
+      label: "Overview",
+      panel: (
+        <section className="analytics-intelligence-tab">
+          <SurveyInsightPanel
+            profileFields={mainProfileFields}
+            tagFields={tagFields}
+            baselineRow={baselineRow}
+            jointBandShares={jointBandShares}
+            countryRows={profileByCountry?.result.groups ?? []}
+            countryBandRows={countryBandRows}
+            countryField={primarySegmentField?.key === "context.country_code" ? primarySegmentField : countryField}
+          />
+          <IntelligenceAxisCards
+            fields={mainProfileFields}
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+          />
+          <RadarViewCard
+            fields={mainProfileFields}
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+          />
+        </section>
+      ),
+    },
+    {
+      id: "segments",
+      label: "Segments",
+      panel: (
+        <div className="analytics-intelligence-tab">
+          <SegmentOpportunityFinder
+            searchParams={resolvedSearchParams}
+            tagFields={tagFields}
+            conditions={profileConditions}
+            activeConditions={activeProfileConditions}
+            selectedRow={selectedRow}
+            countryRows={selectedCountryBreakdown?.result.groups ?? []}
+            countryField={countryField}
+          />
+          <section className="content-grid analytics-section-grid">
+            <ProfileOverviewCard
+              selectedRow={selectedRow}
+              baselineRow={baselineRow}
+              profileValueFields={profileValueFields}
+              tagFields={tagFields}
+              hasActiveFilters={hasActiveFilters}
+            />
+            <DifferentiatorsCard
+              baselineRow={baselineRow}
+              segmentRows={segmentRows}
+              segmentField={primarySegmentField}
+              profileValueFields={profileValueFields}
+            />
+          </section>
+          <ConceptComparisonTable
+            baselineRow={baselineRow}
+            segmentRows={segmentRows}
+            segmentField={primarySegmentField}
+            profileValueFields={profileValueFields}
+          />
+        </div>
+      ),
+    },
+    {
+      id: "comparison",
+      label: "Comparison",
+      panel: (
+        <ComparisonWorkbench
+          profileBandOptions={comparisonProfileBandOptions}
+          countryOptions={countryOptions}
+          languageOptions={languageOptions}
+          assetOptions={assetOptions}
+          leftSelection={leftComparison}
+          rightSelection={rightComparison}
+          compared={compareRequested}
+          comparable={comparisonHasDifferentSelections}
+          leftRow={leftComparisonRow}
+          rightRow={rightComparisonRow}
+          leftCountryRows={leftComparisonCountryBreakdown?.result.groups ?? []}
+          rightCountryRows={rightComparisonCountryBreakdown?.result.groups ?? []}
+          countryField={countryField}
+          profileFields={mainProfileFields}
+        />
+      ),
+    },
+    {
+      id: "distributions",
+      label: "Distributions",
+      panel: (
+        <div className="analytics-intelligence-tab">
+          <section className="content-grid">
+            <BreakdownCard
+              title="Respondents by country"
+              description="Geographic concentration of mapped respondents — the first cut before the map layer."
+              rows={countryBreakdown?.result.groups ?? []}
+              groupField={countryField?.key ?? "context.country_code"}
+              metricKeys={["responses"]}
+            />
+            <BreakdownCard
+              title="Respondents by response cohort"
+              description="Response cohorts from survey-link metadata or seeded synthetic cohorts."
+              rows={audienceBreakdown?.result.groups ?? []}
+              groupField={audienceField?.key ?? "response.audience_label"}
+              metricKeys={["responses"]}
+            />
+            <BreakdownCard
+              title="Respondents by language"
+              description="Whether language or localization splits influence the observed profile mix."
+              rows={languageBreakdown?.result.groups ?? []}
+              groupField={languageField?.key ?? "context.survey_language"}
+              metricKeys={["responses"]}
+            />
+          </section>
+          <section className="content-grid">
+            <TagDistributionCard
+              tagField={tagProfileField}
+              rows={tagDistribution?.result.groups ?? []}
+            />
+            <AssetDistributionCard baselineRow={baselineRow} assetField={assetField} />
+          </section>
+        </div>
+      ),
+    },
+    {
+      id: "schema",
+      label: "Schema",
+      panel: <div className="analytics-intelligence-tab">{schemaPanel}</div>,
+    },
+  ];
+
+  return (
+    <div className="analytics-shell">
+      {/* Left rail — survey context + cohort filters */}
+      <aside className="analytics-rail">
+        <FilterRailForm
+          searchParams={resolvedSearchParams}
+          profileBandOptions={sidebarProfileBandOptions}
+          tagFields={tagFields}
+          countryOptions={countryOptions}
+          audienceOptions={audienceOptions}
+          languageOptions={languageOptions}
+          assetOptions={assetOptions}
+          selectedCountry={selectedCountry}
+          selectedAudience={selectedAudience}
+          selectedLanguage={selectedLanguage}
+          selectedTag={selectedTag}
+          selectedAsset={selectedAsset}
+          selectedProfileBand={selectedProfileBand}
+        />
+      </aside>
+
+      {/* Main content */}
+      <div className="analytics-content">
+        <header className="analytics-content__header">
+          <nav className="breadcrumb breadcrumb--analytics" aria-label="Breadcrumb">
+            <span className="breadcrumb__item">
+              <Link href={appRoutes.dashboard}>Surveys</Link>
+            </span>
+            <span className="breadcrumb__item">
+              <Link href={appRoutes.surveyDetail(survey.id)}>{survey.title}</Link>
+            </span>
+            <span className="breadcrumb__item">
+              <span>Analytics</span>
+            </span>
+          </nav>
+          <div className="analytics-kpi-strip">
+            <div className="analytics-kpi">
+              <span>Respondents</span>
+              <strong>{respondentsNow}</strong>
+            </div>
+            <div className="analytics-kpi">
+              <span>Countries</span>
+              <strong>{countryOptions.length || "—"}</strong>
+            </div>
+            <div className="analytics-kpi">
+              <span>Profile axes</span>
+              <strong>{mainProfileFields.length}</strong>
+            </div>
+            <div className="analytics-kpi">
+              <span>Published</span>
+              <strong>{formatDateShort(survey.publishedAt)}</strong>
+            </div>
+            <div className="analytics-kpi analytics-kpi--evidence">
+              <span>Evidence</span>
+              <EvidenceBadge evidence={surveyEvidence} />
+            </div>
+          </div>
+        </header>
+
+        {schema.ready_response_count === 0 ? (
+          <div className="analytics-sections-body">
+            <section className="surface-card">
+              <div className="empty-state">
+                <h3>No mapped responses yet</h3>
+                <p>
+                  The analytics engine is available, but cohort profiles need mapped responses in
+                  ready state. Use the sandbox seeder or collect responses to populate this explorer.
+                </p>
+                {schema.excluded_unmapped_count > 0 ? (
+                  <p>
+                    {schema.excluded_unmapped_count} response
+                    {schema.excluded_unmapped_count === 1 ? "" : "s"} in ready state are excluded
+                    because they could not be mapped yet.
+                  </p>
+                ) : null}
+              </div>
+            </section>
+            {schemaPanel}
+          </div>
+        ) : (
+          <AnalyticsTabs tabs={tabs} defaultTab={selectedView} />
+        )}
+      </div>
     </div>
   );
 }

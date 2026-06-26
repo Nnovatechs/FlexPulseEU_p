@@ -1,24 +1,63 @@
+import { unstable_cache } from "next/cache";
 import { appRoutes } from "@/lib/config/routes";
+import { requireCurrentSession } from "@/lib/auth/session";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getOwnedDefaultSurveyLink,
   getOwnedSurveyById,
+  listOwnedSurveyLinksForSurveyIds,
   listOwnedSurveys,
 } from "./generator-repository";
-import { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
+import { PersistedSurvey, PersistedSurveyLink, SurveyQuestionDefinition } from "./generator-types";
 import {
   buildSurveyAnalyticsSchema,
   runSurveyAnalyticsQuery,
   type SurveyAnalyticsQueryInput,
 } from "./survey-analytics";
-import { loadOwnedSurveyAnalyticsRuntime } from "./survey-analytics-repository";
+import { loadOwnedSurveyAnalyticsRuntimeSnapshot } from "./survey-analytics-repository";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
 } from "./public-survey-load";
 import { Survey } from "./types";
 
+const loadCachedSurveyAnalyticsRuntime = unstable_cache(
+  async (surveyId: string, ownerId: string) =>
+    loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, ownerId),
+  ["owned-survey-analytics-runtime"],
+  { revalidate: 60 },
+);
+
 function formatQuestionType(value: string) {
-  return value.replaceAll("_", " ");
+  const labels: Record<string, string> = {
+    single_choice: "Single choice",
+    multiple_choice: "Multiple choice",
+    rating_scale: "Rating scale",
+    free_text: "Free text",
+    numeric: "Numeric",
+    boolean: "Boolean",
+  };
+
+  return labels[value] ?? value.replaceAll("_", " ");
+}
+
+function buildScaleSummary(
+  scale: NonNullable<SurveyQuestionDefinition["scale"]>,
+) {
+  return `Scale ${scale.min}${scale.min_label ? ` (${scale.min_label})` : ""} → ${scale.max}${scale.max_label ? ` (${scale.max_label})` : ""}`;
+}
+
+function buildNumericSummary(
+  numeric: NonNullable<SurveyQuestionDefinition["numeric"]>,
+) {
+  const parts = ["Numeric"];
+  if (numeric.unit) {
+    parts.push(numeric.unit);
+  }
+  if (numeric.min != null && numeric.max != null) {
+    parts.push(`${numeric.min}–${numeric.max}`);
+  }
+  return parts.join(" · ");
 }
 
 function toTitleCase(value: string) {
@@ -53,6 +92,7 @@ function summarizeEnrichment(survey: PersistedSurvey) {
 function buildSurveyProjection(
   survey: PersistedSurvey,
   defaultPublicLinkUrl: string | null,
+  responsesCount = 0,
 ): Survey {
   const defaultTranslations =
     survey.definition_json.translations[survey.default_language];
@@ -67,9 +107,14 @@ function buildSurveyProjection(
         id: question.question_key,
         key: question.question_key,
         title: translations?.title?.trim() || question.question_key,
-        description: translations?.description?.trim() || "",
         type: formatQuestionType(question.type),
+        typeKey: question.type,
         required: question.required,
+        optionLabels: question.options?.map(
+          (option) => translations?.options?.[option.option_key] ?? option.option_key,
+        ),
+        scaleSummary: question.scale ? buildScaleSummary(question.scale) : undefined,
+        numericSummary: question.numeric ? buildNumericSummary(question.numeric) : undefined,
       };
     });
 
@@ -85,8 +130,7 @@ function buildSurveyProjection(
     createdAt: survey.created_at,
     updatedAt: survey.updated_at,
     publishedAt: survey.published_at,
-    // Placeholder until the survey list surfaces response counts.
-    responsesCount: 0,
+    responsesCount,
     questionCount: questions.length,
     mappingCount: survey.mapping_contract_json.mappings.length,
     defaultPublicLinkUrl,
@@ -94,27 +138,143 @@ function buildSurveyProjection(
   };
 }
 
-async function mapOwnedPersistedSurvey(survey: PersistedSurvey): Promise<Survey> {
-  const defaultLink =
-    survey.status === "published"
-      ? await getOwnedDefaultSurveyLink(survey.id)
-      : null;
-
+async function mapOwnedPersistedSurvey(
+  survey: PersistedSurvey,
+  responsesCount = 0,
+  defaultLink: PersistedSurveyLink | null = null,
+): Promise<Survey> {
   return buildSurveyProjection(
     survey,
     defaultLink ? appRoutes.publicSurveyLink(defaultLink.link_token) : null,
+    responsesCount,
   );
 }
 
+async function loadOwnedDefaultSurveyLinksBySurveyId(surveys: PersistedSurvey[]) {
+  const publishedSurveyIds = surveys
+    .filter((survey) => survey.status === "published")
+    .map((survey) => survey.id);
+
+  const links = await listOwnedSurveyLinksForSurveyIds(publishedSurveyIds);
+  const linksBySurveyId = new Map<string, PersistedSurveyLink>();
+
+  for (const link of links) {
+    const existing = linksBySurveyId.get(link.survey_id);
+    if (!existing || link.audience_token === "default") {
+      linksBySurveyId.set(link.survey_id, link);
+    }
+  }
+
+  return linksBySurveyId;
+}
+
+async function mapOwnedPersistedSurveys(
+  surveys: PersistedSurvey[],
+  responseCounts: Map<string, number>,
+): Promise<Survey[]> {
+  const linksBySurveyId = await loadOwnedDefaultSurveyLinksBySurveyId(surveys);
+
+  return Promise.all(
+    surveys.map((survey) =>
+      mapOwnedPersistedSurvey(
+        survey,
+        responseCounts.get(survey.id) ?? 0,
+        linksBySurveyId.get(survey.id) ?? null,
+      ),
+    ),
+  );
+}
+
+function buildDashboardMetrics(
+  surveys: PersistedSurvey[],
+  questionsAnswered: number,
+) {
+  const published = surveys.filter((survey) => survey.status === "published");
+
+  return {
+    totalSurveys: surveys.length,
+    publishedSurveys: published.length,
+    totalQuestions: surveys.reduce(
+      (accumulator, survey) => accumulator + survey.definition_json.questions.length,
+      0,
+    ),
+    questionsAnswered,
+  };
+}
+
+async function loadOwnedSurveyResponseCounts() {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("survey_responses").select("survey_id");
+
+  if (error) {
+    throw new Error(`Failed to load survey response counts: ${error.message}`);
+  }
+
+  const counts = new Map<string, number>();
+
+  for (const row of data ?? []) {
+    if (!row.survey_id) {
+      continue;
+    }
+
+    counts.set(row.survey_id, (counts.get(row.survey_id) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+async function countOwnedSurveyResponses(surveyId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { count, error } = await supabase
+    .from("survey_responses")
+    .select("id", { count: "exact", head: true })
+    .eq("survey_id", surveyId);
+
+  if (error) {
+    throw new Error(`Failed to count survey responses: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 export async function getSurveys(): Promise<Survey[]> {
-  const surveys = await listOwnedSurveys();
-  return Promise.all(surveys.map(mapOwnedPersistedSurvey));
+  const [allSurveys, responseCounts] = await Promise.all([
+    listOwnedSurveys(),
+    loadOwnedSurveyResponseCounts(),
+  ]);
+
+  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
+
+  return mapOwnedPersistedSurveys(surveys, responseCounts);
+}
+
+export async function getDashboardData() {
+  const [allSurveys, responseCounts, questionsAnswered] = await Promise.all([
+    listOwnedSurveys(),
+    loadOwnedSurveyResponseCounts(),
+    countOwnedAnsweredQuestions(),
+  ]);
+  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
+
+  return {
+    metrics: buildDashboardMetrics(surveys, questionsAnswered),
+    surveys: await mapOwnedPersistedSurveys(surveys, responseCounts),
+  };
 }
 
 export async function getSurveyById(surveyId: string): Promise<Survey | null> {
   try {
-    const survey = await getOwnedSurveyById(surveyId);
-    return mapOwnedPersistedSurvey(survey);
+    const [survey, responsesCount] = await Promise.all([
+      getOwnedSurveyById(surveyId),
+      countOwnedSurveyResponses(surveyId),
+    ]);
+
+    const defaultLink =
+      survey.status === "published"
+        ? await getOwnedDefaultSurveyLink(survey.id)
+        : null;
+
+    return mapOwnedPersistedSurvey(survey, responsesCount, defaultLink);
   } catch {
     return null;
   }
@@ -163,22 +323,50 @@ export async function getPublicSurveyRuntimeByLinkToken(
   }
 }
 
-export async function getDashboardMetrics() {
-  const surveys = await getSurveys();
-  const published = surveys.filter((survey) => survey.status === "Published");
-  const drafts = surveys.filter((survey) => survey.status === "Draft");
-  const archived = surveys.filter((survey) => survey.status === "Archived");
+function countAnsweredQuestions(answersJson: unknown) {
+  if (!answersJson || typeof answersJson !== "object" || Array.isArray(answersJson)) {
+    return 0;
+  }
 
-  return {
-    totalSurveys: surveys.length,
-    publishedSurveys: published.length,
-    draftSurveys: drafts.length,
-    archivedSurveys: archived.length,
-    totalQuestions: surveys.reduce(
-      (accumulator, survey) => accumulator + survey.questionCount,
-      0,
-    ),
-  };
+  return Object.values(answersJson as Record<string, unknown>).filter((value) => {
+    if (value == null) {
+      return false;
+    }
+
+    if (typeof value === "string") {
+      return value.trim() !== "";
+    }
+
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+
+    return true;
+  }).length;
+}
+
+async function countOwnedAnsweredQuestions() {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from("survey_responses").select("answers_json");
+
+  if (error) {
+    throw new Error(`Failed to load dashboard response metrics: ${error.message}`);
+  }
+
+  return (data ?? []).reduce(
+    (accumulator, row) => accumulator + countAnsweredQuestions(row.answers_json),
+    0,
+  );
+}
+
+export async function getDashboardMetrics() {
+  const [allSurveys, questionsAnswered] = await Promise.all([
+    listOwnedSurveys(),
+    countOwnedAnsweredQuestions(),
+  ]);
+  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
+
+  return buildDashboardMetrics(surveys, questionsAnswered);
 }
 
 export async function getSurveyAnalyticsSchema(surveyId: string) {
@@ -201,7 +389,8 @@ export async function getSurveyAnalyticsPageData(surveyId: string) {
 }
 
 async function loadSurveyAnalyticsContext(surveyId: string) {
-  const runtime = await loadOwnedSurveyAnalyticsRuntime(surveyId);
+  const session = await requireCurrentSession();
+  const runtime = await loadCachedSurveyAnalyticsRuntime(surveyId, session.user.id);
   const schema = buildSurveyAnalyticsSchema({
     survey: runtime.survey,
     readyResponseCount: runtime.rows.length,

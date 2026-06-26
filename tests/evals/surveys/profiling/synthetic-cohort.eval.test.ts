@@ -298,7 +298,7 @@ describe("survey synthetic cohort profiling evals", () => {
     const automationTrust = metricValue(cohortQueryResult, "automation_ready", "avg_trust");
     const controlTrust = metricValue(cohortQueryResult, "control_protective", "avg_trust");
     const derEvShare = metricValue(cohortQueryResult, "der_engaged", "ev_asset_share");
-    const neutralEvShare = metricValue(cohortQueryResult, "neutral_mainstream", "ev_asset_share");
+    const neutralEvShare = metricValue(cohortQueryResult, "neutral", "ev_asset_share");
 
     addCheck(
       row,
@@ -308,7 +308,7 @@ describe("survey synthetic cohort profiling evals", () => {
     );
     addCheck(
       row,
-      "DER engaged EV share above neutral mainstream",
+      "DER engaged EV share above neutral",
       derEvShare != null && neutralEvShare != null && derEvShare - neutralEvShare >= 0.5,
       `der ${derEvShare}, neutral ${neutralEvShare}`,
     );

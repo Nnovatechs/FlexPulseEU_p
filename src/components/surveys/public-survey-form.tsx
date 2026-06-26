@@ -11,6 +11,7 @@ import type {
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
 import { appRoutes } from "@/lib/config/routes";
+import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 
 declare global {
   interface Window {
@@ -102,17 +103,6 @@ function validateBlock(
     if (isEmpty) return "Please answer all required questions before continuing.";
   }
   return null;
-}
-
-function rethrowNextNavigationError(error: unknown) {
-  const digest =
-    error && typeof error === "object" && "digest" in error
-      ? String((error as { digest?: unknown }).digest ?? "")
-      : "";
-
-  if (digest.startsWith("NEXT_REDIRECT") || digest.startsWith("NEXT_NOT_FOUND")) {
-    throw error;
-  }
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────

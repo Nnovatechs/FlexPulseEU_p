@@ -29,7 +29,16 @@ export default async function SurveyDetailPage({
           This survey has already been published and can no longer be edited.
         </div>
       ) : null}
+      {survey.status === "Archived" ? (
+        <div className="notice notice--warning" role="status">
+          This survey has been archived and is hidden from the workspace list.
+        </div>
+      ) : null}
       <PageHeader
+        breadcrumbs={[
+          { label: "Surveys", href: appRoutes.dashboard },
+          { label: survey.title },
+        ]}
         eyebrow="Survey detail"
         title={survey.title}
         description="Overview of the survey configuration, lifecycle, and question set."
@@ -43,7 +52,7 @@ export default async function SurveyDetailPage({
                 Edit survey
               </Link>
             ) : null}
-            {survey.defaultPublicLinkUrl ? (
+            {survey.defaultPublicLinkUrl && survey.status !== "Archived" ? (
               <Link href={survey.defaultPublicLinkUrl} className="button button--primary">
                 Open public link
               </Link>

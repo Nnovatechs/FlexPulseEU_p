@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SurveyLifecycleAction } from "@/components/surveys/survey-lifecycle-action";
 import { Survey } from "@/features/surveys/types";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -57,7 +58,9 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                 <span className={`status-pill status-pill--${survey.status.toLowerCase()}`}>
                   {survey.status}
                 </span>
-                <span className="meta-pill">{survey.mappingCount} mapping entries</span>
+                <span className="meta-pill">
+                  {survey.responsesCount} respondent{survey.responsesCount === 1 ? "" : "s"}
+                </span>
               </div>
             </div>
 
@@ -86,6 +89,13 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                 >
                   Analytics
                 </Link>
+                {survey.status === "Draft" || survey.status === "Published" ? (
+                  <SurveyLifecycleAction
+                    surveyId={survey.id}
+                    surveyTitle={survey.title}
+                    status={survey.status}
+                  />
+                ) : null}
               </div>
             </div>
           </article>

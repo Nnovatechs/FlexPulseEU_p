@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
 import { publishSurveyAction } from "@/features/surveys/actions";
+import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 import type {
   ContentValidationResult,
   MultilingualValidationIssue,
@@ -211,6 +212,7 @@ export function PreviewTab({
       try {
         await publishSurveyAction(formData);
       } catch (err) {
+        rethrowNextNavigationError(err);
         setPublishError(
           err instanceof Error ? err.message : "Publish failed. Please try again.",
         );

@@ -10,7 +10,7 @@ type ArchetypeKey =
   | "control_protective"
   | "price_optimizer"
   | "comfort_first"
-  | "neutral_mainstream"
+  | "neutral"
   | "der_engaged"
   | "contradictory"
   | "partial_sparse";
@@ -129,8 +129,8 @@ export const syntheticCohortArchetypes: ArchetypeDefinition[] = [
     expectedBands: { trust: "medium", flexibility: "low", comfort: "high" },
   },
   {
-    key: "neutral_mainstream",
-    purpose: "Centrist answers used as a baseline cohort.",
+    key: "neutral",
+    purpose: "Neutral position with mid-scale answers and no strong behavioural pull.",
     count: 40,
     countryCode: "DE",
     submittedLanguage: "English",

@@ -1,7 +1,14 @@
+import Link from "next/link";
 import { ReactNode } from "react";
+
+type BreadcrumbItem = {
+  label: string;
+  href?: string;
+};
 
 type PageHeaderProps = {
   eyebrow?: string;
+  breadcrumbs?: BreadcrumbItem[];
   title: string;
   description?: string;
   actions?: ReactNode;
@@ -9,6 +16,7 @@ type PageHeaderProps = {
 
 export function PageHeader({
   eyebrow,
+  breadcrumbs,
   title,
   description,
   actions,
@@ -16,6 +24,15 @@ export function PageHeader({
   return (
     <section className="section-header">
       <div>
+        {breadcrumbs?.length ? (
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            {breadcrumbs.map((item, index) => (
+              <span key={`${item.label}-${index}`} className="breadcrumb__item">
+                {item.href ? <Link href={item.href}>{item.label}</Link> : <span>{item.label}</span>}
+              </span>
+            ))}
+          </nav>
+        ) : null}
         {eyebrow ? <p className="section-header__eyebrow">{eyebrow}</p> : null}
         <h1>{title}</h1>
         {description ? <p>{description}</p> : null}

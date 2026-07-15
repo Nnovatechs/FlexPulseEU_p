@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { getLegalConfig } from "@/lib/config/legal";
+import { getRawLocationRetentionLabel } from "@/lib/config/response-retention";
 
 export default function PrivacyPage() {
   const legal = getLegalConfig();
+  const rawLocationRetentionLabel = getRawLocationRetentionLabel();
 
   return (
     <main className="legal-page">
@@ -82,8 +84,8 @@ export default function PrivacyPage() {
             Regional context may be normalized or enriched with external context
             such as approximate weather/location information. Raw country and
             postal-code inputs are retained temporarily for this processing,
-            marked for cleanup after 72 hours, and handled through a protected
-            internal cleanup process.
+            marked for cleanup after {rawLocationRetentionLabel}, and handled
+            through a protected internal cleanup process.
           </p>
         </section>
 

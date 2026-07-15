@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { buildRawLocationRetentionUntil } from "@/lib/config/response-retention";
 import type { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
 import type {
   SubmittedSurveyAnswer,
@@ -14,10 +15,6 @@ type CreateSurveyResponseInput = {
   postalCodeRaw: string | null;
   legalConsent: ValidatedPublicSurveySubmission["legalConsent"];
 };
-
-function buildRawLocationRetentionUntil() {
-  return new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
-}
 
 export async function createSurveyResponseAndEnqueueJob(
   input: CreateSurveyResponseInput,

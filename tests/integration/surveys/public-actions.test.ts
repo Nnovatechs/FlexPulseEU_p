@@ -24,6 +24,8 @@ vi.mock("@/features/surveys/response-repository", () => ({
 
 const ORIGINAL_TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
 const ORIGINAL_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+const ORIGINAL_TURNSTILE_REQUIRED = process.env.TURNSTILE_REQUIRED;
+const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
 
 function restoreEnv(name: string, value: string | undefined) {
   if (value === undefined) {
@@ -79,12 +81,16 @@ describe("public survey submission action", () => {
     vi.clearAllMocks();
     delete process.env.TURNSTILE_SECRET_KEY;
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_REQUIRED;
+    delete process.env.VERCEL_ENV;
     vi.unstubAllGlobals();
   });
 
   afterEach(() => {
     restoreEnv("TURNSTILE_SECRET_KEY", ORIGINAL_TURNSTILE_SECRET_KEY);
     restoreEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", ORIGINAL_TURNSTILE_SITE_KEY);
+    restoreEnv("TURNSTILE_REQUIRED", ORIGINAL_TURNSTILE_REQUIRED);
+    restoreEnv("VERCEL_ENV", ORIGINAL_VERCEL_ENV);
     vi.unstubAllGlobals();
   });
 
@@ -182,6 +188,25 @@ describe("public survey submission action", () => {
 
     expect(createSurveyResponseAndEnqueueJob).toHaveBeenCalled();
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("fails closed when Turnstile is required but incompletely configured", async () => {
+    process.env.TURNSTILE_REQUIRED = "1";
+    process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+
+    await expect(submitPublicSurveyResponseAction(formData)).rejects.toThrow(
+      "Turnstile protection is required but both Turnstile keys are not configured.",
+    );
+
+    expect(getPublicSurveyLinkByToken).not.toHaveBeenCalled();
+    expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
   });
 
   it("stores the response after a successful Turnstile verification", async () => {

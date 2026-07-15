@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isSignupEnabled } from "./config";
 
 function getSafeRedirectPath(value: FormDataEntryValue | null): string {
   const nextPath = String(value ?? "").trim();
@@ -38,6 +39,10 @@ export async function signInWithPasswordAction(formData: FormData) {
 }
 
 export async function signUpWithPasswordAction(formData: FormData) {
+  if (!isSignupEnabled()) {
+    redirect(`${appRoutes.login}?error=signup-closed`);
+  }
+
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();

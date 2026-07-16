@@ -2757,6 +2757,19 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   line-height: 1.5;
 }
 
+.preview-tab__privacy-settings-link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
+}
+
+.preview-tab__privacy-settings-link:hover,
+.preview-tab__privacy-settings-link:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
 /* Shared button styles */
 
 .button {

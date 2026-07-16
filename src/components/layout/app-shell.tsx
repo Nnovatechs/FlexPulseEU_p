@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { BrandLogo } from "@/components/layout/brand-logo";
-import { signOutAction } from "@/lib/auth/actions";
+import { UserMenu } from "@/components/layout/user-menu";
 import { appRoutes } from "@/lib/config/routes";
 
 type AppShellProps = {
@@ -22,29 +22,7 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
             </Link>
           </div>
           <div className="topbar__controls">
-            <details className="user-menu">
-              <summary className="user-chip">
-                <div className="user-chip__avatar">{userName.slice(0, 1)}</div>
-                <div className="user-chip__identity">
-                  <strong>{userName}</strong>
-                  <p>{userEmail}</p>
-                </div>
-                <span className="user-menu__chevron" aria-hidden="true">
-                  ▾
-                </span>
-              </summary>
-
-              <div className="user-menu__popover">
-                <Link href={appRoutes.updatePassword} className="user-menu__item">
-                  Change password
-                </Link>
-                <form action={signOutAction}>
-                  <button type="submit" className="user-menu__item">
-                    Sign out
-                  </button>
-                </form>
-              </div>
-            </details>
+            <UserMenu userName={userName} userEmail={userEmail} />
           </div>
         </header>
 

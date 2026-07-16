@@ -87,6 +87,27 @@ overload:
 \df public.create_survey_response_with_job
 ```
 
+## Owner privacy settings rollout ordering
+
+Apply `20260716120000_add_owner_legal_profiles.sql` before deploying the
+application version that exposes Privacy Settings or survey-specific privacy
+notices.
+
+The migration is additive: it creates `owner_legal_profiles` and
+`survey_legal_snapshots` without changing the existing `surveys` columns. It
+also adds a database trigger that requires a legal snapshot only when a draft
+transitions to published. Surveys that were already published remain readable
+and use the deployment legal configuration as a legacy fallback.
+
+After deployment:
+
+1. Complete `/account/privacy` for each account allowed to publish.
+2. Publish a synthetic draft and verify one matching row exists in
+   `survey_legal_snapshots`.
+3. Open `/s/<link-token>/privacy` anonymously.
+4. Confirm the survey form links separately to the survey, platform, and cookie
+   notices.
+
 ## Future integrations
 
 Authentication, Supabase, and other external services should be added only after:

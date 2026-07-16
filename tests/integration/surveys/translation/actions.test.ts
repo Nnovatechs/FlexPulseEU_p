@@ -10,6 +10,8 @@ const {
   getOwnedSurveyById,
   updateSurveyDraft,
   publishSurvey,
+  getCurrentOwnerLegalProfile,
+  prepareSurveyLegalSnapshot,
   translateSurveyLanguage,
   polishSurveyLanguage,
   validateTranslatedSurveyLanguage,
@@ -19,6 +21,8 @@ const {
   getOwnedSurveyById: vi.fn(),
   updateSurveyDraft: vi.fn(),
   publishSurvey: vi.fn(),
+  getCurrentOwnerLegalProfile: vi.fn(),
+  prepareSurveyLegalSnapshot: vi.fn(),
   translateSurveyLanguage: vi.fn(),
   polishSurveyLanguage: vi.fn(),
   validateTranslatedSurveyLanguage: vi.fn(),
@@ -37,6 +41,11 @@ vi.mock("@/features/surveys/generator-repository", () => ({
   updateSurveyDraft,
   publishSurvey,
   createSurveyDraft: vi.fn(),
+}));
+
+vi.mock("@/features/privacy/repository", () => ({
+  getCurrentOwnerLegalProfile,
+  prepareSurveyLegalSnapshot,
 }));
 
 vi.mock("@/features/surveys/translation-service", () => ({
@@ -62,6 +71,17 @@ vi.mock("@/features/surveys/translation-validation", async () => {
 describe("survey translation actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getCurrentOwnerLegalProfile.mockResolvedValue({
+      userId: "user-1",
+      controllerName: "Example Research Institute",
+      controllerCountry: "Spain",
+      contactEmail: "research@example.eu",
+      privacyEmail: "privacy@example.eu",
+      dpoEmail: null,
+      createdAt: "2026-07-16T10:00:00.000Z",
+      updatedAt: "2026-07-16T10:00:00.000Z",
+    });
+    prepareSurveyLegalSnapshot.mockResolvedValue({});
   });
 
   it("persists translated bundles and multilingual validation result", async () => {
@@ -473,6 +493,10 @@ describe("survey translation actions", () => {
 
     await publishSurveyAction(formData);
 
+    expect(prepareSurveyLegalSnapshot).toHaveBeenCalledWith(
+      "survey-translation-5",
+      "user-1",
+    );
     expect(publishSurvey).toHaveBeenCalledWith("survey-translation-5");
     expect(redirect).toHaveBeenCalled();
   });

@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildValidationSurveyFixture } from "../../fixtures/surveys/validation/factory";
 
-const { redirect, getPublicSurveyLinkByToken, getPublishedSurveyByIdPublic, createSurveyResponseAndEnqueueJob } =
+const { redirect, getPublicSurveyLinkByToken, getPublishedSurveyByIdPublic, getPublicSurveyLegalSnapshot, createSurveyResponseAndEnqueueJob } =
   vi.hoisted(() => ({
     redirect: vi.fn(),
     getPublicSurveyLinkByToken: vi.fn(),
     getPublishedSurveyByIdPublic: vi.fn(),
+    getPublicSurveyLegalSnapshot: vi.fn(),
     createSurveyResponseAndEnqueueJob: vi.fn(),
   }));
 
@@ -20,6 +21,10 @@ vi.mock("@/features/surveys/public-survey-load", () => ({
 
 vi.mock("@/features/surveys/response-repository", () => ({
   createSurveyResponseAndEnqueueJob,
+}));
+
+vi.mock("@/features/privacy/repository", () => ({
+  getPublicSurveyLegalSnapshot,
 }));
 
 const ORIGINAL_TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
@@ -79,6 +84,7 @@ function mockPublicSurveyRuntime(survey: ReturnType<typeof buildPublishedSurveyF
 describe("public survey submission action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getPublicSurveyLegalSnapshot.mockResolvedValue(null);
     delete process.env.TURNSTILE_SECRET_KEY;
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     delete process.env.TURNSTILE_REQUIRED;
@@ -117,7 +123,7 @@ describe("public survey submission action", () => {
         legalConsent: expect.objectContaining({
           accepted: true,
           statement:
-            "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+            "I consent to the processing of my survey response for the stated purposes and confirm that I have read:",
           source: "public_survey_form",
         }),
         survey: expect.objectContaining({

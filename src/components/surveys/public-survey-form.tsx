@@ -77,6 +77,7 @@ type AnswerValues = Record<string, string | string[]>;
 
 export type PublicSurveyFormProps = {
   linkToken: string;
+  surveyPrivacyUrl: string;
   defaultLanguage: string;
   initialLanguage: string;
   hasExplicitLangParam: boolean;
@@ -471,6 +472,7 @@ function ContextSection({
 
 export function PublicSurveyForm({
   linkToken,
+  surveyPrivacyUrl,
   defaultLanguage,
   initialLanguage,
   hasExplicitLangParam,
@@ -742,8 +744,12 @@ export function PublicSurveyForm({
               />
               <span>
                 {copy.legalConsentLabel}{" "}
-                <Link href={appRoutes.privacy} target="_blank">
+                <Link href={surveyPrivacyUrl} target="_blank">
                   {copy.legalConsentPrivacyLink}
+                </Link>
+                {" · "}
+                <Link href={appRoutes.privacy} target="_blank">
+                  {copy.legalConsentPlatformPrivacyLink}
                 </Link>
                 {" · "}
                 <Link href={appRoutes.cookies} target="_blank">

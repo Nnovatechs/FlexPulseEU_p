@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
+import { PRIVACY_PROFILE_INCOMPLETE_ERROR } from "@/features/privacy/types";
 import { publishSurveyAction } from "@/features/surveys/actions";
+import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 import type {
   ContentValidationResult,
@@ -210,7 +213,10 @@ export function PreviewTab({
     setPublishError(null);
     startPublish(async () => {
       try {
-        await publishSurveyAction(formData);
+        const result = await publishSurveyAction(formData);
+        if (result?.error === PRIVACY_PROFILE_INCOMPLETE_ERROR) {
+          setPublishError(PRIVACY_PROFILE_INCOMPLETE_ERROR);
+        }
       } catch (err) {
         rethrowNextNavigationError(err);
         setPublishError(
@@ -252,9 +258,30 @@ export function PreviewTab({
         )}
 
       {publishError && (
-        <p className="review-notice review-notice--error" role="alert">
-          {publishError}
-        </p>
+        <div
+          className={`review-notice ${
+            publishError === PRIVACY_PROFILE_INCOMPLETE_ERROR
+              ? "review-notice--warning"
+              : "review-notice--error"
+          }`}
+          role="alert"
+        >
+          {publishError === PRIVACY_PROFILE_INCOMPLETE_ERROR ? (
+            <>
+              Complete your Privacy Settings before publishing this survey.{" "}
+              <Link
+                href={appRoutes.privacySettings}
+                target="_blank"
+                className="preview-tab__privacy-settings-link"
+              >
+                Open Privacy Settings
+              </Link>
+              .
+            </>
+          ) : (
+            publishError
+          )}
+        </div>
       )}
 
       <form onSubmit={handlePublish}>

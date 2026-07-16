@@ -24,12 +24,15 @@ export function getLegalConfig(): LegalConfig {
   const controllerContactEmail = getEnv("LEGAL_CONTROLLER_CONTACT_EMAIL", "");
   const privacyEmail = getEnv("LEGAL_PRIVACY_EMAIL", controllerContactEmail);
   const consentVersion = getEnv("LEGAL_CONSENT_VERSION", DEFAULT_LEGAL_NOTICE_VERSION);
+  const controllerName = getEnv("LEGAL_CONTROLLER_NAME", "Survey operator");
+  const controllerCountry = getEnv("LEGAL_CONTROLLER_COUNTRY", "European Union");
+  const processorName = getEnv("LEGAL_PROCESSOR_NAME", "FlexPulseEU");
 
   return {
-    controllerName: getEnv("LEGAL_CONTROLLER_NAME", "Survey operator"),
+    controllerName,
     controllerContactEmail,
-    controllerCountry: getEnv("LEGAL_CONTROLLER_COUNTRY", "European Union"),
-    processorName: getEnv("LEGAL_PROCESSOR_NAME", "FlexPulseEU"),
+    controllerCountry,
+    processorName,
     privacyEmail,
     privacyUrl: getEnv("LEGAL_PRIVACY_URL", appRoutes.privacy),
     cookiesUrl: getEnv("LEGAL_COOKIES_URL", appRoutes.cookies),

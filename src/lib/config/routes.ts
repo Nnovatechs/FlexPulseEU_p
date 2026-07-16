@@ -3,6 +3,7 @@ export const appRoutes = {
   forgotPassword: "/forgot-password",
   authConfirm: "/auth/confirm",
   updatePassword: "/account/update-password",
+  privacySettings: "/account/privacy",
   privacy: "/privacy",
   cookies: "/cookies",
   dashboard: "/dashboard",
@@ -11,6 +12,7 @@ export const appRoutes = {
   surveyDetail: (surveyId: string) => `/surveys/${surveyId}`,
   surveyEdit: (surveyId: string) => `/surveys/${surveyId}/edit`,
   publicSurveyLink: (linkToken: string) => `/s/${linkToken}`,
+  publicSurveyPrivacy: (linkToken: string) => `/s/${linkToken}/privacy`,
   publicSurveyThankYou: (linkToken: string) => `/s/${linkToken}/thank-you`,
   surveyAnalytics: (surveyId: string) => `/surveys/${surveyId}/analytics`,
 } as const;

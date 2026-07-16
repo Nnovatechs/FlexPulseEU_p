@@ -22,19 +22,29 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
             </Link>
           </div>
           <div className="topbar__controls">
-            <div className="user-chip">
-              <div className="user-chip__avatar">{userName.slice(0, 1)}</div>
-              <div>
-                <strong>{userName}</strong>
-                <p>{userEmail}</p>
-              </div>
-            </div>
+            <details className="user-menu">
+              <summary className="user-chip">
+                <div className="user-chip__avatar">{userName.slice(0, 1)}</div>
+                <div className="user-chip__identity">
+                  <strong>{userName}</strong>
+                  <p>{userEmail}</p>
+                </div>
+                <span className="user-menu__chevron" aria-hidden="true">
+                  ▾
+                </span>
+              </summary>
 
-            <form action={signOutAction}>
-              <button type="submit" className="button button--ghost button--compact">
-                Sign out
-              </button>
-            </form>
+              <div className="user-menu__popover">
+                <Link href={appRoutes.updatePassword} className="user-menu__item">
+                  Change password
+                </Link>
+                <form action={signOutAction}>
+                  <button type="submit" className="user-menu__item">
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            </details>
           </div>
         </header>
 

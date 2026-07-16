@@ -19,6 +19,7 @@ describe("auth actions with controlled signup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("SIGNUP_MODE", "closed");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
   });
 
   afterEach(() => {
@@ -58,5 +59,60 @@ describe("auth actions with controlled signup", () => {
       email: "pilot@example.eu",
       password: "example-password",
     });
+  });
+
+  it("requests a password recovery email without exposing account existence", async () => {
+    const resetPasswordForEmail = vi.fn().mockResolvedValue({
+      error: new Error("User not found"),
+    });
+    createSupabaseServerClient.mockResolvedValue({
+      auth: { resetPasswordForEmail },
+    });
+
+    const { requestPasswordResetAction } = await import("@/lib/auth/actions");
+    const formData = new FormData();
+    formData.set("email", "pilot@example.eu");
+
+    await expect(requestPasswordResetAction(formData)).rejects.toThrow(
+      "redirect:/forgot-password?message=reset-requested",
+    );
+
+    expect(resetPasswordForEmail).toHaveBeenCalledWith("pilot@example.eu", {
+      redirectTo:
+        "http://localhost:3000/auth/confirm?next=%2Faccount%2Fupdate-password",
+    });
+  });
+
+  it("updates the password for the authenticated recovery session", async () => {
+    const updateUser = vi.fn().mockResolvedValue({ error: null });
+    createSupabaseServerClient.mockResolvedValue({
+      auth: { updateUser },
+    });
+
+    const { updatePasswordAction } = await import("@/lib/auth/actions");
+    const formData = new FormData();
+    formData.set("password", "new-secure-password");
+    formData.set("confirmPassword", "new-secure-password");
+
+    await expect(updatePasswordAction(formData)).rejects.toThrow(
+      "redirect:/account/update-password?message=password-updated",
+    );
+
+    expect(updateUser).toHaveBeenCalledWith({
+      password: "new-secure-password",
+    });
+  });
+
+  it("rejects mismatched passwords before calling Supabase", async () => {
+    const { updatePasswordAction } = await import("@/lib/auth/actions");
+    const formData = new FormData();
+    formData.set("password", "new-secure-password");
+    formData.set("confirmPassword", "different-password");
+
+    await expect(updatePasswordAction(formData)).rejects.toThrow(
+      "redirect:/account/update-password?error=password-mismatch",
+    );
+
+    expect(createSupabaseServerClient).not.toHaveBeenCalled();
   });
 });

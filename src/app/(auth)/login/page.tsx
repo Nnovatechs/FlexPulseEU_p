@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   signInWithPasswordAction,
   signUpWithPasswordAction,
@@ -21,6 +22,8 @@ const errorMessages: Record<string, string> = {
   "password-mismatch": "The password confirmation does not match.",
   "signup-failed": "The account could not be created with the provided details.",
   "signup-closed": "Account creation is currently restricted. Contact the operator for access.",
+  "auth-confirmation-failed":
+    "This authentication link is invalid or has expired. Request a new one and try again.",
 };
 
 const infoMessages: Record<string, string> = {
@@ -115,6 +118,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               {isSignUpMode ? "Create account" : "Sign in"}
             </button>
           </form>
+
+          {!isSignUpMode ? (
+            <Link
+              href={appRoutes.forgotPassword}
+              className="button button--ghost button--full"
+            >
+              Forgot your password?
+            </Link>
+          ) : null}
         </div>
       </section>
     </main>

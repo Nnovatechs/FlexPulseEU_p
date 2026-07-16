@@ -1,5 +1,8 @@
 export const appRoutes = {
   login: "/login",
+  forgotPassword: "/forgot-password",
+  authConfirm: "/auth/confirm",
+  updatePassword: "/account/update-password",
   privacy: "/privacy",
   cookies: "/cookies",
   dashboard: "/dashboard",

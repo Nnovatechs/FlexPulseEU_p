@@ -5,6 +5,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 const publicRoutes = new Set<string>([
   "/",
   appRoutes.login,
+  appRoutes.forgotPassword,
   appRoutes.privacy,
   appRoutes.cookies,
 ]);

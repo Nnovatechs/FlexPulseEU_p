@@ -494,6 +494,78 @@ textarea {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.user-menu {
+  position: relative;
+}
+
+.user-menu > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.user-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.user-menu > summary:hover,
+.user-menu > summary:focus-visible,
+.user-menu[open] > summary {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  box-shadow: 0 4px 14px rgba(20, 39, 77, 0.08);
+  outline: none;
+}
+
+.user-chip__identity {
+  min-width: 0;
+}
+
+.user-menu__chevron {
+  color: var(--muted);
+  font-size: 0.8rem;
+  transition: transform 160ms ease;
+}
+
+.user-menu[open] .user-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.user-menu__popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 30;
+  min-width: 190px;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-solid);
+  box-shadow: 0 14px 36px rgba(20, 39, 77, 0.14);
+}
+
+.user-menu__popover form {
+  margin: 0;
+}
+
+.user-menu__item {
+  display: flex;
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-menu__item:hover,
+.user-menu__item:focus-visible {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  outline: none;
+}
+
 .user-chip__avatar {
   display: grid;
   place-items: center;
@@ -2753,6 +2825,23 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
     padding: 1.2rem;
   }
 
+  .user-menu__popover {
+    right: 0;
+    left: 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topbar__controls,
+  .user-menu,
+  .user-chip {
+    width: 100%;
+  }
+
+  .user-chip__identity {
+    flex: 1;
+  }
+
   .question-card {
     grid-template-columns: 1fr;
   }
@@ -4911,6 +5000,21 @@ body:has(.analytics-shell) {
   border-radius: 3px;
   font-size: 0.72rem;
   font-weight: 600;
+}
+
+.app-shell:has(.analytics-shell) .user-menu__popover {
+  border-color: #2a2a2a;
+  background: #171717;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+}
+
+.app-shell:has(.analytics-shell) .user-menu__item {
+  color: #d0d0d0;
+}
+
+.app-shell:has(.analytics-shell) .user-menu__item:hover,
+.app-shell:has(.analytics-shell) .user-menu__item:focus-visible {
+  background: #222222;
 }
 
 .app-shell:has(.analytics-shell) .topbar .button--ghost {

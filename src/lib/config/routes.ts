@@ -2,6 +2,7 @@ export const appRoutes = {
   login: "/login",
   forgotPassword: "/forgot-password",
   authConfirm: "/auth/confirm",
+  terms: "/terms",
   updatePassword: "/account/update-password",
   privacySettings: "/account/privacy",
   privacySettingsPreview: "/account/privacy/preview",

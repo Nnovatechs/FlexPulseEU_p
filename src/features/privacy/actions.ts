@@ -10,7 +10,8 @@ import {
 } from "./dpa-repository";
 import {
   getCurrentOwnerLegalProfile,
-  saveCurrentOwnerLegalProfile,
+  saveCurrentOwnerDpaSigningDetails,
+  saveCurrentOwnerParticipantPrivacySettings,
 } from "./repository";
 import { isOwnerDpaProfileComplete } from "./types";
 
@@ -36,7 +37,6 @@ export async function saveParticipantPrivacySettingsAction(formData: FormData) {
     readRequiredValue(formData, "privacyEmail"),
   );
   const dpoEmailValue = normalizeEmail(readRequiredValue(formData, "dpoEmail"));
-  const currentProfile = await getCurrentOwnerLegalProfile();
 
   if (!controllerName || !controllerCountry || !contactEmail || !privacyEmail) {
     redirect(`${appRoutes.privacySettings}?error=participant-missing-fields`);
@@ -50,15 +50,12 @@ export async function saveParticipantPrivacySettingsAction(formData: FormData) {
     redirect(`${appRoutes.privacySettings}?error=participant-invalid-email`);
   }
 
-  await saveCurrentOwnerLegalProfile({
+  await saveCurrentOwnerParticipantPrivacySettings({
     controllerName,
     controllerCountry,
     contactEmail,
     privacyEmail,
     dpoEmail: dpoEmailValue || null,
-    controllerAddress: currentProfile?.controllerAddress ?? null,
-    representativeName: currentProfile?.representativeName ?? null,
-    representativeTitle: currentProfile?.representativeTitle ?? null,
   });
 
   revalidatePath(appRoutes.privacySettings);
@@ -70,22 +67,12 @@ export async function saveDpaSigningDetailsAction(formData: FormData) {
   const controllerAddress = readRequiredValue(formData, "controllerAddress");
   const representativeName = readRequiredValue(formData, "representativeName");
   const representativeTitle = readRequiredValue(formData, "representativeTitle");
-  const currentProfile = await getCurrentOwnerLegalProfile();
-
-  if (!currentProfile) {
-    redirect(`${appRoutes.privacySettings}?error=participant-profile-required`);
-  }
 
   if (!controllerAddress || !representativeName || !representativeTitle) {
     redirect(`${appRoutes.privacySettings}?error=dpa-missing-fields`);
   }
 
-  await saveCurrentOwnerLegalProfile({
-    controllerName: currentProfile.controllerName,
-    controllerCountry: currentProfile.controllerCountry,
-    contactEmail: currentProfile.contactEmail,
-    privacyEmail: currentProfile.privacyEmail,
-    dpoEmail: currentProfile.dpoEmail,
+  await saveCurrentOwnerDpaSigningDetails({
     controllerAddress,
     representativeName,
     representativeTitle,

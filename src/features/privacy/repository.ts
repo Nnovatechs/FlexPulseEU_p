@@ -107,6 +107,70 @@ export async function saveCurrentOwnerLegalProfile(
   return mapOwnerLegalProfile(data as OwnerLegalProfileRow);
 }
 
+export async function saveCurrentOwnerParticipantPrivacySettings(
+  input: Pick<
+    OwnerLegalProfileInput,
+    | "controllerName"
+    | "controllerCountry"
+    | "contactEmail"
+    | "privacyEmail"
+    | "dpoEmail"
+  >,
+): Promise<OwnerLegalProfile> {
+  const session = await requireCurrentSession();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("owner_legal_profiles")
+    .upsert(
+      {
+        user_id: session.user.id,
+        controller_name: input.controllerName,
+        controller_country: input.controllerCountry,
+        contact_email: input.contactEmail,
+        privacy_email: input.privacyEmail,
+        dpo_email: input.dpoEmail,
+      },
+      { onConflict: "user_id" },
+    )
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save Privacy Settings: ${error.message}`);
+  }
+
+  return mapOwnerLegalProfile(data as OwnerLegalProfileRow);
+}
+
+export async function saveCurrentOwnerDpaSigningDetails(
+  input: Pick<
+    OwnerLegalProfileInput,
+    "controllerAddress" | "representativeName" | "representativeTitle"
+  >,
+): Promise<OwnerLegalProfile> {
+  const session = await requireCurrentSession();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("owner_legal_profiles")
+    .upsert(
+      {
+        user_id: session.user.id,
+        controller_address: input.controllerAddress,
+        representative_name: input.representativeName,
+        representative_title: input.representativeTitle,
+      },
+      { onConflict: "user_id" },
+    )
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save Privacy Settings: ${error.message}`);
+  }
+
+  return mapOwnerLegalProfile(data as OwnerLegalProfileRow);
+}
+
 export async function prepareSurveyLegalSnapshot(
   surveyId: string,
   surveyOwnerId: string,

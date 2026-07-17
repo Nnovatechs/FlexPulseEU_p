@@ -3,17 +3,19 @@ import { buildDpaDocument, getDpaConfig } from "@/features/privacy/dpa";
 import type { OwnerLegalProfile } from "@/features/privacy/types";
 
 const {
-  getCurrentOwnerLegalProfile,
   getCurrentDpaAcceptance,
   recordCurrentDpaAcceptance,
-  saveCurrentOwnerLegalProfile,
+  saveCurrentOwnerParticipantPrivacySettings,
+  saveCurrentOwnerDpaSigningDetails,
+  getCurrentOwnerLegalProfile,
   revalidatePath,
   redirect,
 } = vi.hoisted(() => ({
-  getCurrentOwnerLegalProfile: vi.fn(),
   getCurrentDpaAcceptance: vi.fn(),
   recordCurrentDpaAcceptance: vi.fn(),
-  saveCurrentOwnerLegalProfile: vi.fn(),
+  saveCurrentOwnerParticipantPrivacySettings: vi.fn(),
+  saveCurrentOwnerDpaSigningDetails: vi.fn(),
+  getCurrentOwnerLegalProfile: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn(),
 }));
@@ -22,7 +24,8 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/features/privacy/repository", () => ({
   getCurrentOwnerLegalProfile,
-  saveCurrentOwnerLegalProfile,
+  saveCurrentOwnerParticipantPrivacySettings,
+  saveCurrentOwnerDpaSigningDetails,
 }));
 vi.mock("@/features/privacy/dpa-repository", () => ({
   getCurrentDpaAcceptance,
@@ -56,8 +59,7 @@ describe("privacy actions", () => {
   });
 
   it("saves participant privacy details without overwriting DPA signing fields", async () => {
-    getCurrentOwnerLegalProfile.mockResolvedValue(profile);
-    saveCurrentOwnerLegalProfile.mockResolvedValue(profile);
+    saveCurrentOwnerParticipantPrivacySettings.mockResolvedValue(profile);
     const formData = new FormData();
     formData.set("controllerName", "Updated Controller");
     formData.set("controllerCountry", "Ireland");
@@ -70,22 +72,18 @@ describe("privacy actions", () => {
     );
     await saveParticipantPrivacySettingsAction(formData);
 
-    expect(saveCurrentOwnerLegalProfile).toHaveBeenCalledWith({
+    expect(saveCurrentOwnerParticipantPrivacySettings).toHaveBeenCalledWith({
       controllerName: "Updated Controller",
       controllerCountry: "Ireland",
       contactEmail: "updated@ucc.ie",
       privacyEmail: "privacy@ucc.ie",
       dpoEmail: "dpo@ucc.ie",
-      controllerAddress: "College Road, Cork, Ireland",
-      representativeName: "Authorised Researcher",
-      representativeTitle: "Principal Investigator",
     });
     expect(redirect).toHaveBeenCalledWith("/account/privacy?participantSaved=1");
   });
 
   it("saves DPA signing details without overwriting participant privacy fields", async () => {
-    getCurrentOwnerLegalProfile.mockResolvedValue(profile);
-    saveCurrentOwnerLegalProfile.mockResolvedValue(profile);
+    saveCurrentOwnerDpaSigningDetails.mockResolvedValue(profile);
     const formData = new FormData();
     formData.set("controllerAddress", "New Registered Address");
     formData.set("representativeName", "New Representative");
@@ -96,12 +94,7 @@ describe("privacy actions", () => {
     );
     await saveDpaSigningDetailsAction(formData);
 
-    expect(saveCurrentOwnerLegalProfile).toHaveBeenCalledWith({
-      controllerName: "University College Cork",
-      controllerCountry: "Ireland",
-      contactEmail: "research@ucc.ie",
-      privacyEmail: "privacy@ucc.ie",
-      dpoEmail: null,
+    expect(saveCurrentOwnerDpaSigningDetails).toHaveBeenCalledWith({
       controllerAddress: "New Registered Address",
       representativeName: "New Representative",
       representativeTitle: "Legal Signatory",

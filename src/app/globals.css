@@ -2869,6 +2869,57 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   }
 }
 
+.dpa-document {
+  display: grid;
+  gap: 1.5rem;
+  line-height: 1.65;
+}
+
+.dpa-document__header,
+.dpa-document section {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.dpa-document h2,
+.dpa-document h3,
+.dpa-document h4,
+.dpa-document p {
+  margin: 0;
+}
+
+.dpa-document ul {
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.dpa-parties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dpa-parties > div {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.dpa-document__footer {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .dpa-parties {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ============================================================
    Survey Fill – Public experience (sf- prefix)
    ============================================================ */

@@ -12,6 +12,9 @@ const completeProfile: OwnerLegalProfile = {
   contactEmail: "research@example.eu",
   privacyEmail: "privacy@example.eu",
   dpoEmail: null,
+  controllerAddress: "1 Research Avenue, Cork",
+  representativeName: "Research Lead",
+  representativeTitle: "Principal Investigator",
   createdAt: "2026-07-16T10:00:00.000Z",
   updatedAt: "2026-07-16T10:00:00.000Z",
 };
@@ -35,6 +38,7 @@ describe("owner privacy settings", () => {
         controllerContactEmail: "legacy@example.eu",
         controllerCountry: "EU",
         processorName: "FlexPulseEU",
+        processorAddress: "Platform address",
         privacyEmail: "platform@example.eu",
         privacyUrl: "/privacy",
         cookiesUrl: "/cookies",

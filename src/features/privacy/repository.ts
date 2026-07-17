@@ -19,6 +19,9 @@ type OwnerLegalProfileRow = {
   contact_email: string;
   privacy_email: string;
   dpo_email: string | null;
+  controller_address: string | null;
+  representative_name: string | null;
+  representative_title: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -38,6 +41,9 @@ function mapOwnerLegalProfile(row: OwnerLegalProfileRow): OwnerLegalProfile {
     contactEmail: row.contact_email,
     privacyEmail: row.privacy_email,
     dpoEmail: row.dpo_email,
+    controllerAddress: row.controller_address,
+    representativeName: row.representative_name,
+    representativeTitle: row.representative_title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -85,6 +91,9 @@ export async function saveCurrentOwnerLegalProfile(
         contact_email: input.contactEmail,
         privacy_email: input.privacyEmail,
         dpo_email: input.dpoEmail,
+        controller_address: input.controllerAddress,
+        representative_name: input.representativeName,
+        representative_title: input.representativeTitle,
       },
       { onConflict: "user_id" },
     )

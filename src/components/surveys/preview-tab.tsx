@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
-import { PRIVACY_PROFILE_INCOMPLETE_ERROR } from "@/features/privacy/types";
+import {
+  DPA_ACCEPTANCE_REQUIRED_ERROR,
+  PRIVACY_PROFILE_INCOMPLETE_ERROR,
+} from "@/features/privacy/types";
 import { publishSurveyAction } from "@/features/surveys/actions";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
@@ -214,8 +217,8 @@ export function PreviewTab({
     startPublish(async () => {
       try {
         const result = await publishSurveyAction(formData);
-        if (result?.error === PRIVACY_PROFILE_INCOMPLETE_ERROR) {
-          setPublishError(PRIVACY_PROFILE_INCOMPLETE_ERROR);
+        if (result?.error) {
+          setPublishError(result.error);
         }
       } catch (err) {
         rethrowNextNavigationError(err);
@@ -260,7 +263,8 @@ export function PreviewTab({
       {publishError && (
         <div
           className={`review-notice ${
-            publishError === PRIVACY_PROFILE_INCOMPLETE_ERROR
+            publishError === PRIVACY_PROFILE_INCOMPLETE_ERROR ||
+            publishError === DPA_ACCEPTANCE_REQUIRED_ERROR
               ? "review-notice--warning"
               : "review-notice--error"
           }`}
@@ -275,6 +279,19 @@ export function PreviewTab({
                 className="preview-tab__privacy-settings-link"
               >
                 Open Privacy Settings
+              </Link>
+              .
+            </>
+          ) : publishError === DPA_ACCEPTANCE_REQUIRED_ERROR ? (
+            <>
+              Review and accept the current Data Processing Agreement before
+              publishing this survey.{" "}
+              <Link
+                href={appRoutes.dpa}
+                target="_blank"
+                className="preview-tab__privacy-settings-link"
+              >
+                Open DPA
               </Link>
               .
             </>

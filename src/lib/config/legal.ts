@@ -5,6 +5,7 @@ export type LegalConfig = {
   controllerContactEmail: string;
   controllerCountry: string;
   processorName: string;
+  processorAddress: string;
   privacyEmail: string;
   privacyUrl: string;
   cookiesUrl: string;
@@ -33,6 +34,7 @@ export function getLegalConfig(): LegalConfig {
     controllerContactEmail,
     controllerCountry,
     processorName,
+    processorAddress: getEnv("LEGAL_PROCESSOR_ADDRESS", ""),
     privacyEmail,
     privacyUrl: getEnv("LEGAL_PRIVACY_URL", appRoutes.privacy),
     cookiesUrl: getEnv("LEGAL_COOKIES_URL", appRoutes.cookies),

@@ -1,6 +1,7 @@
 import type { LegalConfig } from "@/lib/config/legal";
 
 export const PRIVACY_PROFILE_INCOMPLETE_ERROR = "PRIVACY_PROFILE_INCOMPLETE";
+export const DPA_ACCEPTANCE_REQUIRED_ERROR = "DPA_ACCEPTANCE_REQUIRED";
 
 export type OwnerLegalProfile = {
   userId: string;
@@ -9,6 +10,9 @@ export type OwnerLegalProfile = {
   contactEmail: string;
   privacyEmail: string;
   dpoEmail: string | null;
+  controllerAddress: string | null;
+  representativeName: string | null;
+  representativeTitle: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -20,6 +24,9 @@ export type OwnerLegalProfileInput = Pick<
   | "contactEmail"
   | "privacyEmail"
   | "dpoEmail"
+  | "controllerAddress"
+  | "representativeName"
+  | "representativeTitle"
 >;
 
 export type SurveyLegalSnapshot = {
@@ -65,6 +72,21 @@ export function isOwnerLegalProfileComplete(
       profile.controllerCountry.trim() &&
       profile.contactEmail.trim() &&
       profile.privacyEmail.trim(),
+  );
+}
+
+export function isOwnerDpaProfileComplete(
+  profile: OwnerLegalProfile | null,
+): profile is OwnerLegalProfile & {
+  controllerAddress: string;
+  representativeName: string;
+  representativeTitle: string;
+} {
+  return Boolean(
+    isOwnerLegalProfileComplete(profile) &&
+      profile.controllerAddress?.trim() &&
+      profile.representativeName?.trim() &&
+      profile.representativeTitle?.trim(),
   );
 }
 
@@ -117,6 +139,9 @@ export function buildLegacySurveyLegalSnapshot(
       contactEmail: legal.controllerContactEmail || legal.privacyEmail,
       privacyEmail: legal.privacyEmail || legal.controllerContactEmail,
       dpoEmail: null,
+      controllerAddress: null,
+      representativeName: null,
+      representativeTitle: null,
       createdAt: now,
       updatedAt: now,
     },

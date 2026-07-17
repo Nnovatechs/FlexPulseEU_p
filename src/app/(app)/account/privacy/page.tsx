@@ -1,6 +1,10 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { savePrivacySettingsAction } from "@/features/privacy/actions";
+import { getDpaConfig, isDpaConfigComplete } from "@/features/privacy/dpa";
+import { getCurrentDpaAcceptance } from "@/features/privacy/dpa-repository";
 import { getCurrentOwnerLegalProfile } from "@/features/privacy/repository";
+import { isOwnerDpaProfileComplete } from "@/features/privacy/types";
 import { appRoutes } from "@/lib/config/routes";
 
 type PrivacySettingsPageProps = {
@@ -13,6 +17,8 @@ type PrivacySettingsPageProps = {
 const errorMessages: Record<string, string> = {
   "missing-fields": "Complete all required fields before saving.",
   "invalid-email": "Enter valid contact email addresses.",
+  "dpa-fields-required":
+    "Complete and save the controller and authorised representative details before reviewing the DPA.",
 };
 
 export default async function PrivacySettingsPage({
@@ -20,6 +26,11 @@ export default async function PrivacySettingsPage({
 }: PrivacySettingsPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const profile = await getCurrentOwnerLegalProfile();
+  const dpaConfig = getDpaConfig();
+  const dpaReady =
+    isOwnerDpaProfileComplete(profile) && isDpaConfigComplete(dpaConfig);
+  const dpaAcceptance =
+    dpaReady && profile ? await getCurrentDpaAcceptance(profile) : null;
   const errorMessage = resolvedSearchParams.error
     ? errorMessages[resolvedSearchParams.error]
     : null;
@@ -108,10 +119,89 @@ export default async function PrivacySettingsPage({
             />
           </label>
 
+          <div className="notice notice--info">
+            The following details identify the Controller and its authorised
+            representative in the Data Processing Agreement. They are stored in
+            the acceptance record but are not shown in the public survey privacy
+            notice.
+          </div>
+
+          <label className="field">
+            <span>Controller registered address</span>
+            <textarea
+              name="controllerAddress"
+              defaultValue={profile?.controllerAddress ?? ""}
+              autoComplete="street-address"
+              rows={3}
+            />
+          </label>
+
+          <label className="field">
+            <span>Authorised representative name</span>
+            <input
+              name="representativeName"
+              defaultValue={profile?.representativeName ?? ""}
+              autoComplete="name"
+            />
+          </label>
+
+          <label className="field">
+            <span>Authorised representative role or title</span>
+            <input
+              name="representativeTitle"
+              defaultValue={profile?.representativeTitle ?? ""}
+              autoComplete="organization-title"
+            />
+          </label>
+
           <button type="submit" className="button button--primary">
             Save Privacy Settings
           </button>
         </form>
+      </section>
+
+      <section className="surface-card stack-form">
+        <div>
+          <p className="legal-eyebrow">Controller–processor agreement</p>
+          <h2>Data Processing Agreement</h2>
+          <p className="muted">
+            Review the agreement generated from the saved Controller details and
+            the hosted platform&apos;s Processor details.
+          </p>
+        </div>
+
+        {dpaAcceptance ? (
+          <div className="notice notice--info" role="status">
+            Current DPA accepted on{" "}
+            {new Intl.DateTimeFormat("en-GB", {
+              dateStyle: "long",
+              timeStyle: "short",
+            }).format(new Date(dpaAcceptance.acceptedAt))}
+            .
+          </div>
+        ) : !isOwnerDpaProfileComplete(profile) ? (
+          <div className="notice notice--info">
+            Save all required Controller and representative details to review the
+            agreement.
+          </div>
+        ) : !isDpaConfigComplete(dpaConfig) ? (
+          <div className="notice notice--error">
+            The platform operator must complete the private DPA deployment
+            configuration before this agreement can be reviewed.
+          </div>
+        ) : null}
+
+        <div>
+          {dpaReady ? (
+            <Link href={appRoutes.dpa} className="button button--primary">
+              {dpaAcceptance ? "View accepted DPA" : "Review DPA"}
+            </Link>
+          ) : (
+            <button type="button" className="button button--ghost" disabled>
+              Review DPA
+            </button>
+          )}
+        </div>
       </section>
     </div>
   );

@@ -7,7 +7,11 @@ import {
   getCurrentOwnerLegalProfile,
   prepareSurveyLegalSnapshot,
 } from "@/features/privacy/repository";
+import { getDpaConfig, isDpaConfigComplete } from "@/features/privacy/dpa";
+import { getCurrentDpaAcceptance } from "@/features/privacy/dpa-repository";
 import {
+  DPA_ACCEPTANCE_REQUIRED_ERROR,
+  isOwnerDpaProfileComplete,
   isOwnerLegalProfileComplete,
   PRIVACY_PROFILE_INCOMPLETE_ERROR,
 } from "@/features/privacy/types";
@@ -451,7 +455,14 @@ export async function generateSurveyTranslationsAction(
 
 export async function publishSurveyAction(
   formData: FormData,
-): Promise<{ error: typeof PRIVACY_PROFILE_INCOMPLETE_ERROR } | void> {
+): Promise<
+  | {
+      error:
+        | typeof PRIVACY_PROFILE_INCOMPLETE_ERROR
+        | typeof DPA_ACCEPTANCE_REQUIRED_ERROR;
+    }
+  | void
+> {
   const surveyId = String(formData.get("surveyId") ?? "").trim();
 
   if (!surveyId) {
@@ -517,6 +528,21 @@ export async function publishSurveyAction(
 
   if (!isOwnerLegalProfileComplete(legalProfile)) {
     return { error: PRIVACY_PROFILE_INCOMPLETE_ERROR };
+  }
+
+  const dpaConfig = getDpaConfig();
+  if (dpaConfig.required) {
+    if (
+      !isOwnerDpaProfileComplete(legalProfile) ||
+      !isDpaConfigComplete(dpaConfig)
+    ) {
+      return { error: DPA_ACCEPTANCE_REQUIRED_ERROR };
+    }
+
+    const dpaAcceptance = await getCurrentDpaAcceptance(legalProfile);
+    if (!dpaAcceptance) {
+      return { error: DPA_ACCEPTANCE_REQUIRED_ERROR };
+    }
   }
 
   await prepareSurveyLegalSnapshot(surveyId, survey.created_by);

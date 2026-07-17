@@ -108,6 +108,22 @@ After deployment:
 4. Confirm the survey form links separately to the survey, platform, and cookie
    notices.
 
+## DPA rollout ordering
+
+Apply `20260716153000_add_dpa_acceptances.sql` before deploying the DPA flow.
+The migration adds private contractual fields to `owner_legal_profiles` and an
+immutable, owner-isolated `dpa_acceptances` table.
+
+Keep `DPA_REQUIRED=0` until:
+
+1. the Processor identity and registered address are configured;
+2. the Controller has saved its address and authorised representative;
+3. the DPA wording and subprocessor list have been legally reviewed;
+4. the generated document has been accepted and its record verified.
+
+Set `DPA_REQUIRED=1` only after those steps. Enabling it earlier blocks new
+survey publications but does not alter already-published surveys.
+
 ## Future integrations
 
 Authentication, Supabase, and other external services should be added only after:

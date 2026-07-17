@@ -2914,9 +2914,30 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   overflow-wrap: anywhere;
 }
 
+.privacy-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.privacy-settings__save,
+.privacy-settings__preview-wrap,
+.privacy-settings__preview {
+  align-self: flex-start;
+}
+
+.privacy-settings__preview-wrap {
+  display: inline-flex;
+}
+
 @media (max-width: 720px) {
   .dpa-parties {
     grid-template-columns: 1fr;
+  }
+
+  .privacy-settings__actions {
+    align-items: stretch;
   }
 }
 

@@ -26,7 +26,7 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export async function savePrivacySettingsAction(formData: FormData) {
+export async function saveParticipantPrivacySettingsAction(formData: FormData) {
   const controllerName = readRequiredValue(formData, "controllerName");
   const controllerCountry = readRequiredValue(formData, "controllerCountry");
   const contactEmail = normalizeEmail(
@@ -36,12 +36,10 @@ export async function savePrivacySettingsAction(formData: FormData) {
     readRequiredValue(formData, "privacyEmail"),
   );
   const dpoEmailValue = normalizeEmail(readRequiredValue(formData, "dpoEmail"));
-  const controllerAddress = readRequiredValue(formData, "controllerAddress");
-  const representativeName = readRequiredValue(formData, "representativeName");
-  const representativeTitle = readRequiredValue(formData, "representativeTitle");
+  const currentProfile = await getCurrentOwnerLegalProfile();
 
   if (!controllerName || !controllerCountry || !contactEmail || !privacyEmail) {
-    redirect(`${appRoutes.privacySettings}?error=missing-fields`);
+    redirect(`${appRoutes.privacySettings}?error=participant-missing-fields`);
   }
 
   if (
@@ -49,7 +47,7 @@ export async function savePrivacySettingsAction(formData: FormData) {
     !isValidEmail(privacyEmail) ||
     (dpoEmailValue && !isValidEmail(dpoEmailValue))
   ) {
-    redirect(`${appRoutes.privacySettings}?error=invalid-email`);
+    redirect(`${appRoutes.privacySettings}?error=participant-invalid-email`);
   }
 
   await saveCurrentOwnerLegalProfile({
@@ -58,13 +56,44 @@ export async function savePrivacySettingsAction(formData: FormData) {
     contactEmail,
     privacyEmail,
     dpoEmail: dpoEmailValue || null,
-    controllerAddress: controllerAddress || null,
-    representativeName: representativeName || null,
-    representativeTitle: representativeTitle || null,
+    controllerAddress: currentProfile?.controllerAddress ?? null,
+    representativeName: currentProfile?.representativeName ?? null,
+    representativeTitle: currentProfile?.representativeTitle ?? null,
   });
 
   revalidatePath(appRoutes.privacySettings);
-  redirect(`${appRoutes.privacySettings}?saved=1`);
+  revalidatePath(appRoutes.privacySettingsPreview);
+  redirect(`${appRoutes.privacySettings}?participantSaved=1`);
+}
+
+export async function saveDpaSigningDetailsAction(formData: FormData) {
+  const controllerAddress = readRequiredValue(formData, "controllerAddress");
+  const representativeName = readRequiredValue(formData, "representativeName");
+  const representativeTitle = readRequiredValue(formData, "representativeTitle");
+  const currentProfile = await getCurrentOwnerLegalProfile();
+
+  if (!currentProfile) {
+    redirect(`${appRoutes.privacySettings}?error=participant-profile-required`);
+  }
+
+  if (!controllerAddress || !representativeName || !representativeTitle) {
+    redirect(`${appRoutes.privacySettings}?error=dpa-missing-fields`);
+  }
+
+  await saveCurrentOwnerLegalProfile({
+    controllerName: currentProfile.controllerName,
+    controllerCountry: currentProfile.controllerCountry,
+    contactEmail: currentProfile.contactEmail,
+    privacyEmail: currentProfile.privacyEmail,
+    dpoEmail: currentProfile.dpoEmail,
+    controllerAddress,
+    representativeName,
+    representativeTitle,
+  });
+
+  revalidatePath(appRoutes.privacySettings);
+  revalidatePath(appRoutes.dpa);
+  redirect(`${appRoutes.privacySettings}?dpaSaved=1`);
 }
 
 export async function acceptDpaAction(formData: FormData) {

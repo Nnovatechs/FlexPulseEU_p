@@ -4,6 +4,7 @@ export const appRoutes = {
   authConfirm: "/auth/confirm",
   updatePassword: "/account/update-password",
   privacySettings: "/account/privacy",
+  privacySettingsPreview: "/account/privacy/preview",
   dpa: "/account/privacy/dpa",
   privacy: "/privacy",
   cookies: "/cookies",

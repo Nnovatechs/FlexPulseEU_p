@@ -312,6 +312,12 @@ textarea {
   border-color: rgba(36, 84, 197, 0.16);
 }
 
+.notice--warning {
+  color: #8b5a14;
+  background: rgba(183, 106, 24, 0.1);
+  border-color: rgba(183, 106, 24, 0.22);
+}
+
 .login-card__header h2,
 .section-header h1,
 .surface-card h2,

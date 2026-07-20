@@ -25,6 +25,14 @@ type DpaAcceptanceRow = {
   accepted_at: string;
 };
 
+function isDuplicateDpaAcceptanceError(error: { code?: string; message?: string }) {
+  return (
+    error.code === "23505" ||
+    error.message?.includes("duplicate key value") === true ||
+    error.message?.includes("dpa_acceptances_user_id_document_hash_key") === true
+  );
+}
+
 function mapDpaAcceptance(row: DpaAcceptanceRow): DpaAcceptance {
   return {
     id: row.id,
@@ -61,6 +69,31 @@ export async function getCurrentDpaAcceptance(
   return data ? mapDpaAcceptance(data as DpaAcceptanceRow) : null;
 }
 
+export async function hasPreviousDpaAcceptance(
+  profile: OwnerLegalProfile,
+): Promise<boolean> {
+  const session = await requireCurrentSession();
+
+  if (session.user.id !== profile.userId) {
+    throw new Error("DPA profile does not match the authenticated user.");
+  }
+
+  const document = buildDpaDocument(profile);
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("dpa_acceptances")
+    .select("id")
+    .eq("user_id", session.user.id)
+    .neq("document_hash", document.documentHash)
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Failed to load previous DPA acceptances: ${error.message}`);
+  }
+
+  return Array.isArray(data) && data.length > 0;
+}
+
 export async function recordCurrentDpaAcceptance(
   profile: OwnerLegalProfile,
   document: DpaDocument,
@@ -90,6 +123,13 @@ export async function recordCurrentDpaAcceptance(
     .single();
 
   if (error) {
+    if (isDuplicateDpaAcceptanceError(error)) {
+      const existingAcceptance = await getCurrentDpaAcceptance(profile);
+      if (existingAcceptance) {
+        return existingAcceptance;
+      }
+    }
+
     throw new Error(`Failed to record DPA acceptance: ${error.message}`);
   }
 

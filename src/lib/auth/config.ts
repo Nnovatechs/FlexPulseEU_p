@@ -11,7 +11,7 @@ export function getSignupMode(): SignupMode {
     throw new Error('SIGNUP_MODE must be either "open" or "closed".');
   }
 
-  return process.env.VERCEL_ENV === "production" ? "closed" : "open";
+  return "closed";
 }
 
 export function isSignupEnabled() {

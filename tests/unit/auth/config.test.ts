@@ -14,19 +14,19 @@ describe("signup mode config", () => {
     expect(isSignupEnabled()).toBe(false);
   });
 
-  it("keeps signup available outside production by default", () => {
+  it("keeps signup closed outside production by default", () => {
     vi.stubEnv("SIGNUP_MODE", "");
     vi.stubEnv("VERCEL_ENV", "preview");
 
-    expect(getSignupMode()).toBe("open");
-    expect(isSignupEnabled()).toBe(true);
+    expect(getSignupMode()).toBe("closed");
+    expect(isSignupEnabled()).toBe(false);
   });
 
   it("allows an explicit per-environment override", () => {
-    vi.stubEnv("SIGNUP_MODE", "closed");
+    vi.stubEnv("SIGNUP_MODE", "open");
     vi.stubEnv("VERCEL_ENV", "preview");
 
-    expect(getSignupMode()).toBe("closed");
+    expect(getSignupMode()).toBe("open");
   });
 
   it("rejects unsupported modes", () => {

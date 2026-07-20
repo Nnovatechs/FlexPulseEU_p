@@ -24,6 +24,14 @@ type TermsAcceptanceRow = {
   accepted_at: string;
 };
 
+function isDuplicateTermsAcceptanceError(error: { code?: string; message?: string }) {
+  return (
+    error.code === "23505" ||
+    error.message?.includes("duplicate key value") === true ||
+    error.message?.includes("terms_acceptances_user_id_document_hash_key") === true
+  );
+}
+
 function isMissingTermsTableError(error: { code?: string; message?: string }) {
   return (
     error.code === "PGRST205" ||
@@ -90,6 +98,13 @@ export async function recordCurrentTermsAcceptance(
     .single();
 
   if (error) {
+    if (isDuplicateTermsAcceptanceError(error)) {
+      const existingAcceptance = await getCurrentTermsAcceptance();
+      if (existingAcceptance) {
+        return existingAcceptance;
+      }
+    }
+
     throw new Error(`Failed to record terms acceptance: ${error.message}`);
   }
 

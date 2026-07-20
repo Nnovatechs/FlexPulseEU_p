@@ -170,6 +170,8 @@ export function validatePublicSurveySubmission(
 
   const legal =
     legalSnapshot ??
+    // Older published surveys may predate immutable legal snapshots.
+    // Keep this fallback for those legacy records instead of breaking them.
     buildLegacySurveyLegalSnapshot(
       getLegalConfig(),
       getRawLocationRetentionLabel(),

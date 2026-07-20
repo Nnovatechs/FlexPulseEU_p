@@ -83,6 +83,7 @@ describe("privacy actions", () => {
   });
 
   it("saves DPA signing details without overwriting participant privacy fields", async () => {
+    getCurrentOwnerLegalProfile.mockResolvedValue(profile);
     saveCurrentOwnerDpaSigningDetails.mockResolvedValue(profile);
     const formData = new FormData();
     formData.set("controllerAddress", "New Registered Address");
@@ -100,6 +101,24 @@ describe("privacy actions", () => {
       representativeTitle: "Legal Signatory",
     });
     expect(redirect).toHaveBeenCalledWith("/account/privacy?dpaSaved=1");
+  });
+
+  it("requires participant privacy details before saving DPA signing details", async () => {
+    getCurrentOwnerLegalProfile.mockResolvedValue(null);
+    const formData = new FormData();
+    formData.set("controllerAddress", "New Registered Address");
+    formData.set("representativeName", "New Representative");
+    formData.set("representativeTitle", "Legal Signatory");
+
+    const { saveDpaSigningDetailsAction } = await import(
+      "@/features/privacy/actions"
+    );
+    await saveDpaSigningDetailsAction(formData);
+
+    expect(saveCurrentOwnerDpaSigningDetails).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith(
+      "/account/privacy?error=participant-profile-required",
+    );
   });
 
   it("records the exact document displayed to the authorised Controller", async () => {

@@ -124,6 +124,22 @@ Keep `DPA_REQUIRED=0` until:
 Set `DPA_REQUIRED=1` only after those steps. Enabling it earlier blocks new
 survey publications but does not alter already-published surveys.
 
+## Platform terms rollout ordering
+
+Apply `20260717113000_add_terms_acceptances.sql` before enabling the platform
+terms gate.
+
+Keep `TERMS_REQUIRED=0` until:
+
+1. the migration has been applied successfully;
+2. the current terms page has been reviewed in the target deployment;
+3. at least one invited test user has completed the acceptance flow;
+4. recovery/login flows have been smoke-tested with the final access policy.
+
+Set `TERMS_REQUIRED=1` only after those steps. Enabling it earlier will block
+private workspace access until the acceptance table exists and the terms flow is
+operational.
+
 ## Future integrations
 
 Authentication, Supabase, and other external services should be added only after:

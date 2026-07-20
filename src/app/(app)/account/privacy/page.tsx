@@ -5,7 +5,10 @@ import {
   saveParticipantPrivacySettingsAction,
 } from "@/features/privacy/actions";
 import { getDpaConfig, isDpaConfigComplete } from "@/features/privacy/dpa";
-import { getCurrentDpaAcceptance } from "@/features/privacy/dpa-repository";
+import {
+  getCurrentDpaAcceptance,
+  hasPreviousDpaAcceptance,
+} from "@/features/privacy/dpa-repository";
 import { getCurrentOwnerLegalProfile } from "@/features/privacy/repository";
 import {
   isOwnerDpaProfileComplete,
@@ -44,6 +47,10 @@ export default async function PrivacySettingsPage({
     dpaFieldsReady && dpaConfigReady && profile
       ? await getCurrentDpaAcceptance(profile)
       : null;
+  const needsDpaResign =
+    dpaFieldsReady && dpaConfigReady && profile && !dpaAcceptance
+      ? await hasPreviousDpaAcceptance(profile)
+      : false;
   const errorMessage = resolvedSearchParams.error
     ? errorMessages[resolvedSearchParams.error]
     : null;
@@ -196,6 +203,13 @@ export default async function PrivacySettingsPage({
           notice.
         </div>
 
+        {needsDpaResign ? (
+          <div className="notice notice--warning" role="status">
+            Your DPA details changed. Please review and sign the current DPA
+            again before publishing new surveys.
+          </div>
+        ) : null}
+
         <form action={saveDpaSigningDetailsAction} className="stack-form">
           <label className="field">
             <span>Controller registered address</span>
@@ -229,12 +243,27 @@ export default async function PrivacySettingsPage({
           </label>
 
           <div className="privacy-settings__actions">
-            <button
-              type="submit"
-              className="button button--primary privacy-settings__save"
-            >
-              Save DPA signing details
-            </button>
+            {participantProfileReady ? (
+              <button
+                type="submit"
+                className="button button--primary privacy-settings__save"
+              >
+                Save DPA signing details
+              </button>
+            ) : (
+              <span
+                className="privacy-settings__preview-wrap"
+                title="Save the participant privacy details first before saving the DPA signing details."
+              >
+                <button
+                  type="button"
+                  className="button button--primary privacy-settings__save"
+                  disabled
+                >
+                  Save DPA signing details
+                </button>
+              </span>
+            )}
             {dpaAcceptance ? (
               <div className="notice notice--info" role="status">
                 Current DPA accepted on{" "}

@@ -13,7 +13,7 @@ import {
   saveCurrentOwnerDpaSigningDetails,
   saveCurrentOwnerParticipantPrivacySettings,
 } from "./repository";
-import { isOwnerDpaProfileComplete } from "./types";
+import { isOwnerDpaProfileComplete, isOwnerLegalProfileComplete } from "./types";
 
 function readRequiredValue(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -67,9 +67,14 @@ export async function saveDpaSigningDetailsAction(formData: FormData) {
   const controllerAddress = readRequiredValue(formData, "controllerAddress");
   const representativeName = readRequiredValue(formData, "representativeName");
   const representativeTitle = readRequiredValue(formData, "representativeTitle");
+  const currentProfile = await getCurrentOwnerLegalProfile();
 
   if (!controllerAddress || !representativeName || !representativeTitle) {
-    redirect(`${appRoutes.privacySettings}?error=dpa-missing-fields`);
+    return redirect(`${appRoutes.privacySettings}?error=dpa-missing-fields`);
+  }
+
+  if (!isOwnerLegalProfileComplete(currentProfile)) {
+    return redirect(`${appRoutes.privacySettings}?error=participant-profile-required`);
   }
 
   await saveCurrentOwnerDpaSigningDetails({

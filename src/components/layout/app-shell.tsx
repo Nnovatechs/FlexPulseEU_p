@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ReactNode } from "react";
 import { BrandLogo } from "@/components/layout/brand-logo";
-import { signOutAction } from "@/lib/auth/actions";
+import { UserMenu } from "@/components/layout/user-menu";
 import { appRoutes } from "@/lib/config/routes";
 
 type AppShellProps = {
@@ -22,19 +22,7 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
             </Link>
           </div>
           <div className="topbar__controls">
-            <div className="user-chip">
-              <div className="user-chip__avatar">{userName.slice(0, 1)}</div>
-              <div>
-                <strong>{userName}</strong>
-                <p>{userEmail}</p>
-              </div>
-            </div>
-
-            <form action={signOutAction}>
-              <button type="submit" className="button button--ghost button--compact">
-                Sign out
-              </button>
-            </form>
+            <UserMenu userName={userName} userEmail={userEmail} />
           </div>
         </header>
 

@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildValidationSurveyFixture } from "../../fixtures/surveys/validation/factory";
 
-const { redirect, getPublicSurveyLinkByToken, getPublishedSurveyByIdPublic, createSurveyResponseAndEnqueueJob } =
+const { redirect, getPublicSurveyLinkByToken, getPublishedSurveyByIdPublic, getPublicSurveyLegalSnapshot, createSurveyResponseAndEnqueueJob } =
   vi.hoisted(() => ({
     redirect: vi.fn(),
     getPublicSurveyLinkByToken: vi.fn(),
     getPublishedSurveyByIdPublic: vi.fn(),
+    getPublicSurveyLegalSnapshot: vi.fn(),
     createSurveyResponseAndEnqueueJob: vi.fn(),
   }));
 
@@ -22,8 +23,14 @@ vi.mock("@/features/surveys/response-repository", () => ({
   createSurveyResponseAndEnqueueJob,
 }));
 
+vi.mock("@/features/privacy/repository", () => ({
+  getPublicSurveyLegalSnapshot,
+}));
+
 const ORIGINAL_TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
 const ORIGINAL_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+const ORIGINAL_TURNSTILE_REQUIRED = process.env.TURNSTILE_REQUIRED;
+const ORIGINAL_VERCEL_ENV = process.env.VERCEL_ENV;
 
 function restoreEnv(name: string, value: string | undefined) {
   if (value === undefined) {
@@ -77,14 +84,19 @@ function mockPublicSurveyRuntime(survey: ReturnType<typeof buildPublishedSurveyF
 describe("public survey submission action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getPublicSurveyLegalSnapshot.mockResolvedValue(null);
     delete process.env.TURNSTILE_SECRET_KEY;
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    delete process.env.TURNSTILE_REQUIRED;
+    delete process.env.VERCEL_ENV;
     vi.unstubAllGlobals();
   });
 
   afterEach(() => {
     restoreEnv("TURNSTILE_SECRET_KEY", ORIGINAL_TURNSTILE_SECRET_KEY);
     restoreEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", ORIGINAL_TURNSTILE_SITE_KEY);
+    restoreEnv("TURNSTILE_REQUIRED", ORIGINAL_TURNSTILE_REQUIRED);
+    restoreEnv("VERCEL_ENV", ORIGINAL_VERCEL_ENV);
     vi.unstubAllGlobals();
   });
 
@@ -111,7 +123,7 @@ describe("public survey submission action", () => {
         legalConsent: expect.objectContaining({
           accepted: true,
           statement:
-            "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+            "I consent to the processing of my survey response for the stated purposes and confirm that I have read:",
           source: "public_survey_form",
         }),
         survey: expect.objectContaining({
@@ -182,6 +194,25 @@ describe("public survey submission action", () => {
 
     expect(createSurveyResponseAndEnqueueJob).toHaveBeenCalled();
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("fails closed when Turnstile is required but incompletely configured", async () => {
+    process.env.TURNSTILE_REQUIRED = "1";
+    process.env.TURNSTILE_SECRET_KEY = "turnstile-secret";
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+
+    await expect(submitPublicSurveyResponseAction(formData)).rejects.toThrow(
+      "Turnstile protection is required but both Turnstile keys are not configured.",
+    );
+
+    expect(getPublicSurveyLinkByToken).not.toHaveBeenCalled();
+    expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
   });
 
   it("stores the response after a successful Turnstile verification", async () => {

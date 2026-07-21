@@ -1,5 +1,12 @@
 export const appRoutes = {
   login: "/login",
+  forgotPassword: "/forgot-password",
+  authConfirm: "/auth/confirm",
+  terms: "/terms",
+  updatePassword: "/account/update-password",
+  privacySettings: "/account/privacy",
+  privacySettingsPreview: "/account/privacy/preview",
+  dpa: "/account/privacy/dpa",
   privacy: "/privacy",
   cookies: "/cookies",
   dashboard: "/dashboard",
@@ -8,6 +15,7 @@ export const appRoutes = {
   surveyDetail: (surveyId: string) => `/surveys/${surveyId}`,
   surveyEdit: (surveyId: string) => `/surveys/${surveyId}/edit`,
   publicSurveyLink: (linkToken: string) => `/s/${linkToken}`,
+  publicSurveyPrivacy: (linkToken: string) => `/s/${linkToken}/privacy`,
   publicSurveyThankYou: (linkToken: string) => `/s/${linkToken}/thank-you`,
   surveyAnalytics: (surveyId: string) => `/surveys/${surveyId}/analytics`,
 } as const;

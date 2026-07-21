@@ -87,6 +87,59 @@ overload:
 \df public.create_survey_response_with_job
 ```
 
+## Owner privacy settings rollout ordering
+
+Apply `20260716120000_add_owner_legal_profiles.sql` before deploying the
+application version that exposes Privacy Settings or survey-specific privacy
+notices.
+
+The migration is additive: it creates `owner_legal_profiles` and
+`survey_legal_snapshots` without changing the existing `surveys` columns. It
+also adds a database trigger that requires a legal snapshot only when a draft
+transitions to published. Surveys that were already published remain readable
+and use the deployment legal configuration as a legacy fallback.
+
+After deployment:
+
+1. Complete `/account/privacy` for each account allowed to publish.
+2. Publish a synthetic draft and verify one matching row exists in
+   `survey_legal_snapshots`.
+3. Open `/s/<link-token>/privacy` anonymously.
+4. Confirm the survey form links separately to the survey, platform, and cookie
+   notices.
+
+## DPA rollout ordering
+
+Apply `20260716153000_add_dpa_acceptances.sql` before deploying the DPA flow.
+The migration adds private contractual fields to `owner_legal_profiles` and an
+immutable, owner-isolated `dpa_acceptances` table.
+
+Keep `DPA_REQUIRED=0` until:
+
+1. the Processor identity and registered address are configured;
+2. the Controller has saved its address and authorised representative;
+3. the DPA wording and subprocessor list have been legally reviewed;
+4. the generated document has been accepted and its record verified.
+
+Set `DPA_REQUIRED=1` only after those steps. Enabling it earlier blocks new
+survey publications but does not alter already-published surveys.
+
+## Platform terms rollout ordering
+
+Apply `20260717113000_add_terms_acceptances.sql` before enabling the platform
+terms gate.
+
+Keep `TERMS_REQUIRED=0` until:
+
+1. the migration has been applied successfully;
+2. the current terms page has been reviewed in the target deployment;
+3. at least one invited test user has completed the acceptance flow;
+4. recovery/login flows have been smoke-tested with the final access policy.
+
+Set `TERMS_REQUIRED=1` only after those steps. Enabling it earlier will block
+private workspace access until the acceptance table exists and the terms flow is
+operational.
+
 ## Future integrations
 
 Authentication, Supabase, and other external services should be added only after:

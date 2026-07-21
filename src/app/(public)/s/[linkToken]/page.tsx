@@ -3,6 +3,8 @@ import { PublicSurveyForm } from "@/components/surveys/public-survey-form";
 import { submitPublicSurveyResponseAction } from "@/features/surveys/public-actions";
 import { getPublicSurveyCopy } from "@/features/surveys/public-copy";
 import { getPublicSurveyRuntimeByLinkToken } from "@/features/surveys/use-cases";
+import { getTurnstileSiteKey } from "@/lib/server/turnstile";
+import { appRoutes } from "@/lib/config/routes";
 
 type PublicSurveyLinkPageProps = {
   params: Promise<{ linkToken: string }>;
@@ -43,6 +45,7 @@ export default async function PublicSurveyLinkPage({
       {survey.definition_json.questions.length > 0 ? (
         <PublicSurveyForm
           linkToken={linkToken}
+          surveyPrivacyUrl={appRoutes.publicSurveyPrivacy(linkToken)}
           defaultLanguage={survey.default_language}
           initialLanguage={initialLanguage}
           hasExplicitLangParam={hasExplicitLangParam}
@@ -51,7 +54,7 @@ export default async function PublicSurveyLinkPage({
           allBundles={allBundles}
           allCopy={allCopy}
           responseContext={responseContext}
-          turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+          turnstileSiteKey={getTurnstileSiteKey()}
           submitAction={submitPublicSurveyResponseAction}
         />
       ) : (

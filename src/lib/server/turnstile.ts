@@ -3,13 +3,38 @@ type TurnstileVerificationResponse = {
   "error-codes"?: string[];
 };
 
+function isTurnstileRequired() {
+  const explicitRequirement = process.env.TURNSTILE_REQUIRED?.trim().toLowerCase();
+
+  return (
+    process.env.VERCEL_ENV === "production" ||
+    explicitRequirement === "1" ||
+    explicitRequirement === "true"
+  );
+}
+
 export function isTurnstileProtectionEnabled() {
   return Boolean(
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY,
   );
 }
 
+export function getTurnstileSiteKey() {
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
+  const secretKey = process.env.TURNSTILE_SECRET_KEY?.trim();
+
+  if (isTurnstileRequired() && (!siteKey || !secretKey)) {
+    throw new Error(
+      "Turnstile protection is required but both Turnstile keys are not configured.",
+    );
+  }
+
+  return siteKey && secretKey ? siteKey : undefined;
+}
+
 export async function verifyTurnstileToken(token: string) {
+  getTurnstileSiteKey();
+
   if (!isTurnstileProtectionEnabled()) {
     return;
   }

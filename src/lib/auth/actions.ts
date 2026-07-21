@@ -1,8 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getAppUrl } from "@/lib/config/app-url";
 import { appRoutes } from "@/lib/config/routes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isSignupEnabled } from "./config";
 
 function getSafeRedirectPath(value: FormDataEntryValue | null): string {
   const nextPath = String(value ?? "").trim();
@@ -38,6 +40,10 @@ export async function signInWithPasswordAction(formData: FormData) {
 }
 
 export async function signUpWithPasswordAction(formData: FormData) {
+  if (!isSignupEnabled()) {
+    redirect(`${appRoutes.login}?error=signup-closed`);
+  }
+
   const email = String(formData.get("email") ?? "")
     .trim()
     .toLowerCase();
@@ -56,6 +62,9 @@ export async function signUpWithPasswordAction(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: `${getAppUrl()}${appRoutes.authConfirm}?next=${encodeURIComponent(appRoutes.dashboard)}`,
+    },
   });
 
   if (error) {
@@ -67,6 +76,52 @@ export async function signUpWithPasswordAction(formData: FormData) {
   }
 
   redirect(`${appRoutes.login}?message=check-email`);
+}
+
+export async function requestPasswordResetAction(formData: FormData) {
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!email) {
+    redirect(`${appRoutes.forgotPassword}?error=missing-email`);
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${getAppUrl()}${appRoutes.authConfirm}?next=${encodeURIComponent(appRoutes.updatePassword)}`,
+  });
+
+  // Keep this response deliberately generic so the form does not disclose
+  // whether an email address belongs to an account.
+  redirect(`${appRoutes.forgotPassword}?message=reset-requested`);
+}
+
+export async function updatePasswordAction(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!password || !confirmPassword) {
+    redirect(`${appRoutes.updatePassword}?error=missing-password`);
+  }
+
+  if (password.length < 8) {
+    redirect(`${appRoutes.updatePassword}?error=password-too-short`);
+  }
+
+  if (password !== confirmPassword) {
+    redirect(`${appRoutes.updatePassword}?error=password-mismatch`);
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    redirect(`${appRoutes.updatePassword}?error=update-failed`);
+  }
+
+  redirect(`${appRoutes.updatePassword}?message=password-updated`);
 }
 
 export async function signOutAction() {

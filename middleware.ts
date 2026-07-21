@@ -5,6 +5,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 const publicRoutes = new Set<string>([
   "/",
   appRoutes.login,
+  appRoutes.forgotPassword,
   appRoutes.privacy,
   appRoutes.cookies,
 ]);
@@ -14,7 +15,7 @@ const internalJobRoutes = new Set<string>([
 ]);
 
 function isPublicSurveyRoute(pathname: string): boolean {
-  return /^\/s\/[^/]+(?:\/thank-you)?\/?$/.test(pathname);
+  return /^\/s\/[^/]+(?:\/(?:thank-you|privacy))?\/?$/.test(pathname);
 }
 
 function isInternalJobRoute(pathname: string): boolean {

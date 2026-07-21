@@ -4,6 +4,11 @@ import type {
   SurveyQuestionDefinition,
 } from "./generator-types";
 import { getLegalConfig, LEGAL_CONSENT_SOURCE } from "@/lib/config/legal";
+import { getRawLocationRetentionLabel } from "@/lib/config/response-retention";
+import {
+  buildLegacySurveyLegalSnapshot,
+  type SurveyLegalSnapshot,
+} from "@/features/privacy/types";
 import { getPublicSurveyCopy } from "./public-copy";
 
 export type SubmittedSurveyAnswer =
@@ -124,6 +129,7 @@ function validateQuestionAnswer(
 export function validatePublicSurveySubmission(
   survey: PersistedSurvey,
   formData: FormData,
+  legalSnapshot?: SurveyLegalSnapshot | null,
 ): ValidatedPublicSurveySubmission {
   const submittedLanguage = String(formData.get("submittedLanguage") ?? "").trim();
 
@@ -162,7 +168,14 @@ export function validatePublicSurveySubmission(
     throw new Error("Privacy information acceptance is required.");
   }
 
-  const legal = getLegalConfig();
+  const legal =
+    legalSnapshot ??
+    // Older published surveys may predate immutable legal snapshots.
+    // Keep this fallback for those legacy records instead of breaking them.
+    buildLegacySurveyLegalSnapshot(
+      getLegalConfig(),
+      getRawLocationRetentionLabel(),
+    );
   const copy = getPublicSurveyCopy(submittedLanguage);
 
   return {
@@ -173,9 +186,9 @@ export function validatePublicSurveySubmission(
     legalConsent: {
       accepted: true,
       statement: copy.legalConsentLabel,
-      consentVersion: legal.consentVersion,
-      privacyNoticeVersion: legal.privacyNoticeVersion,
-      cookieNoticeVersion: legal.cookieNoticeVersion,
+      consentVersion: legal.notices.consentVersion,
+      privacyNoticeVersion: legal.notices.privacyNoticeVersion,
+      cookieNoticeVersion: legal.notices.cookieNoticeVersion,
       source: LEGAL_CONSENT_SOURCE,
     },
   };

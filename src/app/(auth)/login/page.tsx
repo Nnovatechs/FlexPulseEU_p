@@ -1,7 +1,9 @@
+import Link from "next/link";
 import {
   signInWithPasswordAction,
   signUpWithPasswordAction,
 } from "@/lib/auth/actions";
+import { isSignupEnabled } from "@/lib/auth/config";
 import { appRoutes } from "@/lib/config/routes";
 
 type LoginPageProps = {
@@ -19,6 +21,9 @@ const errorMessages: Record<string, string> = {
   "missing-signup-fields": "Complete all fields to create a new account.",
   "password-mismatch": "The password confirmation does not match.",
   "signup-failed": "The account could not be created with the provided details.",
+  "signup-closed": "Account creation is currently restricted. Contact the operator for access.",
+  "auth-confirmation-failed":
+    "This authentication link is invalid or has expired. Request a new one and try again.",
 };
 
 const infoMessages: Record<string, string> = {
@@ -30,7 +35,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
   const errorKey = resolvedSearchParams.error;
   const messageKey = resolvedSearchParams.message;
-  const mode = resolvedSearchParams.mode === "signup" ? "signup" : "signin";
+  const signupEnabled = isSignupEnabled();
+  const mode =
+    signupEnabled && resolvedSearchParams.mode === "signup" ? "signup" : "signin";
   const nextPath = resolvedSearchParams.next ?? appRoutes.dashboard;
   const isSignUpMode = mode === "signup";
 
@@ -38,20 +45,22 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="login-shell">
       <section className="login-panel login-panel--auth">
         <div className="login-card">
-          <div className="auth-mode-switch" role="tablist" aria-label="Authentication mode">
-            <a
-              href={appRoutes.login}
-              className={`auth-mode-switch__item${!isSignUpMode ? " auth-mode-switch__item--active" : ""}`}
-            >
-              Sign in
-            </a>
-            <a
-              href={`${appRoutes.login}?mode=signup`}
-              className={`auth-mode-switch__item${isSignUpMode ? " auth-mode-switch__item--active" : ""}`}
-            >
-              Create account
-            </a>
-          </div>
+          {signupEnabled ? (
+            <div className="auth-mode-switch" role="tablist" aria-label="Authentication mode">
+              <a
+                href={appRoutes.login}
+                className={`auth-mode-switch__item${!isSignUpMode ? " auth-mode-switch__item--active" : ""}`}
+              >
+                Sign in
+              </a>
+              <a
+                href={`${appRoutes.login}?mode=signup`}
+                className={`auth-mode-switch__item${isSignUpMode ? " auth-mode-switch__item--active" : ""}`}
+              >
+                Create account
+              </a>
+            </div>
+          ) : null}
 
           <div className="login-card__header">
             <p className="section-header__eyebrow">FlexPulseEU</p>
@@ -109,6 +118,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               {isSignUpMode ? "Create account" : "Sign in"}
             </button>
           </form>
+
+          {!isSignUpMode ? (
+            <Link
+              href={appRoutes.forgotPassword}
+              className="button button--ghost button--full"
+            >
+              Forgot your password?
+            </Link>
+          ) : null}
         </div>
       </section>
     </main>

@@ -1,37 +1,36 @@
 import Link from "next/link";
 import { getLegalConfig } from "@/lib/config/legal";
+import { getRawLocationRetentionLabel } from "@/lib/config/response-retention";
 
 export default function PrivacyPage() {
   const legal = getLegalConfig();
+  const rawLocationRetentionLabel = getRawLocationRetentionLabel();
 
   return (
     <main className="legal-page">
       <article className="legal-card">
         <p className="legal-eyebrow">Privacy information</p>
-        <h1>Data protection and survey participation</h1>
+        <h1>FlexPulseEU platform privacy</h1>
         <p>
-          This page explains the basic data protection setup for public surveys
-          collected through this deployment of FlexPulseEU.
+          This page explains how this deployment of FlexPulseEU operates the
+          technical platform. Each public survey also provides a
+          survey-specific privacy notice identifying its data controller.
         </p>
         <p>
           Privacy notice version: <strong>{legal.privacyNoticeVersion}</strong>.
         </p>
 
         <section>
-          <h2>Who is responsible for the survey?</h2>
+          <h2>Who operates this platform?</h2>
           <p>
-            The organisation responsible for the purpose of the survey is{" "}
-            <strong>{legal.controllerName}</strong>. This organisation acts as the
-            data controller for the survey responses.
+            <strong>{legal.processorName}</strong> operates this deployment of
+            FlexPulseEU and provides the technical survey infrastructure.
           </p>
-          <p>
-            Controller country or region: <strong>{legal.controllerCountry}</strong>.
-          </p>
-          {legal.controllerContactEmail ? (
+          {legal.privacyEmail ? (
             <p>
-              Controller contact:{" "}
-              <a href={`mailto:${legal.controllerContactEmail}`}>
-                {legal.controllerContactEmail}
+              Platform privacy contact:{" "}
+              <a href={`mailto:${legal.privacyEmail}`}>
+                {legal.privacyEmail}
               </a>
             </p>
           ) : null}
@@ -42,7 +41,8 @@ export default function PrivacyPage() {
           <p>
             <strong>{legal.processorName}</strong> provides and operates the
             technical platform used to collect, store, process, and analyse survey
-            responses on behalf of the controller.
+            responses on behalf of the controller identified in each survey&apos;s
+            privacy notice.
           </p>
           <p>
             FlexPulseEU does not use individual respondent answers for unrelated
@@ -82,8 +82,13 @@ export default function PrivacyPage() {
             Regional context may be normalized or enriched with external context
             such as approximate weather/location information. Raw country and
             postal-code inputs are retained temporarily for this processing,
-            marked for cleanup after 72 hours, and handled through a protected
-            internal cleanup process.
+            marked for cleanup after {rawLocationRetentionLabel}, and handled
+            through a protected internal cleanup process.
+          </p>
+          <p>
+            Responses and derived mappings are retained only for as long as
+            necessary to conduct, validate, and document the stated research,
+            after which they are deleted or irreversibly anonymised.
           </p>
         </section>
 
@@ -93,9 +98,9 @@ export default function PrivacyPage() {
             Participation is voluntary. By ticking the consent box before
             submission, you consent to the processing of your survey response for
             the stated research, validation, and aggregated analytics purposes.
-            You may withdraw consent later by contacting the controller or the
-            privacy contact below. Withdrawal does not affect processing already
-            performed before withdrawal.
+            You may withdraw consent later by contacting the survey controller
+            identified in the survey-specific privacy notice. Withdrawal does
+            not affect processing already performed before withdrawal.
           </p>
         </section>
 
@@ -114,11 +119,14 @@ export default function PrivacyPage() {
           <h2>Your choices and rights</h2>
           <p>
             Participation is voluntary. If you do not agree with this information,
-            do not submit the survey. For privacy questions, contact{" "}
+            do not submit the survey. For questions about the operation of this
+            platform, contact{" "}
             {legal.privacyEmail ? (
-              <a href={`mailto:${legal.privacyEmail}`}>{legal.privacyEmail}</a>
+              <a href={`mailto:${legal.privacyEmail}`}>
+                {legal.privacyEmail}
+              </a>
             ) : (
-              "the survey controller"
+              "the platform operator"
             )}
             .
           </p>

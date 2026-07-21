@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
 import { verifyTurnstileToken } from "@/lib/server/turnstile";
+import { getPublicSurveyLegalSnapshot } from "@/features/privacy/repository";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
@@ -31,7 +32,12 @@ export async function submitPublicSurveyResponseAction(
     throw new Error("Published survey not found.");
   }
 
-  const validated = validatePublicSurveySubmission(survey, formData);
+  const legalSnapshot = await getPublicSurveyLegalSnapshot(survey.id);
+  const validated = validatePublicSurveySubmission(
+    survey,
+    formData,
+    legalSnapshot?.snapshot,
+  );
 
   await createSurveyResponseAndEnqueueJob({
     survey,

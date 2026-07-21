@@ -76,7 +76,7 @@ describe("public survey submission validation", () => {
       legalConsent: {
         accepted: true,
         statement:
-          "I have read the privacy information and cookie notice, and I consent to the processing of my survey response for the stated purposes.",
+          "I consent to the processing of my survey response for the stated purposes and confirm that I have read:",
         source: "public_survey_form",
       },
     });

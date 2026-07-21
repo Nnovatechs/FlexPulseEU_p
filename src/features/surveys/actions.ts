@@ -3,6 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
+import {
+  getCurrentOwnerLegalProfile,
+  prepareSurveyLegalSnapshot,
+} from "@/features/privacy/repository";
+import { getDpaConfig, isDpaConfigComplete } from "@/features/privacy/dpa";
+import { getCurrentDpaAcceptance } from "@/features/privacy/dpa-repository";
+import {
+  DPA_ACCEPTANCE_REQUIRED_ERROR,
+  isOwnerDpaProfileComplete,
+  isOwnerLegalProfileComplete,
+  PRIVACY_PROFILE_INCOMPLETE_ERROR,
+} from "@/features/privacy/types";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { runContentValidation, computeContentHash } from "./content-validator";
 import { generateSurveyDraftProposal } from "./survey-generation-flow";
@@ -441,7 +453,16 @@ export async function generateSurveyTranslationsAction(
 // Publish survey
 // ---------------------------------------------------------------------------
 
-export async function publishSurveyAction(formData: FormData): Promise<void> {
+export async function publishSurveyAction(
+  formData: FormData,
+): Promise<
+  | {
+      error:
+        | typeof PRIVACY_PROFILE_INCOMPLETE_ERROR
+        | typeof DPA_ACCEPTANCE_REQUIRED_ERROR;
+    }
+  | void
+> {
   const surveyId = String(formData.get("surveyId") ?? "").trim();
 
   if (!surveyId) {
@@ -503,6 +524,28 @@ export async function publishSurveyAction(formData: FormData): Promise<void> {
     }
   }
 
+  const legalProfile = await getCurrentOwnerLegalProfile();
+
+  if (!isOwnerLegalProfileComplete(legalProfile)) {
+    return { error: PRIVACY_PROFILE_INCOMPLETE_ERROR };
+  }
+
+  const dpaConfig = getDpaConfig();
+  if (dpaConfig.required) {
+    if (
+      !isOwnerDpaProfileComplete(legalProfile) ||
+      !isDpaConfigComplete(dpaConfig)
+    ) {
+      return { error: DPA_ACCEPTANCE_REQUIRED_ERROR };
+    }
+
+    const dpaAcceptance = await getCurrentDpaAcceptance(legalProfile);
+    if (!dpaAcceptance) {
+      return { error: DPA_ACCEPTANCE_REQUIRED_ERROR };
+    }
+  }
+
+  await prepareSurveyLegalSnapshot(surveyId, survey.created_by);
   await publishSurvey(surveyId);
 
   revalidatePath(appRoutes.surveyDetail(surveyId));

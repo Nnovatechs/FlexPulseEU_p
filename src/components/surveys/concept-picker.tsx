@@ -42,6 +42,62 @@ type ConceptPickerProps = {
   initialConceptKeys?: string[];
 };
 
+/**
+ * Returns whether the asset inventory is locked because DFC is selected.
+ */
+export function isDfcInventoryLocked(selectedConceptKeys: Iterable<string>) {
+  const selected = new Set(selectedConceptKeys);
+  return (
+    selected.has(DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY) &&
+    selected.has(DFC_INVENTORY_CONCEPT_KEY)
+  );
+}
+
+/**
+ * Applies one concept toggle while preserving the DFC inventory dependency.
+ */
+export function toggleConceptSelection(
+  selectedConceptKeys: Iterable<string>,
+  target: string,
+) {
+  const next = new Set(selectedConceptKeys);
+  const inventoryLocked = isDfcInventoryLocked(next);
+
+  if (next.has(target)) {
+    if (target === DFC_INVENTORY_CONCEPT_KEY && inventoryLocked) {
+      return next;
+    }
+    next.delete(target);
+    return next;
+  }
+
+  next.add(target);
+  if (target === DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY) {
+    next.add(DFC_INVENTORY_CONCEPT_KEY);
+  }
+  return next;
+}
+
+/**
+ * Clears one dimension while preserving the DFC inventory dependency.
+ */
+export function clearDimensionSelection(
+  selectedConceptKeys: Iterable<string>,
+  dimensionConceptKeys: Iterable<string>,
+) {
+  const dimensionKeys = new Set(dimensionConceptKeys);
+  const preservedKeys = isDfcInventoryLocked(selectedConceptKeys)
+    ? new Set([DFC_INVENTORY_CONCEPT_KEY])
+    : new Set<string>();
+
+  return new Set(
+    [...selectedConceptKeys].filter(
+      (conceptKey) =>
+        !dimensionKeys.has(conceptKey) || preservedKeys.has(conceptKey),
+    ),
+  );
+}
+
 export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
   const [selected, setSelected] = useState<Set<string>>(
     new Set(ensureDeclaredFlexibilityCapabilityDependencies(initialConceptKeys)),
@@ -51,18 +107,7 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
   );
 
   function toggleConcept(target: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(target)) {
-        next.delete(target);
-      } else {
-        next.add(target);
-        if (target === DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY) {
-          next.add(DFC_INVENTORY_CONCEPT_KEY);
-        }
-      }
-      return next;
-    });
+    setSelected((prev) => toggleConceptSelection(prev, target));
   }
 
   function toggleDimension(dimension: FlexpulseDimension) {
@@ -100,7 +145,7 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
         ?.concepts.map((concept) => concept.concept_key) ?? [],
     );
     setSelected(
-      (prev) => new Set([...prev].filter((t) => !dimensionConceptKeys.has(t))),
+      (prev) => clearDimensionSelection(prev, dimensionConceptKeys),
     );
   }
 
@@ -156,21 +201,26 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
                     {concepts.map((concept) => {
                       const conceptKey = concept.concept_key;
                       const isChecked = selected.has(conceptKey);
+                      const isLocked =
+                        conceptKey === DFC_INVENTORY_CONCEPT_KEY &&
+                        isDfcInventoryLocked(selected);
 
                       return (
                         <label
                           key={conceptKey}
-                          className={`concept-item${isChecked ? " concept-item--selected" : ""}`}
+                          className={`concept-item${isChecked ? " concept-item--selected" : ""}${isLocked ? " concept-item--locked" : ""}`}
                         >
                           <input
                             type="checkbox"
                             name="behaviouralConceptKeys"
                             value={conceptKey}
                             checked={isChecked}
+                            disabled={isLocked}
                             onChange={() => toggleConcept(conceptKey)}
                           />
                           <span className="concept-item__attribute">
                             {concept.label}
+                            {isLocked ? " (required by DFC)" : ""}
                           </span>
                           <span className="concept-item__type">
                             {CONCEPT_ROLE_LABELS[concept.concept_role]}

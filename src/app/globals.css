@@ -1788,6 +1788,16 @@ hr.divider {
   background: rgba(36, 84, 197, 0.06);
 }
 
+.concept-item--locked {
+  cursor: not-allowed;
+  opacity: 0.82;
+}
+
+.concept-item--locked:hover {
+  border-color: rgba(36, 84, 197, 0.35);
+  background: rgba(36, 84, 197, 0.06);
+}
+
 .concept-item input {
   display: none;
 }

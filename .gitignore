@@ -30,9 +30,6 @@ pnpm-debug.log*
 
 # Internal development notes (never committed)
 docs/internal/*
-!docs/internal/flexpulse-behavioural-schema-v2/
-!docs/internal/flexpulse-behavioural-schema-v2/README.md
-!docs/internal/flexpulse-behavioural-schema-v2/median-vs-mean.md
 
 # Local debug artifacts
 .tmp/

@@ -17,6 +17,11 @@ existing behavioural/attitudinal axes. It adds
 The score uses a 1–5 scale. A `null` score means that no capability set was
 applicable; it must never be interpreted as low capability.
 
+For newly generated multi-item behavioural constructs, FlexPulse now uses mean
+aggregation rather than median aggregation. This applies to new surveys built
+from the current generation pipeline. Published legacy surveys remain frozen and
+may still carry `multi_item_likert_median` in their stored measurement plans.
+
 ## Deterministic module v1
 
 DFC generation, branching, mapping, and scoring are versioned and
@@ -102,6 +107,11 @@ otherwise  → medium
 Zero applicable sets produce `value: null`, no tag, and no facets. Although the
 mean of means equals a flat mean in v1 because every set has four items, the
 implementation computes and retains set means explicitly.
+
+Outside DFC, the current generation pipeline also prefers mean aggregation for
+newly generated multi-item Likert constructs across the behavioural schema.
+Legacy published surveys and frozen Stage 2 fixtures continue to support median
+plans without migration.
 
 ## Persistence and compatibility
 

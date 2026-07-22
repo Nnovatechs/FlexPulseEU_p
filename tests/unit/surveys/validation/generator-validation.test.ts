@@ -256,8 +256,8 @@ describe("survey methodology validation", () => {
         concepts: [
           {
             concept_key: "trust_in_automation",
-            measurement_type: "multi_item_likert_median",
-            aggregation_rule: "median",
+            measurement_type: "multi_item_likert_mean",
+            aggregation_rule: "mean",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
             slot_intents: slotIntents(2),
@@ -282,8 +282,8 @@ describe("survey methodology validation", () => {
         concepts: [
           {
             concept_key: "trust_in_automation",
-            measurement_type: "multi_item_likert_median",
-            aggregation_rule: "median",
+            measurement_type: "multi_item_likert_mean",
+            aggregation_rule: "mean",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
             slot_intents: slotIntents(2),
@@ -354,8 +354,8 @@ describe("survey methodology validation", () => {
         concepts: [
           {
             concept_key: "trust_in_automation",
-            measurement_type: "multi_item_likert_median",
-            aggregation_rule: "median",
+            measurement_type: "multi_item_likert_mean",
+            aggregation_rule: "mean",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
             slot_intents: slotIntents(2),
@@ -428,8 +428,8 @@ describe("survey methodology validation", () => {
           concepts: [
             {
               concept_key: "trust_in_automation",
-              measurement_type: "multi_item_likert_median",
-              aggregation_rule: "median",
+              measurement_type: "multi_item_likert_mean",
+              aggregation_rule: "mean",
               threshold_profile: "likert_1_5_low_mid_high",
               slot_count: 2,
               slot_intents: slotIntents(2),

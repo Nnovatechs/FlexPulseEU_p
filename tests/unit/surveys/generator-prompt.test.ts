@@ -149,8 +149,8 @@ describe("measurement planner prompt", () => {
         schema_namespace: "flexpulse_behavioural_schema",
         concepts: baseMeasurementPlanBlueprint.concepts.map((concept) => ({
           ...concept,
-          measurement_type: "multi_item_likert_median",
-          aggregation_rule: "median",
+          measurement_type: "multi_item_likert_mean",
+          aggregation_rule: "mean",
           threshold_profile: "likert_1_5_low_mid_high",
           minimum_answer_count: 2,
           question_slots: [

@@ -37,7 +37,7 @@ const surveyPolishOutputSchema = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["question_key", "title", "description", "options"],
+          required: ["question_key", "title", "description", "options", "scale"],
           properties: {
             question_key: { type: "string" },
             title: { type: "string", minLength: 1 },
@@ -53,6 +53,20 @@ const surveyPolishOutputSchema = {
                   label: { type: "string", minLength: 1 },
                 },
               },
+            },
+            scale: {
+              anyOf: [
+                { type: "null" },
+                {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["min_label", "max_label"],
+                  properties: {
+                    min_label: { type: "string", minLength: 1 },
+                    max_label: { type: "string", minLength: 1 },
+                  },
+                },
+              ],
             },
           },
         },
@@ -77,6 +91,21 @@ function buildQuestionPayload(input: PolishSurveyLanguageInput) {
         source_label: sourceQuestion?.options?.[option.option_key] ?? "",
         draft_label: draftQuestion?.options?.[option.option_key] ?? "",
       })),
+      scale:
+        question.type === "rating_scale"
+          ? {
+              source_min_label:
+                sourceQuestion?.scale?.min_label ??
+                question.scale?.min_label ??
+                "",
+              source_max_label:
+                sourceQuestion?.scale?.max_label ??
+                question.scale?.max_label ??
+                "",
+              draft_min_label: draftQuestion?.scale?.min_label ?? "",
+              draft_max_label: draftQuestion?.scale?.max_label ?? "",
+            }
+          : null,
     };
   });
 }
@@ -100,6 +129,7 @@ export function buildSurveyPolishPrompt(input: PolishSurveyLanguageInput): Surve
     "Avoid vague placeholders when the source refers to a concrete action, task, device, system or short period of automated management. Keep the object clear in natural target-language wording.",
     "Avoid repeating the same technical domain phrase across many items when ordinary target-language survey wording would vary it naturally.",
     "Option labels must read naturally as standalone response choices. Do not leave compressed, overly technical or ambiguous label fragments; use plain wording a general respondent would recognize.",
+    "Rating-scale min_label and max_label must also read naturally in the target language while preserving answer direction.",
     input.validationIssues?.length
       ? "Some items failed validation. Rewrite those failed items from the source meaning, not from the previous target wording or validator suggestions."
       : "",

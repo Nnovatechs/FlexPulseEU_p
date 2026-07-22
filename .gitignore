@@ -29,7 +29,9 @@ pnpm-debug.log*
 .vscode/
 
 # Internal development notes (never committed)
-docs/internal/
+docs/internal/*
+!docs/internal/flexpulse-behavioural-schema-v2/
+!docs/internal/flexpulse-behavioural-schema-v2/README.md
 
 # Local debug artifacts
 .tmp/

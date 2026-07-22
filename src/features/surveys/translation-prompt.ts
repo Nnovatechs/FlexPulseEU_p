@@ -30,6 +30,19 @@ export function buildSurveyTranslationPrompt(
         option_key: option.option_key,
         label: sourceQuestion?.options?.[option.option_key] ?? "",
       })),
+      source_scale:
+        question.type === "rating_scale"
+          ? {
+              min_label:
+                sourceQuestion?.scale?.min_label ??
+                question.scale?.min_label ??
+                "",
+              max_label:
+                sourceQuestion?.scale?.max_label ??
+                question.scale?.max_label ??
+                "",
+            }
+          : null,
     };
   });
 
@@ -41,7 +54,7 @@ export function buildSurveyTranslationPrompt(
     `Target language: ${input.targetLanguage}`,
     "",
     "Task:",
-    "- Rewrite the survey title, description, questions and option labels in the target language.",
+    "- Rewrite the survey title, description, questions, option labels and rating-scale endpoint labels in the target language.",
     "- Keep the same meaning and answer direction.",
     "- Keep every question_key and option_key exactly as provided.",
     "- Do not add, remove, reorder or merge questions or options.",
@@ -49,6 +62,7 @@ export function buildSurveyTranslationPrompt(
     "- Treat domain phrases as meaning, not fixed labels. Do not preserve literal noun chains like home energy system, household energy devices or household interest if they sound unnatural in the target language.",
     "- Use the respondent as the subject for feelings, comfort, interest, willingness and trust when that is more natural than making the household or system the grammatical subject.",
     "- Option labels must read naturally as standalone response choices. Do not compress them into ambiguous fragments; add a natural category word when needed so the label is clear on its own.",
+    "- For each rating question, translate min_label and max_label naturally and preserve their answer direction. Do not alter numeric scale bounds or steps.",
     "- Do not copy awkward source phrasing.",
     "",
     `Survey title: ${input.sourceTranslations.survey_title}`,

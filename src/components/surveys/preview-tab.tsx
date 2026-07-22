@@ -110,9 +110,13 @@ function ReadOnlyQuestionCard({
         {question.scale && (
           <p className="qov-card__meta muted">
             Scale {question.scale.min}
-            {question.scale.min_label ? ` (${question.scale.min_label})` : ""}{" "}
+            {translation?.scale?.min_label ?? question.scale.min_label
+              ? ` (${translation?.scale?.min_label ?? question.scale.min_label})`
+              : ""}{" "}
             → {question.scale.max}
-            {question.scale.max_label ? ` (${question.scale.max_label})` : ""}
+            {translation?.scale?.max_label ?? question.scale.max_label
+              ? ` (${translation?.scale?.max_label ?? question.scale.max_label})`
+              : ""}
           </p>
         )}
 

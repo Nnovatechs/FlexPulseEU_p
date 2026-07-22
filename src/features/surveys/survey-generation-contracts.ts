@@ -45,6 +45,7 @@ export type MeasurementPlannerLLMConcept = {
   measurement_type:
     | "single_item_direct"
     | "multi_item_likert_median"
+    | "multi_item_likert_mean"
     | "single_choice_enum"
     | "multi_choice_tag_set"
     | "numeric_direct"

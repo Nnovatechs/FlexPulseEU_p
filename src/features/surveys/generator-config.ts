@@ -270,6 +270,7 @@ export const generatorTargetConfigs: GeneratorTargetConfig[] =
   flexpulseBehaviouralSchemaV1
     .filter(
       (concept) =>
+        concept.concept_key !== "declared_flexibility_capability" &&
         concept.concept_role !== "context_signal" &&
         concept.concept_role !== "quality_signal",
     )

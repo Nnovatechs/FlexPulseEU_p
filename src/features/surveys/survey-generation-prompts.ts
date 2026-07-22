@@ -7,6 +7,10 @@ import {
   buildConceptMethodologyNotes,
   buildMethodologyRulesText,
 } from "./survey-methodology";
+import {
+  DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
+  DFC_INVENTORY_CONCEPT_KEY,
+} from "./declared-flexibility-capability-module";
 
 type BuildSurveyGeneratorPromptInput = {
   surveyName: string;
@@ -62,8 +66,17 @@ export function buildSurveyGeneratorPrompt(
 
   const blueprintRules = input.measurementPlanBlueprint.concepts
     .map((entry, index) => {
+      const isLockedCapabilityEntry =
+        entry.concept_key === DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY ||
+        entry.concept_key === DFC_INVENTORY_CONCEPT_KEY;
       return [
         `${index + 1}. ${entry.concept_key}`,
+        ...(isLockedCapabilityEntry
+          ? [
+              "   - system-locked DFC module slot: write canonical-language copy only; compilation ignores structural fields",
+              `   - required ontology target: flexpulse_behavioural_schema.${entry.concept_key}`,
+            ]
+          : []),
         `   - evidence source: ${entry.evidence_source}`,
         `   - measurement type: ${entry.measurement_type}`,
         `   - aggregation rule: ${entry.aggregation_rule}`,
@@ -117,6 +130,8 @@ export function buildSurveyGeneratorPrompt(
     "Follow each slot's facet, intent and polarity when writing the question.",
     "Every respondent-facing question generated from the blueprint is mandatory by system design.",
     "Do not return a required field for questions; the system applies obligatoriness automatically.",
+    "For system-locked DFC module slots, provide faithful canonical-language title and description copy for every exact slot_key. For each locked DFC rating slot, also provide natural canonical-language min_label and max_label anchors. The compiler, not you, owns question keys, question types, numeric scale min/max/step, option keys and values, order, facets, visibility, mappings, aggregation and scoring.",
+    "For the locked owned_der_assets inventory slot, provide respondent-facing labels for all requested asset values while preserving each ontology_value exactly; these labels are linguistic copy and do not alter the locked option structure.",
   ].join(" ");
 
   const user = [
@@ -173,6 +188,8 @@ export function buildSurveyGeneratorPrompt(
     "- survey_title must be suitable for respondents in the canonical language.",
     "- survey_description should briefly explain the survey purpose in the canonical language.",
     "- Do not include a required field in question objects.",
+    "- Locked DFC inventory ontology values are: pv_system, battery_storage, heating_system, ev, inverter, heat_pump, thermal_storage, hot_water_tank, programmable_appliance, washing_machine, air_conditioning, none_of_these, not_sure.",
+    "- For locked DFC rating slots, min/max/step are transport placeholders and are ignored during compilation; min_label/max_label are respondent-facing canonical-language anchors and must be meaningful translations of the answer direction.",
   ].join("\n");
 
   return {

@@ -25,6 +25,7 @@ export type MeasurementEvidenceSource =
 export type MeasurementType =
   | "single_item_direct"
   | "multi_item_likert_median"
+  | "multi_item_likert_mean"
   | "single_choice_enum"
   | "multi_choice_tag_set"
   | "numeric_direct"
@@ -168,6 +169,7 @@ function assertMeasurementTypeCompatibleWithCounts(
       }
       return;
     case "multi_item_likert_median":
+    case "multi_item_likert_mean":
       if (slotCount < 2) {
         throw new Error(
           `Planner must provide at least 2 usable items for multi-item concept "${conceptKey}".`,
@@ -234,6 +236,7 @@ function deriveThresholdProfileForMeasurementType(
 ): MeasurementThresholdProfile {
   switch (measurementType) {
     case "multi_item_likert_median":
+    case "multi_item_likert_mean":
       return "likert_1_5_low_mid_high";
     case "single_choice_enum":
       return "enum_identity";
@@ -474,6 +477,7 @@ export function createMeasurementPlanFromMappings(
         .map((mapping) => mapping.question_key);
 
       const preferredMeasurementTypes: MeasurementType[] = [
+        "multi_item_likert_mean",
         "multi_item_likert_median",
         "multi_choice_tag_set",
         "single_choice_enum",
@@ -484,7 +488,9 @@ export function createMeasurementPlanFromMappings(
         preferredMeasurementTypes.find(
           (type) =>
             entry.allowed_measurement_types.includes(type) &&
-            ((type === "multi_item_likert_median" && question_keys.length >= 2) ||
+            (((type === "multi_item_likert_median" ||
+              type === "multi_item_likert_mean") &&
+              question_keys.length >= 2) ||
               (type === "multi_choice_tag_set" && concept.output_type === "string[]") ||
               (type === "single_choice_enum" && concept.output_type === "enum") ||
               (type === "numeric_direct" && concept.output_type === "number") ||
@@ -503,8 +509,11 @@ export function createMeasurementPlanFromMappings(
         measurement_type: measurementType,
         output_type: entry.output_type,
         aggregation_rule:
-          measurementType === "multi_item_likert_median"
-            ? "median"
+          measurementType === "multi_item_likert_median" ||
+          measurementType === "multi_item_likert_mean"
+            ? measurementType === "multi_item_likert_mean"
+              ? "mean"
+              : "median"
             : measurementType === "multi_choice_tag_set"
               ? "set_union"
               : "identity",

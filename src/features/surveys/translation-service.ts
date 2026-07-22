@@ -31,7 +31,7 @@ const surveyTranslationOutputSchema = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["question_key", "title", "description", "options"],
+          required: ["question_key", "title", "description", "options", "scale"],
           properties: {
             question_key: { type: "string" },
             title: { type: "string", minLength: 1 },
@@ -47,6 +47,20 @@ const surveyTranslationOutputSchema = {
                   label: { type: "string", minLength: 1 },
                 },
               },
+            },
+            scale: {
+              anyOf: [
+                { type: "null" },
+                {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["min_label", "max_label"],
+                  properties: {
+                    min_label: { type: "string", minLength: 1 },
+                    max_label: { type: "string", minLength: 1 },
+                  },
+                },
+              ],
             },
           },
         },

@@ -16,7 +16,7 @@ function slotIntents(count: number) {
 
 describe("generator transform", () => {
   it("creates unique question keys when multiple questions share the same ontology target", () => {
-    const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
+    const baseDefinition = createInitialSurveyDefinition("Spanish", ["Spanish"]);
     const measurementPlanBlueprint = applyMeasurementPlannerOutput(
       createMeasurementPlanBlueprint(["trust_in_automation"]),
       {
@@ -49,8 +49,8 @@ describe("generator transform", () => {
               min: 1,
               max: 5,
               step: 1,
-              min_label: "Very low",
-              max_label: "Very high",
+              min_label: "Muy bajo",
+              max_label: "Muy alto",
             },
             numeric: null,
           },
@@ -65,16 +65,16 @@ describe("generator transform", () => {
               min: 1,
               max: 5,
               step: 1,
-              min_label: "Very low",
-              max_label: "Very high",
+              min_label: "Muy bajo",
+              max_label: "Muy alto",
             },
             numeric: null,
           },
         ],
       },
       baseDefinition,
-      defaultLanguage: "English",
-      supportedLanguages: ["English"],
+      defaultLanguage: "Spanish",
+      supportedLanguages: ["Spanish"],
       ontologyTargets: ["flexpulse_behavioural_schema.trust_in_automation"],
       measurementPlanBlueprint,
       fallbackSurveyTitle: "Trust survey",
@@ -96,6 +96,18 @@ describe("generator transform", () => {
     expect(result.slotBindings).toEqual({
       SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_IN_AUTOMATION_01",
       SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_IN_AUTOMATION_02",
+    });
+    expect(
+      result.definition.translations.Spanish.questions.Q_TRUST_IN_AUTOMATION_01
+        .scale,
+    ).toEqual({
+      min_label: "Muy bajo",
+      max_label: "Muy alto",
+    });
+    expect(result.definition.questions[0].scale).toEqual({
+      min: 1,
+      max: 5,
+      step: 1,
     });
   });
 

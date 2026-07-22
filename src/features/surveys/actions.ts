@@ -16,6 +16,7 @@ import {
   PRIVACY_PROFILE_INCOMPLETE_ERROR,
 } from "@/features/privacy/types";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
+import { ensureDeclaredFlexibilityCapabilityDependencies } from "./declared-flexibility-capability-module";
 import { runContentValidation, computeContentHash } from "./content-validator";
 import { generateSurveyDraftProposal } from "./survey-generation-flow";
 import { generateAndValidateTranslatedLanguage } from "./translation-loop";
@@ -182,10 +183,12 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("supportedLanguages")
     .map((value) => String(value).trim())
     .filter(Boolean);
-  const behaviouralConceptKeys = formData
-    .getAll("behaviouralConceptKeys")
-    .map((value) => String(value).trim())
-    .filter(Boolean);
+  const behaviouralConceptKeys = ensureDeclaredFlexibilityCapabilityDependencies(
+    formData
+      .getAll("behaviouralConceptKeys")
+      .map((value) => String(value).trim())
+      .filter(Boolean),
+  );
   const schemaTargets =
     behaviouralConceptKeys.length > 0
       ? deriveSchemaTargetsFromBehaviouralConceptKeys(behaviouralConceptKeys)

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   checkPromptInjectionHeuristics,
@@ -209,6 +210,57 @@ describe("survey content validator — deterministic layer", () => {
       computeContentHash(baseFixture.questions, baseFixture.translations),
     ).not.toBe(
       computeContentHash(editedFixture.questions, editedFixture.translations),
+    );
+  });
+
+  it("preserves the pre-DFC hash for legacy bundles without translated anchors", () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with energy automation?",
+    });
+    const legacyParts = fixture.questions.map((question) => {
+      const translation = fixture.translations.questions[question.question_key];
+      const optionTexts =
+        question.options
+          ?.map((option) => translation?.options?.[option.option_key] ?? "")
+          .join("|") ?? "";
+      return `${question.question_key}:${translation?.title ?? ""}:${translation?.description ?? ""}:${optionTexts}`;
+    });
+    const legacyHash = createHash("sha256")
+      .update(legacyParts.join("\n"))
+      .digest("hex")
+      .slice(0, 16);
+
+    expect(
+      computeContentHash(fixture.questions, fixture.translations),
+    ).toBe(legacyHash);
+  });
+
+  it("invalidates new validation when translated scale anchors change", () => {
+    const baseFixture = buildValidationSurveyFixture({
+      title: "How true is this for your household?",
+    });
+    baseFixture.questions[0] = {
+      question_key: "Q_TEST_01",
+      type: "rating_scale",
+      required: true,
+      order: 1,
+      scale: { min: 1, max: 5, step: 1 },
+    };
+    baseFixture.translations.questions.Q_TEST_01.scale = {
+      min_label: "Not at all true",
+      max_label: "Completely true",
+    };
+    const editedFixture = structuredClone(baseFixture);
+    editedFixture.translations.questions.Q_TEST_01.scale!.max_label =
+      "Entirely true";
+
+    expect(
+      computeContentHash(baseFixture.questions, baseFixture.translations),
+    ).not.toBe(
+      computeContentHash(
+        editedFixture.questions,
+        editedFixture.translations,
+      ),
     );
   });
 });

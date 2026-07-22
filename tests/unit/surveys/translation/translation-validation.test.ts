@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   buildTranslationValidationPrompt,
@@ -64,6 +65,76 @@ describe("translation validation — deterministic layer", () => {
         extendedFixture.sourceLanguage,
         extendedFixture.targetLanguage,
         "Spanish",
+      ]),
+    );
+  });
+
+  it("preserves the pre-DFC multilingual hash when bundles have no scale anchors", () => {
+    const fixture = buildTranslationSurveyFixture();
+    const languages = [
+      fixture.sourceLanguage,
+      fixture.targetLanguage,
+    ].sort();
+    const parts: string[] = [];
+
+    for (const language of languages) {
+      const bundle = fixture.definition.translations[language];
+      parts.push(
+        `${language}:${bundle.survey_title}:${bundle.survey_description ?? ""}`,
+      );
+      for (const question of fixture.definition.questions) {
+        const translation = bundle.questions[question.question_key];
+        const optionTexts =
+          question.options
+            ?.map((option) => translation?.options?.[option.option_key] ?? "")
+            .join("|") ?? "";
+        parts.push(
+          `${language}:${question.question_key}:${translation?.title ?? ""}:` +
+            `${translation?.description ?? ""}:${optionTexts}`,
+        );
+      }
+    }
+
+    const legacyHash = createHash("sha256")
+      .update(parts.join("\n"))
+      .digest("hex")
+      .slice(0, 16);
+
+    expect(
+      computeMultilingualTranslationHash(fixture.definition, languages),
+    ).toBe(legacyHash);
+  });
+
+  it("invalidates new multilingual validation when localized anchors change", () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.questions[0] = {
+      question_key: "Q_TEST_01",
+      type: "rating_scale",
+      required: true,
+      order: 1,
+      scale: { min: 1, max: 5, step: 1 },
+    };
+    fixture.definition.translations[fixture.sourceLanguage].questions.Q_TEST_01.scale = {
+      min_label: "Not at all true",
+      max_label: "Completely true",
+    };
+    fixture.definition.translations[fixture.targetLanguage].questions.Q_TEST_01.scale = {
+      min_label: "Pas du tout vrai",
+      max_label: "Tout à fait vrai",
+    };
+    const edited = structuredClone(fixture.definition);
+    edited.translations[fixture.targetLanguage].questions.Q_TEST_01.scale!.max_label =
+      "Entièrement vrai";
+
+    expect(
+      computeMultilingualTranslationHash(fixture.definition, [
+        fixture.sourceLanguage,
+        fixture.targetLanguage,
+      ]),
+    ).not.toBe(
+      computeMultilingualTranslationHash(edited, [
+        fixture.sourceLanguage,
+        fixture.targetLanguage,
       ]),
     );
   });

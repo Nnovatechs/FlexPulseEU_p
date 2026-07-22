@@ -35,11 +35,19 @@ export type SurveyQuestionOption = {
   value: string;
 };
 
+export type QuestionVisibilityRule = {
+  source_question_key: string;
+  operator: "contains_any";
+  values: string[];
+};
+
 export type SurveyQuestionDefinition = {
   question_key: string;
   type: SurveyQuestionType;
   required: boolean;
   order: number;
+  visibility_rule?: QuestionVisibilityRule;
+  exclusive_option_keys?: string[];
   options?: SurveyQuestionOption[];
   scale?: {
     min: number;
@@ -64,6 +72,10 @@ export type SurveyLanguageTranslations = {
       title: string;
       description?: string;
       options?: Record<string, string>;
+      scale?: {
+        min_label: string;
+        max_label: string;
+      };
     }
   >;
 };
@@ -131,6 +143,7 @@ export type MeasurementPlanEntry = {
   measurement_type:
     | "single_item_direct"
     | "multi_item_likert_median"
+    | "multi_item_likert_mean"
     | "single_choice_enum"
     | "multi_choice_tag_set"
     | "numeric_direct"
@@ -167,6 +180,7 @@ export type SurveyDefinition = {
     estimated_completion_minutes?: number;
     behavioural_concept_keys?: string[];
     ontology_targets?: string[];
+    capability_module_version?: "v1";
     measurement_plan_json?: MeasurementPlan;
     response_context?: SurveyResponseContextConfig;
     validation_result?: ContentValidationResult;

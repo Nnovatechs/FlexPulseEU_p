@@ -99,6 +99,8 @@ export function checkStructuredPII(
       trans.title,
       trans.description ?? "",
       ...Object.values(trans.options ?? {}),
+      trans.scale?.min_label ?? q.scale?.min_label ?? "",
+      trans.scale?.max_label ?? q.scale?.max_label ?? "",
     ];
 
     let matched = false;
@@ -135,6 +137,8 @@ export function checkPromptInjectionHeuristics(
       trans.title,
       trans.description ?? "",
       ...Object.values(trans.options ?? {}),
+      trans.scale?.min_label ?? q.scale?.min_label ?? "",
+      trans.scale?.max_label ?? q.scale?.max_label ?? "",
     ];
 
     const detected = detectPromptInjectionSignals(textsToCheck);
@@ -536,7 +540,13 @@ export function computeContentHash(
     const trans = translations.questions[q.question_key];
     const optionTexts =
       q.options?.map((o) => trans?.options?.[o.option_key] ?? "").join("|") ?? "";
-    return `${q.question_key}:${trans?.title ?? ""}:${trans?.description ?? ""}:${optionTexts}`;
+    const legacyContent = `${q.question_key}:${trans?.title ?? ""}:${trans?.description ?? ""}:${optionTexts}`;
+
+    if (q.type !== "rating_scale" || !trans?.scale) {
+      return legacyContent;
+    }
+
+    return `${legacyContent}:${trans.scale.min_label}|${trans.scale.max_label}`;
   });
   return createHash("sha256").update(parts.join("\n")).digest("hex").slice(0, 16);
 }

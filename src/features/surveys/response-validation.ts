@@ -10,6 +10,10 @@ import {
   type SurveyLegalSnapshot,
 } from "@/features/privacy/types";
 import { getPublicSurveyCopy } from "./public-copy";
+import {
+  isQuestionVisible,
+  orderSurveyQuestions,
+} from "./question-visibility";
 
 export type SubmittedSurveyAnswer =
   | string
@@ -108,11 +112,35 @@ function validateQuestionAnswer(
         throw new Error(`Question "${question.question_key}" contains an invalid option.`);
       }
     }
+
+    const selectedExclusiveValues = values.filter((value) =>
+      question.exclusive_option_keys?.includes(String(value)),
+    );
+    if (
+      selectedExclusiveValues.length > 1 ||
+      (selectedExclusiveValues.length === 1 && values.length > 1)
+    ) {
+      throw new Error(
+        `Question "${question.question_key}" contains mutually exclusive options.`,
+      );
+    }
   }
 
   if (question.type === "rating_scale" && typeof answer === "number" && question.scale) {
     if (answer < question.scale.min || answer > question.scale.max) {
       throw new Error(`Question "${question.question_key}" is outside the allowed scale.`);
+    }
+    if (question.scale.step != null) {
+      const step = question.scale.step;
+      const offsetInSteps = (answer - question.scale.min) / step;
+      if (
+        step <= 0 ||
+        Math.abs(offsetInSteps - Math.round(offsetInSteps)) > 1e-9
+      ) {
+        throw new Error(
+          `Question "${question.question_key}" does not match the allowed scale step.`,
+        );
+      }
     }
   }
 
@@ -126,6 +154,9 @@ function validateQuestionAnswer(
   }
 }
 
+/**
+ * Parses and validates a public submission, retaining only currently visible answers.
+ */
 export function validatePublicSurveySubmission(
   survey: PersistedSurvey,
   formData: FormData,
@@ -143,7 +174,11 @@ export function validatePublicSurveySubmission(
 
   const answers: Record<string, SubmittedSurveyAnswer> = {};
 
-  for (const question of survey.definition_json.questions) {
+  for (const question of orderSurveyQuestions(survey.definition_json.questions)) {
+    if (!isQuestionVisible(question, answers)) {
+      continue;
+    }
+
     const answer = parseQuestionAnswer(question, formData);
     validateQuestionAnswer(question, answer);
 

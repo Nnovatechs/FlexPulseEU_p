@@ -55,4 +55,42 @@ describe("parseSurveyLanguageLLMOutput", () => {
       }),
     ).toThrow(/Translation polish returned an unexpected number of questions/);
   });
+
+  it("maps translated rating-scale anchors into the target-language bundle", () => {
+    const result = parseSurveyLanguageLLMOutput({
+      content: JSON.stringify({
+        survey_title: "Encuesta",
+        survey_description: "",
+        questions: [
+          {
+            question_key: "Q_SCALE",
+            title: "¿Hasta qué punto es cierto para usted?",
+            description: "",
+            options: [],
+            scale: {
+              min_label: "Nada cierto",
+              max_label: "Totalmente cierto",
+            },
+          },
+        ],
+      }),
+      refusal: null,
+      questions: [
+        {
+          question_key: "Q_SCALE",
+          type: "rating_scale",
+          required: true,
+          order: 1,
+          scale: { min: 1, max: 5, step: 1 },
+        },
+      ],
+      targetLanguage: "Spanish",
+      operationLabel: "Translation",
+    });
+
+    expect(result.questions.Q_SCALE.scale).toEqual({
+      min_label: "Nada cierto",
+      max_label: "Totalmente cierto",
+    });
+  });
 });

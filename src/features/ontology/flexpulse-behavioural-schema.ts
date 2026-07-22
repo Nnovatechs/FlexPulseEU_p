@@ -8,6 +8,7 @@ export type FlexpulseConceptRole =
 export type FlexpulseDimension =
   | "awareness_of_energy_systems"
   | "flexibility_willingness"
+  | "flexibility_capability"
   | "thermal_comfort_norms"
   | "tariff_preferences"
   | "trust_in_automation"
@@ -48,6 +49,8 @@ export const FLEXPULSE_DER_ASSET_VALUES = [
   "thermal_storage",
   "hot_water_tank",
   "programmable_appliance",
+  "washing_machine",
+  "air_conditioning",
 ] as const;
 
 export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
@@ -73,6 +76,19 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
       "Overall willingness to participate in flexibility or demand response programmes under realistic domestic conditions.",
     concept_role: "primary_profile_axis",
     dimension: "flexibility_willingness",
+    output_type: "number",
+  },
+  {
+    schema_version: 1,
+    namespace: "flexpulse_behavioural_schema",
+    concept_key: "declared_flexibility_capability",
+    schema_target:
+      "flexpulse_behavioural_schema.declared_flexibility_capability",
+    label: "Declared flexibility capability",
+    description:
+      "Self-reported practical and repeatable capacity to shift household energy use while preserving the services the household needs.",
+    concept_role: "primary_profile_axis",
+    dimension: "flexibility_capability",
     output_type: "number",
   },
   {
@@ -200,9 +216,9 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     namespace: "flexpulse_behavioural_schema",
     concept_key: "owned_der_assets",
     schema_target: "flexpulse_behavioural_schema.owned_der_assets",
-    label: "Owned DER assets",
+    label: "Household energy assets and flexible appliances",
     description:
-      "The set of DER-relevant assets or devices currently present in the home or routinely used by the respondent.",
+      "Technologies or appliances present in the home or regularly available for the household to use, including shared, rented, or household-owned equipment.",
     concept_role: "applicability_factor",
     dimension: "der_engagement",
     output_type: "string[]",

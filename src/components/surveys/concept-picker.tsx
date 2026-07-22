@@ -5,10 +5,16 @@ import {
   flexpulseSurveyDesignConceptsByDimension,
   type FlexpulseDimension,
 } from "@/features/ontology/flexpulse-behavioural-schema";
+import {
+  DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
+  DFC_INVENTORY_CONCEPT_KEY,
+  ensureDeclaredFlexibilityCapabilityDependencies,
+} from "@/features/surveys/declared-flexibility-capability-module";
 
 const DIMENSION_LABELS: Record<FlexpulseDimension, string> = {
   awareness_of_energy_systems: "Awareness of energy systems",
   flexibility_willingness: "Flexibility willingness",
+  flexibility_capability: "Flexibility capability",
   thermal_comfort_norms: "Thermal comfort norms",
   tariff_preferences: "Tariff preferences",
   trust_in_automation: "Trust in automation",
@@ -38,7 +44,7 @@ type ConceptPickerProps = {
 
 export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
   const [selected, setSelected] = useState<Set<string>>(
-    new Set(initialConceptKeys),
+    new Set(ensureDeclaredFlexibilityCapabilityDependencies(initialConceptKeys)),
   );
   const [expanded, setExpanded] = useState<Set<FlexpulseDimension>>(
     new Set(conceptsByDimension.map(({ dimension }) => dimension)),
@@ -51,6 +57,9 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
         next.delete(target);
       } else {
         next.add(target);
+        if (target === DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY) {
+          next.add(DFC_INVENTORY_CONCEPT_KEY);
+        }
       }
       return next;
     });
@@ -73,7 +82,15 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
       conceptsByDimension
         .find((entry) => entry.dimension === dimension)
         ?.concepts.map((concept) => concept.concept_key) ?? [];
-    setSelected((prev) => new Set([...prev, ...dimensionConceptKeys]));
+    setSelected(
+      (prev) =>
+        new Set(
+          ensureDeclaredFlexibilityCapabilityDependencies([
+            ...prev,
+            ...dimensionConceptKeys,
+          ]),
+        ),
+    );
   }
 
   function clearAllInDimension(dimension: FlexpulseDimension) {

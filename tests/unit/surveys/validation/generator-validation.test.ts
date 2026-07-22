@@ -77,6 +77,121 @@ describe("survey definition validation — response context", () => {
   });
 });
 
+describe("survey definition validation — conditional visibility", () => {
+  it("blocks publication when a visibility source is not part of the survey", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Conditional survey";
+    definition.questions = [
+      {
+        question_key: "Q_DEPENDENT",
+        type: "rating_scale",
+        required: true,
+        order: 2,
+        scale: { min: 1, max: 5 },
+        visibility_rule: {
+          source_question_key: "Q_MISSING",
+          operator: "contains_any",
+          values: ["ev"],
+        },
+      },
+    ];
+    definition.translations.English.questions.Q_DEPENDENT = {
+      title: "I can schedule EV charging.",
+    };
+
+    expect(
+      validateSurveyPublication(
+        definition,
+        createInitialMappingContract(),
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "unknown_visibility_source" }),
+      ]),
+    );
+  });
+});
+
+describe("survey definition validation — translated scale anchors", () => {
+  it("requires localized anchors for DFC v1 rating scales", () => {
+    const definition = createInitialSurveyDefinition("Spanish", [
+      "Spanish",
+      "French",
+    ]);
+    definition.survey_meta.capability_module_version = "v1";
+    definition.questions = [
+      {
+        question_key: "Q_DFC_TEST",
+        type: "rating_scale",
+        required: true,
+        order: 1,
+        scale: { min: 1, max: 5, step: 1 },
+      },
+    ];
+    definition.translations.Spanish = {
+      survey_title: "Encuesta",
+      questions: {
+        Q_DFC_TEST: {
+          title: "¿Hasta qué punto es cierto?",
+          scale: {
+            min_label: "Nada cierto",
+            max_label: "Totalmente cierto",
+          },
+        },
+      },
+    };
+    definition.translations.French = {
+      survey_title: "Enquête",
+      questions: {
+        Q_DFC_TEST: {
+          title: "Dans quelle mesure est-ce vrai ?",
+          scale: {
+            min_label: "Pas du tout vrai",
+            max_label: "",
+          },
+        },
+      },
+    };
+
+    expect(validateSurveyDefinition(definition)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "missing_scale_max_label",
+          path:
+            "translations.French.questions.Q_DFC_TEST.scale.max_label",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps legacy rating scales valid when they predate scale anchors", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.questions = [
+      {
+        question_key: "Q_LEGACY_SCALE",
+        type: "rating_scale",
+        required: true,
+        order: 1,
+        scale: { min: 1, max: 5, step: 1 },
+      },
+    ];
+    definition.translations.English = {
+      survey_title: "Legacy survey",
+      questions: {
+        Q_LEGACY_SCALE: {
+          title: "How comfortable are you with this?",
+        },
+      },
+    };
+
+    expect(
+      validateSurveyDefinition(definition).filter((issue) =>
+        issue.code.startsWith("missing_scale_"),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("survey methodology validation", () => {
   it("rejects publication when the survey is missing a usable measurement plan", () => {
     const definition = createInitialSurveyDefinition("English", ["English"]);

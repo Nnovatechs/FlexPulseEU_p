@@ -9,6 +9,8 @@ import type {
 import { compileMappingContract } from "./generator-mapping";
 import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { SubmittedSurveyAnswer } from "./response-validation";
+import { resolveQuestionApplicability } from "./question-visibility";
+import { DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY } from "./declared-flexibility-capability-module";
 
 export const RESPONSE_MAPPER_VERSION = "v1";
 export const THRESHOLD_PROFILE_VERSION = "v1";
@@ -207,8 +209,13 @@ function getQuestionValues(
   concept: MeasurementPlanEntry,
   compiledMapping: CompiledMappingContract,
   answers: Record<string, SubmittedSurveyAnswer>,
+  applicableQuestionKeys: Set<string>,
 ): QuestionValue[] | null {
-  for (const questionKey of concept.required_question_keys) {
+  const applicableRequiredQuestionKeys = concept.required_question_keys.filter(
+    (questionKey) => applicableQuestionKeys.has(questionKey),
+  );
+
+  for (const questionKey of applicableRequiredQuestionKeys) {
     const mapping = compiledMapping.by_question_key[questionKey];
     if (!mapping) {
       return null;
@@ -222,8 +229,12 @@ function getQuestionValues(
   }
 
   return concept.question_keys
+    .filter((questionKey) => applicableQuestionKeys.has(questionKey))
     .map((questionKey) => {
       const mapping = compiledMapping.by_question_key[questionKey];
+      if (!mapping) {
+        return null;
+      }
       const value = applyTransformStrategy(answers[questionKey], mapping);
 
       return {
@@ -231,7 +242,7 @@ function getQuestionValues(
         value: applyQuestionPolarity(questionKey, value, concept, mapping),
       };
     })
-    .filter((item): item is QuestionValue => item.value != null);
+    .filter((item): item is QuestionValue => item != null && item.value != null);
 }
 
 function aggregateValues(
@@ -333,6 +344,66 @@ function buildFacetSignals(
   );
 }
 
+function buildDeclaredFlexibilityCapabilityEntry(
+  concept: MeasurementPlanEntry,
+  questionValues: QuestionValue[] | null,
+): MapperOutput["profile"][string] {
+  if (questionValues == null || questionValues.length === 0) {
+    return { value: null };
+  }
+
+  const intentsByQuestion = new Map(
+    (concept.question_intents ?? []).map((intent) => [intent.question_key, intent]),
+  );
+  const valuesBySet = new Map<string, number[]>();
+
+  for (const item of questionValues) {
+    const setKey = intentsByQuestion.get(item.questionKey)?.facet;
+    if (!setKey || typeof item.value !== "number") {
+      return { value: null };
+    }
+    valuesBySet.set(setKey, [...(valuesBySet.get(setKey) ?? []), item.value]);
+  }
+
+  const setScores = Array.from(valuesBySet.entries()).map(([setKey, values]) => {
+    if (values.length !== 4) {
+      return null;
+    }
+
+    return [
+      setKey,
+      {
+        value: values.reduce((sum, value) => sum + value, 0) / 4,
+        evidence_count: 4,
+        evidence_level: "facet_subscore" as const,
+      },
+    ] as const;
+  });
+
+  if (setScores.some((entry) => entry == null)) {
+    return { value: null };
+  }
+
+  const facets = Object.fromEntries(
+    setScores.filter((entry): entry is NonNullable<typeof entry> => entry != null),
+  );
+  const facetValues = Object.values(facets).map((facet) => facet.value);
+  if (facetValues.length === 0) {
+    return { value: null };
+  }
+
+  const value =
+    facetValues.reduce((sum, facetValue) => sum + facetValue, 0) /
+    facetValues.length;
+  const tag = deriveTag(value, concept.threshold_profile);
+
+  return {
+    value,
+    ...(tag ? { tag } : {}),
+    facets,
+  };
+}
+
 function buildProfile(
   input: ResponseMapperInput,
   compiledMapping: CompiledMappingContract,
@@ -342,6 +413,10 @@ function buildProfile(
   if (!measurementPlan) {
     throw new Error("Survey is missing measurement_plan_json.");
   }
+  const applicability = resolveQuestionApplicability(
+    input.survey.definition_json.questions,
+    input.answers,
+  );
 
   return Object.fromEntries(
     measurementPlan.concepts
@@ -357,7 +432,21 @@ function buildProfile(
         );
       })
       .map((concept) => {
-        const questionValues = getQuestionValues(concept, compiledMapping, input.answers);
+        const questionValues = getQuestionValues(
+          concept,
+          compiledMapping,
+          input.answers,
+          applicability.questionKeys,
+        );
+        if (
+          concept.concept_key ===
+          DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY
+        ) {
+          return [
+            concept.concept_key,
+            buildDeclaredFlexibilityCapabilityEntry(concept, questionValues),
+          ];
+        }
         const value = aggregateQuestionValues(concept, questionValues);
         const tag = deriveTag(value, concept.threshold_profile);
         const facets =
@@ -404,6 +493,9 @@ function buildContextMetadata(input: ResponseMapperInput): MapperOutput["context
   };
 }
 
+/**
+ * Maps one response using the frozen contract and the shared applicability rules.
+ */
 export function mapSurveyResponseToOutput(input: ResponseMapperInput): MapperOutput {
   const compiledMapping = getCompiledMappingContract(input.survey);
   const mappingHashUsed =

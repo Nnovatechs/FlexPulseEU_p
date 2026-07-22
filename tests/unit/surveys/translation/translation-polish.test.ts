@@ -34,7 +34,7 @@ describe("buildSurveyPolishPrompt", () => {
     expect(prompt.user).toContain("source_title");
     expect(prompt.user).toContain("draft_title");
     expect(prompt.user).not.toContain("ontology_target");
-    expect(prompt.user).not.toContain("scale");
+    expect(prompt.user).toContain("Rating-scale min_label and max_label");
   });
 
   it("passes only failed check types during validation retries", () => {

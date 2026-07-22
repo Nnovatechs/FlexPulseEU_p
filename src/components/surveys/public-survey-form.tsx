@@ -12,6 +12,11 @@ import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
+import {
+  getVisibleQuestions,
+  pruneHiddenQuestionAnswers,
+  toggleExclusiveMultipleChoiceOption,
+} from "@/features/surveys/question-visibility";
 
 declare global {
   interface Window {
@@ -44,7 +49,9 @@ function getLangMeta(lang: string) {
 
 // ─── Block computation ────────────────────────────────────────────────────
 
-function computeBlocks(questions: SurveyQuestionDefinition[]): SurveyQuestionDefinition[][] {
+function chunkQuestions(
+  questions: SurveyQuestionDefinition[],
+): SurveyQuestionDefinition[][] {
   const n = questions.length;
   if (n === 0) return [[]];
   if (n <= 6) return [questions];
@@ -59,6 +66,43 @@ function computeBlocks(questions: SurveyQuestionDefinition[]): SurveyQuestionDef
     blocks.push(questions.slice(i, Math.min(i + actualSize, n)));
   }
   return blocks;
+}
+
+function computeBlocks(
+  questions: SurveyQuestionDefinition[],
+  allQuestions: SurveyQuestionDefinition[],
+): SurveyQuestionDefinition[][] {
+  const visibilitySourceKeys = new Set(
+    allQuestions.flatMap((question) =>
+      question.visibility_rule
+        ? [question.visibility_rule.source_question_key]
+        : [],
+    ),
+  );
+  if (visibilitySourceKeys.size === 0) {
+    return chunkQuestions(questions);
+  }
+
+  const blocks: SurveyQuestionDefinition[][] = [];
+  let pending: SurveyQuestionDefinition[] = [];
+  const flushPending = () => {
+    if (pending.length > 0) {
+      blocks.push(...chunkQuestions(pending));
+      pending = [];
+    }
+  };
+
+  for (const question of questions) {
+    if (visibilitySourceKeys.has(question.question_key)) {
+      flushPending();
+      blocks.push([question]);
+    } else {
+      pending.push(question);
+    }
+  }
+  flushPending();
+
+  return blocks.length > 0 ? blocks : [[]];
 }
 
 function getGlobalQuestionNumber(
@@ -177,12 +221,14 @@ function ChoiceOptions({
   selectedValue,
   onChange,
   isMultiple = false,
+  exclusiveOptionKeys = [],
 }: {
   fieldName: string;
   options: { key: string; label: string }[];
   selectedValue: string | string[];
   onChange: (value: string | string[]) => void;
   isMultiple?: boolean;
+  exclusiveOptionKeys?: string[];
 }) {
   return (
     <div className="sf-choices">
@@ -204,11 +250,11 @@ function ChoiceOptions({
               onChange={() => {
                 if (isMultiple) {
                   const current = Array.isArray(selectedValue) ? selectedValue : [];
-                  onChange(
-                    isSelected
-                      ? current.filter((v) => v !== key)
-                      : [...current, key],
-                  );
+                  onChange(toggleExclusiveMultipleChoiceOption(
+                    current,
+                    key,
+                    exclusiveOptionKeys,
+                  ));
                 } else {
                   onChange(key);
                 }
@@ -237,8 +283,11 @@ function RatingScale({
   onChange: (value: string) => void;
 }) {
   const values = Array.from(
-    { length: scale.max - scale.min + 1 },
-    (_, i) => scale.min + i,
+    {
+      length:
+        Math.floor((scale.max - scale.min) / (scale.step ?? 1) + 1e-9) + 1,
+    },
+    (_, i) => scale.min + i * (scale.step ?? 1),
   );
   const hasLabels = scale.min_label || scale.max_label;
 
@@ -325,7 +374,13 @@ function QuestionCard({
       {question.type === "rating_scale" && question.scale && (
         <RatingScale
           fieldName={fieldName}
-          scale={question.scale}
+          scale={{
+            ...question.scale,
+            min_label:
+              translation.scale?.min_label ?? question.scale.min_label,
+            max_label:
+              translation.scale?.max_label ?? question.scale.max_label,
+          }}
           selectedValue={strValue}
           onChange={onChange}
         />
@@ -353,6 +408,7 @@ function QuestionCard({
           selectedValue={Array.isArray(selectedValue) ? selectedValue : []}
           onChange={onChange}
           isMultiple
+          exclusiveOptionKeys={question.exclusive_option_keys}
         />
       )}
 
@@ -506,8 +562,9 @@ export function PublicSurveyForm({
   const hasTurnstileSiteKey = Boolean(turnstileSiteKey);
   const bundle = allBundles[language] ?? allBundles[defaultLanguage];
   const copy = allCopy[language] ?? allCopy[defaultLanguage];
-  const blocks = computeBlocks(questions);
-  const totalQ = questions.length;
+  const visibleQuestions = getVisibleQuestions(questions, selectedValues);
+  const blocks = computeBlocks(visibleQuestions, questions);
+  const totalQ = visibleQuestions.length;
   const isLastBlock = currentBlock === blocks.length - 1;
   const progress =
     blocks.length === 1 ? 100 : Math.round((currentBlock / (blocks.length - 1)) * 100);
@@ -555,7 +612,16 @@ export function PublicSurveyForm({
     const wasAnswered =
       selectedValues[questionKey] !== undefined && selectedValues[questionKey] !== "";
 
-    setSelectedValues((prev) => ({ ...prev, [questionKey]: value }));
+    const nextSelectedValues = pruneHiddenQuestionAnswers(questions, {
+      ...selectedValues,
+      [questionKey]: value,
+    });
+    const nextBlockCount = computeBlocks(
+      getVisibleQuestions(questions, nextSelectedValues),
+      questions,
+    ).length;
+    setSelectedValues(nextSelectedValues);
+    setCurrentBlock((block) => Math.min(block, nextBlockCount - 1));
     setBlockError(null);
 
     if (!shouldAutoScroll || wasAnswered) return;
@@ -631,6 +697,16 @@ export function PublicSurveyForm({
 
     setBlockError(null);
     const formData = new FormData(e.currentTarget);
+    const visibleQuestionKeys = new Set(
+      getVisibleQuestions(questions, selectedValues).map(
+        (question) => question.question_key,
+      ),
+    );
+    for (const question of questions) {
+      if (!visibleQuestionKeys.has(question.question_key)) {
+        formData.delete(`question:${question.question_key}`);
+      }
+    }
 
     startTransition(async () => {
       try {

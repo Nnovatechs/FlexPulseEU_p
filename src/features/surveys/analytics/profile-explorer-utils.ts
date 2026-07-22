@@ -13,10 +13,11 @@ export type ProfileCondition = {
 };
 
 export const TAG_VALUES = ["low", "medium", "high"] as const;
-export const MAX_PROFILE_CONCEPTS = 6;
+export const MAX_PROFILE_CONCEPTS = 7;
 export const MAX_BREAKDOWN_ROWS = 6;
 export const MAX_INTELLIGENCE_AXES = 4;
-export const MAX_RADAR_AXES = 6;
+export const MAX_RADAR_AXES = 7;
+export const MIN_PRIVATE_METRIC_SAMPLE = 5;
 
 export function formatMetricValue(metric: SurveyAnalyticsMetricResult) {
   if (metric.value == null) {
@@ -119,6 +120,38 @@ export function getRadarAxisLabel(field: SurveyAnalyticsFieldDefinition) {
 export function getPrimaryProfileFields(fields: SurveyAnalyticsFieldDefinition[]) {
   const primary = fields.filter((field) => field.concept_role === "primary_profile_axis");
   return primary.length > 0 ? primary : fields;
+}
+
+/**
+ * Returns dynamically declared DFC set subscores for aggregate presentation.
+ */
+export function getCapabilityFacetFields(fields: SurveyAnalyticsFieldDefinition[]) {
+  return fields.filter(
+    (field) =>
+      field.concept_key === "declared_flexibility_capability" &&
+      field.value_type === "number" &&
+      field.evidence_level === "facet_subscore" &&
+      Boolean(field.facet),
+  );
+}
+
+/**
+ * Builds average metrics whose sample sizes represent applicable DFC sets.
+ */
+export function buildCapabilityFacetMetrics(
+  fields: SurveyAnalyticsFieldDefinition[],
+): SurveyAnalyticsMetric[] {
+  return getCapabilityFacetFields(fields).map((field) => ({
+    key: metricKeyFor("avg", field),
+    kind: "average",
+    field: field.key,
+  }));
+}
+
+export function shouldSuppressCapabilityFacet(
+  metric: SurveyAnalyticsMetricResult | null | undefined,
+) {
+  return !metric || metric.sample_size < MIN_PRIVATE_METRIC_SAMPLE;
 }
 
 export function findConceptField(
@@ -488,7 +521,7 @@ export function buildBaselineMetrics(
       })),
     ),
     ...(assetField
-      ? FLEXPULSE_DER_ASSET_VALUES.slice(0, 8).map((asset) => ({
+      ? FLEXPULSE_DER_ASSET_VALUES.map((asset) => ({
           key: `asset_${asset}`,
           kind: "share_contains" as const,
           field: assetField.key,
@@ -521,6 +554,8 @@ export function buildSelectedFilters(input: {
   selectedLanguage: string | null;
   selectedTag: string | null;
   selectedAsset: string | null;
+  capabilityFacetFields?: SurveyAnalyticsFieldDefinition[];
+  selectedCapabilityApplicability?: string | null;
   profileConditions: ProfileCondition[];
 }): SurveyAnalyticsFilter[] {
   const filters: SurveyAnalyticsFilter[] = [];
@@ -539,6 +574,17 @@ export function buildSelectedFilters(input: {
   }
   if (input.assetField && input.selectedAsset) {
     filters.push({ field: input.assetField.key, op: "contains", value: input.selectedAsset });
+  }
+  if (input.selectedCapabilityApplicability) {
+    const separatorIndex = input.selectedCapabilityApplicability.lastIndexOf(":");
+    const fieldKey = input.selectedCapabilityApplicability.slice(0, separatorIndex);
+    const operator = input.selectedCapabilityApplicability.slice(separatorIndex + 1);
+    const field = input.capabilityFacetFields?.find(
+      (candidate) => candidate.key === fieldKey,
+    );
+    if (field && (operator === "is_null" || operator === "not_null")) {
+      filters.push({ field: field.key, op: operator, value: null });
+    }
   }
 
   input.profileConditions.forEach((condition) => {

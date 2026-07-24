@@ -10,6 +10,7 @@ import type {
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { timeSurveyStep } from "./local-timing";
 
 type ValidateTranslatedSurveyLanguageInput = {
   sourceLanguage: SurveyLanguageCode;
@@ -251,18 +252,27 @@ export async function validateTranslatedSurveyLanguage(
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0,
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: translationValidationOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.translation.validate",
+    {
+      model: env.model,
+      target_language: input.targetLanguage,
+      question_count: input.questions.length,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: translationValidationOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

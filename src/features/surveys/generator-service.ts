@@ -21,6 +21,7 @@ import {
   MeasurementPlanBaseBlueprint,
   MeasurementPlanBlueprint,
 } from "./measurement-plan";
+import { timeSurveyStep } from "./local-timing";
 
 type GenerateSurveyWithLLMInput = {
   surveyName: string;
@@ -81,18 +82,28 @@ export async function generateMeasurementPlanWithLLM(
     ),
   ]);
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: responseSchema,
+  const completion = await timeSurveyStep(
+    "llm.measurement_planner",
+    {
+      model: env.model,
+      schema_target_count: input.schemaTargets.length,
+      behavioural_concept_count: input.behaviouralConceptKeys.length,
+      repair_feedback_count: input.repairFeedback?.length ?? 0,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: responseSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 
@@ -138,24 +149,36 @@ export async function generateSurveyWithLLM(
     ),
   ]);
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0.3,
-    messages: [
-      {
-        role: "system",
-        content: prompt.system,
-      },
-      {
-        role: "user",
-        content: prompt.user,
-      },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: surveyGeneratorOutputJsonSchema,
+  const completion = await timeSurveyStep(
+    "llm.survey_writer",
+    {
+      model: env.model,
+      schema_target_count: input.schemaTargets.length,
+      question_slot_count: input.measurementPlanBlueprint.concepts.reduce(
+        (sum, concept) => sum + concept.question_slots.length,
+        0,
+      ),
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: prompt.system,
+          },
+          {
+            role: "user",
+            content: prompt.user,
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: surveyGeneratorOutputJsonSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

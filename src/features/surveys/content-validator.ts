@@ -16,6 +16,7 @@ import type {
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { timeSurveyStep } from "./local-timing";
 
 // ---------------------------------------------------------------------------
 // PII detection — structured patterns
@@ -327,18 +328,27 @@ async function checkPIIIntentWithLLM(
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: piiIntentOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.content_validation.pii_intent",
+    {
+      model: env.model,
+      question_count: questions.length,
+      survey_language: surveyLanguage,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: piiIntentOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 
@@ -468,18 +478,27 @@ async function checkSemanticAlignment(
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: semanticCheckOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.content_validation.semantic_alignment",
+    {
+      model: env.model,
+      question_count: questions.length,
+      survey_language: surveyLanguage,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: semanticCheckOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

@@ -7,6 +7,7 @@ import type {
 } from "./generator-types";
 import { buildSurveyTranslationPrompt } from "./translation-prompt";
 import { parseSurveyLanguageLLMOutput } from "./translation-output";
+import { timeSurveyStep } from "./local-timing";
 
 type TranslateSurveyLanguageInput = {
   surveyName: string;
@@ -76,18 +77,27 @@ export async function translateSurveyLanguage(
   const client = new OpenAI({ apiKey: env.apiKey });
   const prompt = buildSurveyTranslationPrompt(input);
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: surveyTranslationOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.translation.translate",
+    {
+      model: env.model,
+      target_language: input.targetLanguage,
+      question_count: input.questions.length,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: surveyTranslationOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

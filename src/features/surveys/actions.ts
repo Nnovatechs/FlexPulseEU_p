@@ -38,6 +38,7 @@ import type {
   SurveyLanguageTranslations,
 } from "./generator-types";
 import { normalizeSurveyResponseContextConfig } from "./generator-types";
+import { withSurveyTimingOperation, timeSurveyStep } from "./local-timing";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -230,31 +231,60 @@ export async function updateSurveySettingsAction(formData: FormData) {
     }
 
     try {
-      const proposal = await generateSurveyDraftProposal({
-        survey: {
-          ...existing,
-          definition_json: nextDefinition,
+      await withSurveyTimingOperation(
+        {
+          operation: "survey.generate",
+          surveyId,
+          ownerUserId: existing.created_by,
+          meta: {
+            default_language: defaultLanguage,
+            supported_language_count: nextSupportedLanguages.length,
+            behavioural_concept_count: behaviouralConceptKeys.length,
+          },
         },
-        surveyName: name,
-        surveyDescription,
-        defaultLanguage,
-        supportedLanguages: nextSupportedLanguages,
-        behaviouralConceptKeys,
-        schemaTargets,
-      });
+        async () => {
+          const proposal = await timeSurveyStep(
+            "generate_survey_draft_proposal",
+            {
+              supported_languages: nextSupportedLanguages,
+              behavioural_concept_keys: behaviouralConceptKeys,
+            },
+            async () =>
+              generateSurveyDraftProposal({
+                survey: {
+                  ...existing,
+                  definition_json: nextDefinition,
+                },
+                surveyName: name,
+                surveyDescription,
+                defaultLanguage,
+                supportedLanguages: nextSupportedLanguages,
+                behaviouralConceptKeys,
+                schemaTargets,
+              }),
+          );
 
-      // Generated content → validation is stale, clear it
-      proposal.definition.survey_meta.validation_result = undefined;
-      proposal.definition.survey_meta.multilingual_validation_result = undefined;
+          // Generated content -> validation is stale, clear it
+          proposal.definition.survey_meta.validation_result = undefined;
+          proposal.definition.survey_meta.multilingual_validation_result = undefined;
 
-      await updateSurveyDraft({
-        surveyId,
-        name,
-        default_language: defaultLanguage,
-        supported_languages: nextSupportedLanguages,
-        definition_json: proposal.definition,
-        mapping_contract_json: proposal.mappingContract,
-      });
+          await timeSurveyStep(
+            "update_survey_draft",
+            {
+              question_count: proposal.definition.questions.length,
+            },
+            async () =>
+              updateSurveyDraft({
+                surveyId,
+                name,
+                default_language: defaultLanguage,
+                supported_languages: nextSupportedLanguages,
+                definition_json: proposal.definition,
+                mapping_contract_json: proposal.mappingContract,
+              }),
+          );
+        },
+      );
     } catch (error) {
       const message =
         error instanceof Error ? encodeURIComponent(error.message) : "unknown";
@@ -366,18 +396,45 @@ export async function validateSurveyContentAction(
     throw new Error("No questions to validate. Generate the survey first.");
   }
 
-  const result = await runContentValidation(
-    questions,
-    mappings,
-    translations,
-    survey.default_language,
-    survey.definition_json.survey_meta.measurement_plan_json,
+  await withSurveyTimingOperation(
+    {
+      operation: "survey.validate_content",
+      surveyId,
+      ownerUserId: survey.created_by,
+      meta: {
+        default_language: survey.default_language,
+        question_count: questions.length,
+      },
+    },
+    async () => {
+      const result = await timeSurveyStep(
+        "run_content_validation",
+        {
+          question_count: questions.length,
+        },
+        async () =>
+          runContentValidation(
+            questions,
+            mappings,
+            translations,
+            survey.default_language,
+            survey.definition_json.survey_meta.measurement_plan_json,
+          ),
+      );
+
+      const nextDefinition = structuredClone(survey.definition_json);
+      nextDefinition.survey_meta.validation_result = result;
+
+      await timeSurveyStep(
+        "update_survey_draft",
+        {
+          passed: result.passed,
+          issue_count: result.issues.length,
+        },
+        async () => updateSurveyDraft({ surveyId, definition_json: nextDefinition }),
+      );
+    },
   );
-
-  const nextDefinition = structuredClone(survey.definition_json);
-  nextDefinition.survey_meta.validation_result = result;
-
-  await updateSurveyDraft({ surveyId, definition_json: nextDefinition });
 
   revalidatePath(appRoutes.surveyEdit(surveyId));
 }
@@ -420,34 +477,63 @@ export async function generateSurveyTranslationsAction(
     return;
   }
 
-  const translationRuns = await Promise.all(
-    targetLanguages.map(async (targetLanguage) => {
-      return generateAndValidateTranslatedLanguage({
-        surveyName: survey.name,
-        sourceLanguage: survey.default_language,
-        targetLanguage,
-        sourceTranslations,
-        questions: survey.definition_json.questions,
-        mappings: survey.mapping_contract_json.mappings,
-      });
-    }),
+  await withSurveyTimingOperation(
+    {
+      operation: "survey.generate_translations",
+      surveyId,
+      ownerUserId: survey.created_by,
+      meta: {
+        source_language: survey.default_language,
+        target_languages: targetLanguages,
+        question_count: survey.definition_json.questions.length,
+      },
+    },
+    async () => {
+      const translationRuns = await timeSurveyStep(
+        "translate_all_languages",
+        {
+          target_language_count: targetLanguages.length,
+          target_languages: targetLanguages,
+        },
+        async () =>
+          Promise.all(
+            targetLanguages.map(async (targetLanguage) => {
+              return generateAndValidateTranslatedLanguage({
+                surveyName: survey.name,
+                sourceLanguage: survey.default_language,
+                targetLanguage,
+                sourceTranslations,
+                questions: survey.definition_json.questions,
+                mappings: survey.mapping_contract_json.mappings,
+              });
+            }),
+          ),
+      );
+
+      const multilingualIssues: MultilingualValidationIssue[] = [];
+
+      for (const run of translationRuns) {
+        nextDefinition.translations[run.targetLanguage] = run.translatedBundle;
+        multilingualIssues.push(...toProductMultilingualIssues(run.issues));
+      }
+
+      nextDefinition.survey_meta.multilingual_validation_result =
+        buildMultilingualValidationResult(
+          survey.supported_languages,
+          computeMultilingualTranslationHash(nextDefinition, survey.supported_languages),
+          multilingualIssues,
+        );
+
+      await timeSurveyStep(
+        "update_survey_draft",
+        {
+          target_language_count: targetLanguages.length,
+          issue_count: multilingualIssues.length,
+        },
+        async () => updateSurveyDraft({ surveyId, definition_json: nextDefinition }),
+      );
+    },
   );
-
-  const multilingualIssues: MultilingualValidationIssue[] = [];
-
-  for (const run of translationRuns) {
-    nextDefinition.translations[run.targetLanguage] = run.translatedBundle;
-    multilingualIssues.push(...toProductMultilingualIssues(run.issues));
-  }
-
-  nextDefinition.survey_meta.multilingual_validation_result =
-    buildMultilingualValidationResult(
-      survey.supported_languages,
-      computeMultilingualTranslationHash(nextDefinition, survey.supported_languages),
-      multilingualIssues,
-    );
-
-  await updateSurveyDraft({ surveyId, definition_json: nextDefinition });
 
   revalidatePath(appRoutes.surveyEdit(surveyId));
 }

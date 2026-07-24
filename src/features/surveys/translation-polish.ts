@@ -7,6 +7,7 @@ import type {
   SurveyQuestionDefinition,
 } from "./generator-types";
 import { parseSurveyLanguageLLMOutput } from "./translation-output";
+import { timeSurveyStep } from "./local-timing";
 
 type PolishSurveyLanguageInput = {
   sourceLanguage: SurveyLanguageCode;
@@ -168,18 +169,28 @@ export async function polishSurveyLanguage(
   const client = new OpenAI({ apiKey: env.apiKey });
   const prompt = buildSurveyPolishPrompt(input);
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: surveyPolishOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.translation.polish",
+    {
+      model: env.model,
+      target_language: input.targetLanguage,
+      question_count: input.questions.length,
+      validation_issue_count: input.validationIssues?.length ?? 0,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: surveyPolishOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

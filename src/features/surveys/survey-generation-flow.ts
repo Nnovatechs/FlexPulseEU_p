@@ -42,6 +42,7 @@ import type {
   MeasurementPlanBaseBlueprint,
   MeasurementPlanBlueprint,
 } from "./measurement-plan";
+import { timeSurveyStep } from "./local-timing";
 
 type GenerateSurveyDraftProposalInput = {
   survey: PersistedSurvey;
@@ -207,38 +208,49 @@ export async function runPlannerOrchestrator(
   for (let attempt = 1; attempt <= MAX_MEASUREMENT_PLANNER_ATTEMPTS; attempt += 1) {
     const debugAttemptPrefix = `planner/attempt-${String(attempt).padStart(2, "0")}`;
 
-    await writeSurveyGeneratorDebugJson(
-      `${debugAttemptPrefix}/repair-feedback.json`,
-      repairFeedback ?? [],
+    const attemptResult = await timeSurveyStep(
+      `planner_attempt_${String(attempt).padStart(2, "0")}`,
+      {
+        attempt,
+        repair_feedback_count: repairFeedback?.length ?? 0,
+      },
+      async () => {
+        await writeSurveyGeneratorDebugJson(
+          `${debugAttemptPrefix}/repair-feedback.json`,
+          repairFeedback ?? [],
+        );
+
+        const plannerOutput = await runPlannerPhase({
+          context,
+          repairFeedback,
+          debugFilePrefix: debugAttemptPrefix,
+        });
+
+        const { issues, acceptedBlueprint } = compilePlannerOutput({
+          behaviouralConceptKeys: context.plannerBehaviouralConceptKeys,
+          plannerOutput,
+          baseMeasurementPlanBlueprint: context.baseMeasurementPlanBlueprint,
+        });
+
+        await writeSurveyGeneratorDebugJson(
+          `${debugAttemptPrefix}/validation-issues.json`,
+          issues,
+        );
+
+        return { issues, acceptedBlueprint };
+      },
     );
 
-    const plannerOutput = await runPlannerPhase({
-      context,
-      repairFeedback,
-      debugFilePrefix: debugAttemptPrefix,
-    });
-
-    const { issues, acceptedBlueprint } = compilePlannerOutput({
-      behaviouralConceptKeys: context.plannerBehaviouralConceptKeys,
-      plannerOutput,
-      baseMeasurementPlanBlueprint: context.baseMeasurementPlanBlueprint,
-    });
-
-    await writeSurveyGeneratorDebugJson(
-      `${debugAttemptPrefix}/validation-issues.json`,
-      issues,
-    );
-
-    if (issues.length === 0 && acceptedBlueprint) {
+    if (attemptResult.issues.length === 0 && attemptResult.acceptedBlueprint) {
       await writeSurveyGeneratorDebugJson(
         "planner/accepted-blueprint.json",
-        acceptedBlueprint,
+        attemptResult.acceptedBlueprint,
       );
-      return acceptedBlueprint;
+      return attemptResult.acceptedBlueprint;
     }
 
-    lastIssues = issues;
-    repairFeedback = formatValidationIssuesForRepair(issues);
+    lastIssues = attemptResult.issues;
+    repairFeedback = formatValidationIssuesForRepair(attemptResult.issues);
   }
 
   assertNoValidationIssues(lastIssues);
@@ -254,16 +266,27 @@ export async function runWriterPhase(input: {
     ? mergeDeclaredFlexibilityCapabilityWriterBlueprint(acceptedBlueprint)
     : acceptedBlueprint;
 
-  return generateSurveyWithLLM({
-    surveyName: context.surveyName,
-    surveyDescription: context.surveyDescription,
-    defaultLanguage: context.defaultLanguage,
-    supportedLanguages: context.supportedLanguages,
-    schemaTargets: context.schemaTargets,
-    configs: context.configs,
-    measurementPlanBlueprint: writerBlueprint,
-    debugFilePrefix: "writer",
-  });
+  return timeSurveyStep(
+    "writer_phase",
+    {
+      concept_count: writerBlueprint.concepts.length,
+      slot_count: writerBlueprint.concepts.reduce(
+        (sum, concept) => sum + concept.question_slots.length,
+        0,
+      ),
+    },
+    async () =>
+      generateSurveyWithLLM({
+        surveyName: context.surveyName,
+        surveyDescription: context.surveyDescription,
+        defaultLanguage: context.defaultLanguage,
+        supportedLanguages: context.supportedLanguages,
+        schemaTargets: context.schemaTargets,
+        configs: context.configs,
+        measurementPlanBlueprint: writerBlueprint,
+        debugFilePrefix: "writer",
+      }),
+  );
 }
 
 export function compileWriterOutput(input: {
@@ -479,40 +502,63 @@ export async function runSurveyGenerationFlow(
     schemaTargets: input.schemaTargets,
   });
 
-  const context = buildGenerationContext(input);
+  return timeSurveyStep(
+    "survey_generation_flow",
+    {
+      survey_id: input.survey.id,
+      behavioural_concept_count: input.behaviouralConceptKeys.length,
+      supported_language_count: input.supportedLanguages.length,
+    },
+    async () => {
+      const context = buildGenerationContext(input);
 
-  await writeSurveyGeneratorDebugJson(
-    "planner/base-blueprint.json",
-    context.baseMeasurementPlanBlueprint,
+      await writeSurveyGeneratorDebugJson(
+        "planner/base-blueprint.json",
+        context.baseMeasurementPlanBlueprint,
+      );
+
+      const acceptedBlueprint = await runPlannerOrchestrator(context);
+      const writerOutput = await runWriterPhase({ context, acceptedBlueprint });
+      const compiledSurvey = await timeSurveyStep(
+        "compile_writer_output",
+        {
+          capability_module_selected: context.capabilityModuleSelected,
+        },
+        async () =>
+          compileWriterOutput({
+            context,
+            acceptedBlueprint,
+            writerOutput,
+          }),
+      );
+
+      await Promise.all([
+        writeSurveyGeneratorDebugJson(
+          "writer/final-slot-bindings.json",
+          compiledSurvey.slotBindings,
+        ),
+        writeSurveyGeneratorDebugJson(
+          "writer/final-measurement-plan.json",
+          compiledSurvey.measurementPlan,
+        ),
+      ]);
+
+      await timeSurveyStep(
+        "validate_generated_artifacts",
+        {
+          question_count: compiledSurvey.definition.questions.length,
+        },
+        async () => validateGeneratedArtifacts({ compiledSurvey }),
+      );
+
+      return {
+        definition: compiledSurvey.definition,
+        mappingContract: compiledSurvey.mappingContract,
+        measurementPlan: compiledSurvey.measurementPlan,
+        configs: context.configs,
+      };
+    },
   );
-
-  const acceptedBlueprint = await runPlannerOrchestrator(context);
-  const writerOutput = await runWriterPhase({ context, acceptedBlueprint });
-  const compiledSurvey = compileWriterOutput({
-    context,
-    acceptedBlueprint,
-    writerOutput,
-  });
-
-  await Promise.all([
-    writeSurveyGeneratorDebugJson(
-      "writer/final-slot-bindings.json",
-      compiledSurvey.slotBindings,
-    ),
-    writeSurveyGeneratorDebugJson(
-      "writer/final-measurement-plan.json",
-      compiledSurvey.measurementPlan,
-    ),
-  ]);
-
-  validateGeneratedArtifacts({ compiledSurvey });
-
-  return {
-    definition: compiledSurvey.definition,
-    mappingContract: compiledSurvey.mappingContract,
-    measurementPlan: compiledSurvey.measurementPlan,
-    configs: context.configs,
-  };
 }
 
 export async function generateSurveyDraftProposal(

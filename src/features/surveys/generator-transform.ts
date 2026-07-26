@@ -144,8 +144,42 @@ export const PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE: Record<string, string> = 
   dont_know: "Not sure / I would need more information",
 };
 
+const PREFERRED_TARIFF_CANONICAL_VALUE_BY_ALIAS: Record<string, string> = {
+  fixed_price: "same_price",
+  fixed_tariff: "same_price",
+  same_price: "same_price",
+  stable_price: "same_price",
+  flat_rate: "same_price",
+  flat_price: "same_price",
+  constant_price: "same_price",
+  time_of_use: "time_of_use",
+  tou: "time_of_use",
+  time_based_discount: "time_of_use",
+  off_peak_discount: "time_of_use",
+  shift_rewards: "shift_rewards",
+  shift_reward: "shift_rewards",
+  flexibility_rewards: "shift_rewards",
+  reward_for_shifting: "shift_rewards",
+  rewards_for_shifting: "shift_rewards",
+  dynamic_price: "dynamic_price",
+  dynamic_pricing: "dynamic_price",
+  variable_pricing: "dynamic_price",
+  highly_variable_price: "dynamic_price",
+  variable_price: "dynamic_price",
+  not_sure: "not_sure",
+  unsure: "not_sure",
+  dont_know: "not_sure",
+  "don't_know": "not_sure",
+};
+
+function normalizePreferredTariffOntologyValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return PREFERRED_TARIFF_CANONICAL_VALUE_BY_ALIAS[normalized] ?? normalized;
+}
+
 function getPreferredTariffOptionLabel(option: SurveyGeneratorLLMQuestion["options"][number]) {
-  const canonical = PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE[option.ontology_value.trim()];
+  const normalizedValue = normalizePreferredTariffOntologyValue(option.ontology_value);
+  const canonical = PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE[normalizedValue];
   if (canonical) {
     return canonical;
   }
@@ -155,13 +189,20 @@ function getPreferredTariffOptionLabel(option: SurveyGeneratorLLMQuestion["optio
 
 function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
   const baseKeys = question.options.map((option) =>
-    slugify(option.ontology_value || option.label || "option"),
+    slugify(
+      question.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model"
+        ? normalizePreferredTariffOntologyValue(option.ontology_value || option.label || "option")
+        : option.ontology_value || option.label || "option",
+    ),
   );
   const uniqueKeys = ensureUniqueKeys(baseKeys);
 
   return question.options.map((option, index) => ({
     option_key: uniqueKeys[index] || `option_${index + 1}`,
-    value: option.ontology_value.trim(),
+    value:
+      question.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model"
+        ? normalizePreferredTariffOntologyValue(option.ontology_value)
+        : option.ontology_value.trim(),
     label:
       question.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model"
         ? getPreferredTariffOptionLabel(option)

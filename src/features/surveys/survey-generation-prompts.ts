@@ -132,6 +132,7 @@ export function buildSurveyGeneratorPrompt(
     "Do not return a required field for questions; the system applies obligatoriness automatically.",
     "For system-locked DFC module slots, provide faithful canonical-language title and description copy for every exact slot_key. For each locked DFC rating slot, also provide natural canonical-language min_label and max_label anchors. The compiler, not you, owns question keys, question types, numeric scale min/max/step, option keys and values, order, facets, visibility, mappings, aggregation and scoring.",
     "For the locked owned_der_assets inventory slot, provide respondent-facing labels for all requested asset values while preserving each ontology_value exactly; these labels are linguistic copy and do not alter the locked option structure.",
+    "For preferred_tariff_model single-choice questions, keep the ontology_value within this canonical set only: same_price, time_of_use, shift_rewards, dynamic_price, not_sure. Use respondent-facing labels for the visible text and do not invent new tariff ontology_value variants.",
   ].join(" ");
 
   const user = [

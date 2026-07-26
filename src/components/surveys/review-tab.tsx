@@ -390,8 +390,7 @@ export function ReviewTab({
           </p>
         )}
 
-        {multilingualValidationResult &&
-        multilingualValidationResult.issues.length > 0 ? (
+        {multilingualValidationResult && hasSecondaryLanguages ? (
           <div className="review-language-groups">
             {supportedLanguages
               .filter((language) => language !== defaultLanguage)
@@ -458,15 +457,35 @@ export function ReviewTab({
                   </div>
                 );
               })}
+            {(multilingualStatusState === "passed" || multilingualStatusState === "failed") && (
+              <div className="review-language-group">
+                <div className="review-language-group__header">
+                  <span className="review-language-group__title">
+                    Parity, cultural and quality checks
+                  </span>
+                  <span
+                    className={`review-status review-status--${
+                      multilingualStatusState === "failed" ? "failed" : "passed"
+                    }`}
+                  >
+                    {multilingualStatusState === "failed" ? "Flags found" : "Passed"}
+                  </span>
+                </div>
+                <p
+                  className={`review-notice ${
+                    multilingualStatusState === "failed"
+                      ? "review-notice--error"
+                      : "review-notice--success"
+                  }`}
+                >
+                  {multilingualStatusState === "failed"
+                    ? "Flags found."
+                    : "All selected multicultural versions passed parity, cultural and quality checks."}
+                </p>
+              </div>
+            )}
           </div>
         ) : null}
-
-        {multilingualStatusState === "passed" && hasSecondaryLanguages && (
-          <p className="review-notice review-notice--success">
-            All selected multicultural versions passed parity, cultural and quality
-            checks.
-          </p>
-        )}
 
         {translateError && (
           <p className="review-notice review-notice--error" role="alert">

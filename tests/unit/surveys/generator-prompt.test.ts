@@ -51,6 +51,10 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain("Concept scores remain canonical downstream");
     expect(prompt.user).toContain("interpretive signal");
     expect(prompt.user).toContain("naming the mechanism, action, or trade-off");
+    expect(prompt.user).not.toContain("oversight need");
+    expect(prompt.user).toContain(
+      "expectation that the system respects predefined operational boundaries",
+    );
     expect(prompt.user).not.toContain("Recommended visible question budget");
     expect(prompt.user).not.toContain("target 3");
     expect(prompt.user).not.toContain("oversight_need");
@@ -235,8 +239,8 @@ describe("measurement planner prompt", () => {
     );
   });
 
-  it("keeps declared flexibility capability outside the planner prompt", () => {
-    const behaviouralConceptKeys = ["flexibility_willingness"];
+  it("tightens explainability notes away from override semantics", () => {
+    const behaviouralConceptKeys = ["explainability_need"];
     const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
       behaviouralConceptKeys,
     );
@@ -246,7 +250,7 @@ describe("measurement planner prompt", () => {
     );
 
     const plannerPrompt = buildMeasurementPlannerPrompt({
-      surveyName: "Capability boundary survey",
+      surveyName: "Explainability survey",
       surveyDescription: "",
       defaultLanguage: "English",
       supportedLanguages: ["English"],
@@ -256,7 +260,9 @@ describe("measurement planner prompt", () => {
       baseMeasurementPlanBlueprint,
     });
 
-    expect(plannerPrompt.user).toContain("flexibility_willingness");
-    expect(plannerPrompt.user).not.toContain("declared_flexibility_capability");
+    expect(plannerPrompt.user).not.toContain("how to override it next time");
+    expect(plannerPrompt.user).toContain(
+      "what consequences it had for comfort, costs, or device operation",
+    );
   });
 });

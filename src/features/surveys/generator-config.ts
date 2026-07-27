@@ -209,7 +209,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure trust in concrete automated actions at home. Use situations like the system delaying a dishwasher cycle, charging a device later, or making a short heating/cooling adjustment within household settings. Distinguish reliability, predictability, willingness to delegate, oversight need, and trust after minor mistakes. Keep each slot single-focus: do not merge predictability with understandability, delegation with boundary-setting, or mistake tolerance with ease of correction unless that trade-off is explicitly the slot intent. Avoid contaminating this with thermal comfort, incentives, savings, or general technology enthusiasm.",
+      "Measure trust in concrete automated actions at home. Use situations like the system delaying a dishwasher cycle, charging a device later, or making a short heating/cooling adjustment within household settings. Distinguish reliability confidence, predictability confidence, readiness to delegate, expectation that the system respects predefined operational boundaries, and trust after minor mistakes. Keep each slot single-focus: do not merge predictability with understandability, delegation with override or approval requirements, or trust resilience with ease of correction. Avoid contaminating this with manual override need, explainability need, thermal comfort, incentives, savings, or general technology enthusiasm.",
     semantic_guidance: {
       measurement_intent:
         "Collect readiness to rely on automated control, not requirements for override or explanation.",
@@ -288,7 +288,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 4,
     prompt_notes:
-      "Measure desire to understand automated decisions using concrete explanation moments. Ask whether the respondent needs to know what changed, why it changed, whether it affected comfort or bills, and how to override it next time. Distinguish explanations before acceptance, explanations after actions, simple summaries versus detailed reasoning, and explanations after unexpected outcomes. Avoid measuring general awareness or trust directly.",
+      "Measure the information respondents require about automated decisions using concrete explanation moments. Ask whether they need to know what changed, why it changed, and what consequences it had for comfort, costs, or device operation. Distinguish explanations before an action, explanations after an action, simple summaries versus detailed reasoning, and explanations following unexpected outcomes. Avoid measuring general energy awareness, trust in automation, manual override need, or prior approval requirements.",
     semantic_guidance: {
       measurement_intent:
         "Collect information required about automated actions, reasons and consequences.",

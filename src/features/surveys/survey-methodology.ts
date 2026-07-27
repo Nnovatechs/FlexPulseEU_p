@@ -85,7 +85,7 @@ function getRoleSpecificRules(role: FlexpulseConceptRole): string[] {
   switch (role) {
     case "primary_profile_axis":
       return [
-        "Treat this as a core latent construct whose coverage should be justified, not assumed.",
+        "Treat this as a core profile construct. Justify its coverage according to its operational definition; do not assume that every primary profile axis is a reflective latent scale.",
         "Prefer multi-item coverage with distinct facets when this axis is central to the survey purpose.",
         "Use single-item coverage only when the survey purpose makes this concept clearly peripheral or the construct is intentionally lightweight.",
         "If more than one item is used, vary the angle without creating near-duplicate items.",

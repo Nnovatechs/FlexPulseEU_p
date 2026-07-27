@@ -3,12 +3,27 @@ import {
   getFlexpulseBehaviouralConcept,
   type FlexpulseBehaviouralConcept,
 } from "@/features/ontology/flexpulse-behavioural-schema";
-import type {
-  PlannerQuestionType,
-} from "./generator-types";
+import type { PlannerQuestionType } from "./generator-types";
 import type { MeasurementType } from "./measurement-plan";
 
 export type TargetPriority = "high" | "medium" | "low";
+
+export type GeneratorSemanticFacetGuidance = {
+  key: string;
+  meaning: string;
+};
+
+export type GeneratorSemanticGuidance = {
+  measurement_intent: string;
+  high_score_meaning: string;
+  recommended_facets: GeneratorSemanticFacetGuidance[];
+  must_not_measure: string[];
+};
+
+export type GeneratorConceptBoundaryRule = {
+  concept_keys: [string, string];
+  instruction: string;
+};
 
 export type GeneratorTargetConfig = {
   ontology_target: string;
@@ -19,6 +34,7 @@ export type GeneratorTargetConfig = {
   slot_capacity_max: number;
   priority: TargetPriority;
   prompt_notes: string;
+  semantic_guidance?: GeneratorSemanticGuidance;
   numeric?: {
     min?: number;
     max?: number;
@@ -31,6 +47,7 @@ type GeneratorConceptStrategy = {
   allowed_question_types: PlannerQuestionType[];
   slot_capacity_max: number;
   prompt_notes: string;
+  semantic_guidance?: GeneratorSemanticGuidance;
 };
 
 function mapOutputTypeToExpectedType(
@@ -50,9 +67,7 @@ function mapOutputTypeToExpectedType(
   }
 }
 
-function derivePriority(
-  concept: FlexpulseBehaviouralConcept,
-): TargetPriority {
+function derivePriority(concept: FlexpulseBehaviouralConcept): TargetPriority {
   if (concept.concept_role === "primary_profile_axis") {
     return "high";
   }
@@ -88,6 +103,26 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 6,
     prompt_notes:
       "Measure practical awareness, not vague self-confidence. Prefer items that test whether respondents recognize a concrete mechanism: peak/busy times, lower-demand periods, shiftable appliance tasks, network reliability, price signals, or what automation can and cannot schedule. Avoid circular wording like 'I understand the basic idea' unless the item names the specific mechanism. Avoid 'some electricity use', 'certain uses', and 'when needed'. Avoid using ability to explain as a proxy for awareness when explainability_need is also selected. Avoid drifting into trust, acceptance, or environmental motivation.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect declared recognition of concrete flexibility mechanisms, not objective knowledge, willingness or trust.",
+      high_score_meaning:
+        "Stronger declared recognition of residential energy-flexibility mechanisms.",
+      recommended_facets: [
+        { key: "temporal_demand_recognition", meaning: "recognises higher- and lower-demand periods." },
+        { key: "shiftable_load_recognition", meaning: "recognises activities that may be moved in time." },
+        { key: "price_timing_recognition", meaning: "recognises relationships between timing and prices." },
+        { key: "system_consequence_recognition", meaning: "recognises effects on network pressure or reliability." },
+        { key: "automation_scope_recognition", meaning: "recognises what automation can and cannot schedule." },
+      ],
+      must_not_measure: [
+        "Willingness.",
+        "Capability.",
+        "Trust.",
+        "DER adoption.",
+        "Financial or environmental motivation.",
+      ],
+    },
   },
   flexibility_willingness: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -95,6 +130,28 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 6,
     prompt_notes:
       "Measure willingness to adapt concrete household actions. Name the action and trade-off: delaying laundry, running the dishwasher later, charging a device/EV later, accepting a short heating or cooling adjustment, or refusing disruption to a routine. Distinguish general openness, inconvenience tolerance, routine disruption, and boundary conditions. Avoid vague phrases like 'shift some household electricity use', 'normal home life', or 'if needed'. Avoid contaminating this construct with trust in automation, savings motivation, or tariff preference unless the survey brief explicitly asks for that trade-off.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect whether the respondent would accept a concrete flexibility action, not whether the household can execute it.",
+      high_score_meaning:
+        "Greater declared readiness to participate in flexibility actions.",
+      recommended_facets: [
+        { key: "participation_intention", meaning: "readiness to participate in a concrete arrangement." },
+        { key: "appliance_shift_acceptance", meaning: "acceptance of moving an appliance task." },
+        { key: "temporary_thermal_adjustment_acceptance", meaning: "acceptance of a limited thermal adjustment." },
+        { key: "inconvenience_acceptance", meaning: "acceptance of a defined inconvenience." },
+        { key: "routine_disruption_boundary", meaning: "point where disruption reduces willingness." },
+      ],
+      must_not_measure: [
+        "Operational control.",
+        "Temporal slack.",
+        "Household coordination capability.",
+        "Ownership.",
+        "Trust.",
+        "Savings motivation.",
+        "Tariff preference.",
+      ],
+    },
   },
   thermal_comfort_norms: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -102,6 +159,24 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 6,
     prompt_notes:
       "Measure comfort expectations with concrete temperature situations. Distinguish preference for stable indoor temperature, tolerance for being slightly warmer/cooler for a limited time, and expectation that the home returns to the chosen temperature. Do not write internally conflicted items such as staying close to the chosen temperature while it is being adjusted. Avoid abstract terms like 'operational adjustments'. Avoid turning this into general flexibility willingness, automation trust, or environmental support.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect comfort-preservation expectations independently of willingness to participate.",
+      high_score_meaning:
+        "Stronger comfort-preservation requirements and lower deviation tolerance.",
+      recommended_facets: [
+        { key: "temperature_stability_requirement", meaning: "need to preserve the chosen indoor temperature." },
+        { key: "temporary_deviation_tolerance", meaning: "tolerance for limited temperature deviation." },
+        { key: "recovery_expectation", meaning: "expectation that the home returns to the chosen temperature." },
+        { key: "comfort_variation_boundary", meaning: "point where thermal variation stops being acceptable." },
+      ],
+      must_not_measure: [
+        "Flexibility willingness.",
+        "Heating/cooling capability.",
+        "Trust.",
+        "General support for demand response.",
+      ],
+    },
   },
   tariff_preference_orientation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -109,6 +184,25 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 6,
     prompt_notes:
       "Measure preference for concrete bill and tariff arrangements, not technical tariff literacy. Use plain situations: same price most of the day, cheaper electricity at certain times, higher prices at busy times, predictable monthly bills, or more effort in exchange for possible savings. Avoid measuring pure savings motivation, generic flexibility willingness, or technical tariff knowledge unless used as a clearly separated facet.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect acceptance of concrete tariff structures and their trade-offs.",
+      high_score_meaning:
+        "Greater acceptance of time-varying or flexibility-linked tariffs.",
+      recommended_facets: [
+        { key: "time_of_use_acceptance", meaning: "acceptance of tariffs with cheaper and costlier times." },
+        { key: "dynamic_price_acceptance", meaning: "acceptance of more variable price structures." },
+        { key: "flexibility_reward_acceptance", meaning: "acceptance of tariff designs that reward shifting use." },
+        { key: "planning_effort_acceptance", meaning: "acceptance of planning effort imposed by tariff timing." },
+        { key: "price_variability_tolerance", meaning: "tolerance for variability or uncertainty in costs." },
+      ],
+      must_not_measure: [
+        "Generic savings motivation.",
+        "Generic bill-stability need.",
+        "Tariff knowledge.",
+        "Generic flexibility willingness.",
+      ],
+    },
   },
   trust_in_automation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -116,6 +210,27 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 6,
     prompt_notes:
       "Measure trust in concrete automated actions at home. Use situations like the system delaying a dishwasher cycle, charging a device later, or making a short heating/cooling adjustment within household settings. Distinguish reliability, predictability, willingness to delegate, oversight need, and trust after minor mistakes. Keep each slot single-focus: do not merge predictability with understandability, delegation with boundary-setting, or mistake tolerance with ease of correction unless that trade-off is explicitly the slot intent. Avoid contaminating this with thermal comfort, incentives, savings, or general technology enthusiasm.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect readiness to rely on automated control, not requirements for override or explanation.",
+      high_score_meaning:
+        "Greater confidence and readiness to delegate suitable actions.",
+      recommended_facets: [
+        { key: "reliability_confidence", meaning: "confidence that the system will act dependably." },
+        { key: "predictability_confidence", meaning: "confidence that the system behaves predictably." },
+        { key: "delegation_readiness", meaning: "readiness to let the system handle a suitable action." },
+        { key: "boundary_respect_expectation", meaning: "expectation that the system stays within stated limits." },
+        { key: "trust_resilience", meaning: "capacity for trust to remain after a minor mistake." },
+      ],
+      must_not_measure: [
+        "Manual override need.",
+        "Monitoring or approval need as a trust proxy.",
+        "Explainability need.",
+        "Comfort.",
+        "Savings.",
+        "General technology enthusiasm.",
+      ],
+    },
   },
   der_engagement: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -123,6 +238,27 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 6,
     prompt_notes:
       "Measure engagement with concrete household energy devices or services: solar panels, home batteries, EV charging, heat pumps, smart thermostats, or energy management apps. Distinguish interest, readiness to use, and perceived relevance. Avoid collapsing it into asset ownership, environmental motivation, or general technology openness.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect position in an engagement/adoption continuum, not ownership or willingness to operate an asset flexibly.",
+      high_score_meaning:
+        "Greater engagement with investigating, considering, adopting or using DER technologies.",
+      recommended_facets: [
+        { key: "personal_relevance", meaning: "whether DER technologies feel relevant to the household." },
+        { key: "information_seeking", meaning: "interest in learning more about DER technologies." },
+        { key: "adoption_consideration", meaning: "active consideration of future adoption." },
+        { key: "adoption_readiness", meaning: "readiness to move toward adoption or setup." },
+        { key: "active_use_engagement", meaning: "engagement with using DER-related tools or services." },
+      ],
+      must_not_measure: [
+        "Ownership.",
+        "Flexible operation.",
+        "Flexibility willingness.",
+        "Capability.",
+        "Generic environmental motivation.",
+        "Generic technology enthusiasm.",
+      ],
+    },
   },
   manual_override_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -130,6 +266,22 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 4,
     prompt_notes:
       "Measure need for human control over one concrete automated action at a time. Ask about cancelling, pausing, changing, or overriding either an appliance delay or a temperature adjustment, but do not combine both domains in the same item. Distinguish desire for immediate override, ability to intervene after an action starts, and comfort with temporary autonomous control. Do not use prior notice or permission-before-action as a proxy for override need unless the slot intent explicitly asks for consent. Avoid treating low trust, thermal discomfort, or technology rejection as the same construct.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect the requirement to cancel, pause or change an automated action.",
+      high_score_meaning: "Stronger intervention requirement.",
+      recommended_facets: [
+        { key: "immediate_intervention_need", meaning: "need to intervene immediately when necessary." },
+        { key: "cancel_pause_need", meaning: "need to cancel or pause an ongoing action." },
+        { key: "post_start_control_need", meaning: "need to change an action after it has started." },
+      ],
+      must_not_measure: [
+        "General distrust.",
+        "Explainability.",
+        "Notification.",
+        "Thermal discomfort.",
+      ],
+    },
   },
   explainability_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -137,6 +289,23 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 4,
     prompt_notes:
       "Measure desire to understand automated decisions using concrete explanation moments. Ask whether the respondent needs to know what changed, why it changed, whether it affected comfort or bills, and how to override it next time. Distinguish explanations before acceptance, explanations after actions, simple summaries versus detailed reasoning, and explanations after unexpected outcomes. Avoid measuring general awareness or trust directly.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect information required about automated actions, reasons and consequences.",
+      high_score_meaning: "Greater explanation requirement.",
+      recommended_facets: [
+        { key: "pre_action_rationale", meaning: "need to know why the system may act before use." },
+        { key: "post_action_explanation", meaning: "need to know what happened after an action." },
+        { key: "impact_explanation", meaning: "need to know effects on comfort, bills or operation." },
+        { key: "explanation_depth", meaning: "need for more detailed rather than minimal explanation." },
+      ],
+      must_not_measure: [
+        "Awareness.",
+        "Trust.",
+        "Override.",
+        "Prior approval.",
+      ],
+    },
   },
   bill_stability_need: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -144,6 +313,21 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 4,
     prompt_notes:
       "Measure need for predictable household energy costs. Use concrete bill situations: stable monthly bill, noticeable month-to-month changes, risk of a high bill, and willingness to accept lower possible savings for more certainty. When this is a central economic concept, prefer 3 distinct items if capacity allows. Avoid measuring pure savings motivation or tariff-model familiarity.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect the requirement for predictable expenditure and protection from high-bill risk.",
+      high_score_meaning: "Greater need for predictability.",
+      recommended_facets: [
+        { key: "monthly_predictability_need", meaning: "need for stable month-to-month expenditure." },
+        { key: "high_bill_risk_aversion", meaning: "aversion to unexpectedly high energy costs." },
+        { key: "certainty_priority", meaning: "preference for certainty over possible upside." },
+      ],
+      must_not_measure: [
+        "Tariff acceptance.",
+        "Savings motivation.",
+        "Tariff literacy.",
+      ],
+    },
   },
   event_frequency_tolerance: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -151,6 +335,21 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 4,
     prompt_notes:
       "Measure tolerance for repeated requests or automated adjustments. When this concept is selected with comfort or override concepts, prefer 3 distinct items if capacity allows: acceptable weekly frequency, cumulative annoyance over time, and a negative-polarity item about repeated events becoming too disruptive. The core signal is frequency, so every item should include a frequency anchor such as several times per week or a few times per month. Duration can be mentioned only as a condition inside a repeated-event item, not as a standalone duration-tolerance item. Do not use advance notice or predictability as a proxy for frequency tolerance unless the slot intent explicitly asks for predictability.",
+    semantic_guidance: {
+      measurement_intent: "Collect tolerance for repeated flexibility events.",
+      high_score_meaning: "Greater recurrence tolerance.",
+      recommended_facets: [
+        { key: "acceptable_recurrence", meaning: "how often events can happen before becoming too much." },
+        { key: "cumulative_intrusiveness", meaning: "whether repetition becomes intrusive over time." },
+        { key: "frequency_boundary", meaning: "point where frequency becomes unacceptable." },
+      ],
+      must_not_measure: [
+        "Standalone duration.",
+        "General willingness.",
+        "Prior notice.",
+        "Single-event inconvenience.",
+      ],
+    },
   },
   savings_motivation: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -158,6 +357,21 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 4,
     prompt_notes:
       "Measure motivation to save money on household energy. Use one decision context per item: lower bill, euro savings, reward, discount, switching plan for savings, monitoring usage for savings, or accepting a delay for savings. Do not combine choosing a tariff with shifting usage in the same item. Do not combine monitoring usage with changing routines in the same item. When this is a central economic concept, prefer 3 distinct items if capacity allows: importance of savings, active effort to reduce costs, and one clean trade-off item. Avoid measuring generic flexibility willingness, tariff preference, or bill predictability.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect the strength of financial benefit as a reason to consider flexibility.",
+      high_score_meaning: "Stronger activation by potential savings.",
+      recommended_facets: [
+        { key: "financial_salience", meaning: "importance of savings in the respondent's reasoning." },
+        { key: "minimum_meaningful_benefit", meaning: "benefit needed before savings feel worthwhile." },
+        { key: "reward_responsiveness", meaning: "responsiveness to financial rewards or discounts." },
+      ],
+      must_not_measure: [
+        "Tariff preference.",
+        "Bill predictability.",
+        "Actual participation.",
+      ],
+    },
   },
   routine_dependency: {
     allowed_measurement_types: ["single_item_direct", "multi_item_likert_mean"],
@@ -165,6 +379,22 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     slot_capacity_max: 4,
     prompt_notes:
       "Measure dependence on stable household routines using concrete daily constraints: work schedules, meals, childcare, sleep, appliance timing, charging needs, or when someone must be at home. Distinguish scheduling rigidity, difficulty moving activities, and need for predictability. Avoid measuring comfort norms or general unwillingness to support flexibility.",
+    semantic_guidance: {
+      measurement_intent:
+        "Collect general scheduling and coordination constraints affecting when activities can occur.",
+      high_score_meaning: "Stronger dependence on fixed schedules.",
+      recommended_facets: [
+        { key: "schedule_rigidity", meaning: "difficulty changing the timing of daily activities." },
+        { key: "household_coordination_constraint", meaning: "constraints created by coordinating with others." },
+        { key: "presence_constraint", meaning: "need for someone to be present at specific times." },
+        { key: "deadline_constraint", meaning: "hard timing requirements imposed by routines or obligations." },
+      ],
+      must_not_measure: [
+        "Unwillingness.",
+        "Thermal comfort.",
+        "Asset-specific capability.",
+      ],
+    },
   },
   owned_der_assets: {
     allowed_measurement_types: ["multi_choice_tag_set"],
@@ -245,6 +475,16 @@ function buildGeneratorTargetConfig(
     );
   }
 
+  if (
+    (concept.concept_role === "primary_profile_axis" ||
+      concept.concept_role === "behavioural_modulator") &&
+    !strategy.semantic_guidance
+  ) {
+    throw new Error(
+      `Missing semantic guidance for planner concept "${concept.concept_key}".`,
+    );
+  }
+
   return {
     ontology_target: concept.schema_target,
     concept,
@@ -253,8 +493,8 @@ function buildGeneratorTargetConfig(
     expected_type: mapOutputTypeToExpectedType(concept.output_type),
     slot_capacity_max: strategy.slot_capacity_max,
     priority: derivePriority(concept),
-    prompt_notes:
-      strategy.prompt_notes.trim() || derivePromptNotes(concept),
+    prompt_notes: strategy.prompt_notes.trim() || derivePromptNotes(concept),
+    semantic_guidance: strategy.semantic_guidance,
     numeric:
       strategy.allowed_measurement_types.includes("numeric_direct")
         ? {
@@ -279,9 +519,7 @@ export const generatorTargetConfigs: GeneratorTargetConfig[] =
 export function getGeneratorTargetConfig(
   ontologyTarget: string,
 ): GeneratorTargetConfig {
-  const config = generatorTargetConfigs.find(
-    (item) => item.ontology_target === ontologyTarget,
-  );
+  const config = generatorTargetConfigs.find((item) => item.ontology_target === ontologyTarget);
 
   if (config) {
     return config;
@@ -314,4 +552,59 @@ export function getGeneratorTargetConfigByConceptKey(
   }
 
   return buildGeneratorTargetConfig(concept);
+}
+
+export const generatorConceptBoundaryRules: GeneratorConceptBoundaryRule[] = [
+  {
+    concept_keys: ["awareness_of_energy_systems", "flexibility_willingness"],
+    instruction:
+      "Recognising how flexibility works is not evidence of willingness to participate.",
+  },
+  {
+    concept_keys: ["awareness_of_energy_systems", "explainability_need"],
+    instruction:
+      "Awareness measures respondent recognition; explainability measures information required from automation.",
+  },
+  {
+    concept_keys: ["flexibility_willingness", "thermal_comfort_norms"],
+    instruction:
+      "Willingness measures consent to an adjustment; thermal norms measure the underlying comfort-preservation requirement.",
+  },
+  {
+    concept_keys: ["flexibility_willingness", "routine_dependency"],
+    instruction:
+      "Willingness measures readiness; routine dependency measures scheduling constraints.",
+  },
+  {
+    concept_keys: ["flexibility_willingness", "der_engagement"],
+    instruction:
+      "Willingness measures acceptance of flexibility actions; DER engagement measures technology engagement and adoption.",
+  },
+  {
+    concept_keys: ["trust_in_automation", "manual_override_need"],
+    instruction:
+      "Trust measures readiness to rely; override measures the requirement to intervene.",
+  },
+  {
+    concept_keys: ["trust_in_automation", "explainability_need"],
+    instruction:
+      "Trust measures readiness to rely; explainability measures information requirements.",
+  },
+  {
+    concept_keys: ["tariff_preference_orientation", "bill_stability_need"],
+    instruction:
+      "Tariff preference measures acceptance of a tariff structure; bill stability measures the underlying need for predictable expenditure.",
+  },
+  {
+    concept_keys: ["tariff_preference_orientation", "savings_motivation"],
+    instruction:
+      "Tariff preference measures product acceptance; savings motivation measures financial motivational salience.",
+  },
+];
+
+export function getActiveGeneratorConceptBoundaryRules(conceptKeys: string[]) {
+  const selected = new Set(conceptKeys);
+  return generatorConceptBoundaryRules.filter(
+    (rule) => selected.has(rule.concept_keys[0]) && selected.has(rule.concept_keys[1]),
+  );
 }

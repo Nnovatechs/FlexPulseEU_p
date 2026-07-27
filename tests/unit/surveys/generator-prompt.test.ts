@@ -39,17 +39,21 @@ describe("measurement planner prompt", () => {
     expect(prompt.system).toContain(
       "the system is not providing a recommended total question budget",
     );
-    expect(prompt.user).toContain(
-      "explicitly protect their boundaries when choosing slot_count",
-    );
     expect(prompt.user).toContain("Application context:");
     expect(prompt.user).toContain("Server-provided planning envelope:");
     expect(prompt.user).toContain("slot_count");
+    expect(prompt.user).toContain("Concept measurement contracts:");
+    expect(prompt.user).toContain("Facet selection policy:");
+    expect(prompt.user).toContain("Required construct-separation rules:");
+    expect(prompt.user).toContain("candidate facets, non-exhaustive");
+    expect(prompt.user).toContain("must not measure:");
+    expect(prompt.user).toContain("high score means:");
     expect(prompt.user).toContain("Concept scores remain canonical downstream");
     expect(prompt.user).toContain("interpretive signal");
     expect(prompt.user).toContain("naming the mechanism, action, or trade-off");
     expect(prompt.user).not.toContain("Recommended visible question budget");
     expect(prompt.user).not.toContain("target 3");
+    expect(prompt.user).not.toContain("oversight_need");
   });
 
   it("injects repair feedback only when present", () => {
@@ -109,8 +113,11 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain("For context-only or quality-only concepts");
   });
 
-  it("passes concept-specific boundaries to planner and writer prompts", () => {
-    const behaviouralConceptKeys = ["savings_motivation", "bill_stability_need"];
+  it("renders active planner boundaries only when both related concepts are selected", () => {
+    const behaviouralConceptKeys = [
+      "tariff_preference_orientation",
+      "bill_stability_need",
+    ];
     const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
       behaviouralConceptKeys,
     );
@@ -131,10 +138,10 @@ describe("measurement planner prompt", () => {
     });
 
     expect(plannerPrompt.user).toContain(
-      "Avoid measuring generic flexibility willingness, tariff preference, or bill predictability",
+      "Tariff preference measures acceptance of a tariff structure; bill stability measures the underlying need for predictable expenditure.",
     );
-    expect(plannerPrompt.user).toContain(
-      "Avoid measuring pure savings motivation or tariff-model familiarity",
+    expect(plannerPrompt.user).not.toContain(
+      "Trust measures readiness to rely; override measures the requirement to intervene.",
     );
 
     const writerPrompt = buildSurveyGeneratorPrompt({
@@ -200,5 +207,56 @@ describe("measurement planner prompt", () => {
     expect(writerPrompt.user).toContain("Not sure / I would need more information");
     expect(writerPrompt.user).toContain("facet: importance");
     expect(writerPrompt.user).toContain("polarity: negative");
+  });
+
+  it("omits inactive planner boundaries when the paired concept is not selected", () => {
+    const behaviouralConceptKeys = ["trust_in_automation"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const plannerPrompt = buildMeasurementPlannerPrompt({
+      surveyName: "Trust survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      behaviouralConceptKeys,
+      schemaTargets,
+      configs,
+      baseMeasurementPlanBlueprint,
+    });
+
+    expect(plannerPrompt.user).not.toContain(
+      "Trust measures readiness to rely; override measures the requirement to intervene.",
+    );
+  });
+
+  it("keeps declared flexibility capability outside the planner prompt", () => {
+    const behaviouralConceptKeys = ["flexibility_willingness"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const plannerPrompt = buildMeasurementPlannerPrompt({
+      surveyName: "Capability boundary survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      behaviouralConceptKeys,
+      schemaTargets,
+      configs,
+      baseMeasurementPlanBlueprint,
+    });
+
+    expect(plannerPrompt.user).toContain("flexibility_willingness");
+    expect(plannerPrompt.user).not.toContain("declared_flexibility_capability");
   });
 });

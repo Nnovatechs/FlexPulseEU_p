@@ -1,4 +1,7 @@
-import { GeneratorTargetConfig } from "./generator-config";
+import {
+  GeneratorTargetConfig,
+  getActiveGeneratorConceptBoundaryRules,
+} from "./generator-config";
 import {
   MeasurementPlanBaseBlueprint,
   MeasurementPlanBlueprint,
@@ -202,20 +205,28 @@ export function buildSurveyGeneratorPrompt(
 export function buildMeasurementPlannerPrompt(
   input: BuildMeasurementPlannerPromptInput,
 ): MeasurementPlannerPrompt {
+  const activeBoundaryRules = getActiveGeneratorConceptBoundaryRules(
+    input.behaviouralConceptKeys,
+  );
   const conceptRules = input.configs
     .map((config, index) =>
       [
         `${index + 1}. ${config.concept.concept_key}`,
-        `   - schema target: ${config.ontology_target}`,
-        `   - label: ${config.concept.label}`,
-        `   - description: ${config.concept.description}`,
-        `   - concept role: ${config.concept.concept_role}`,
-        `   - dimension: ${config.concept.dimension}`,
+        `   - canonical definition: ${config.concept.description}`,
+        ...(config.semantic_guidance
+          ? [
+              `   - measurement intent: ${config.semantic_guidance.measurement_intent}`,
+              `   - high score means: ${config.semantic_guidance.high_score_meaning}`,
+              `   - candidate facets, non-exhaustive: ${config.semantic_guidance.recommended_facets
+                .map((facet) => `${facet.key} - ${facet.meaning}`)
+                .join("; ")}`,
+              `   - must not measure: ${config.semantic_guidance.must_not_measure.join(" | ")}`,
+            ]
+          : []),
         `   - compatible measurement approaches: ${config.allowed_measurement_types.join(", ")}`,
         `   - compatible question formats: ${config.allowed_question_types.join(", ") || "(no visible question)"}`,
-        `   - expected output type: ${config.expected_type}`,
-        `   - visible question capacity: up to ${config.slot_capacity_max} slot(s) if you decide the concept needs survey questions`,
-        `   - planner context notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
+        `   - slot capacity: up to ${config.slot_capacity_max} slot(s) if you decide the concept needs survey questions`,
+        `   - operational notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
       ].join("\n"),
     )
     .join("\n");
@@ -292,8 +303,21 @@ export function buildMeasurementPlannerPrompt(
     "Server-provided planning envelope:",
     blueprintRules,
     "",
-    "Concept-specific planning rules:",
+    "Concept measurement contracts:",
     conceptRules,
+    "",
+    "Facet selection policy:",
+    "- Candidate facets are a non-exhaustive content map, not a mandatory checklist.",
+    "- Select only the smallest coherent subset needed for the survey purpose.",
+    "- Do not use every candidate automatically.",
+    "- You may introduce another facet when justified by the survey context.",
+    "- Alternative facets must remain inside the concept definition and respect excluded content and active boundaries.",
+    "- Different facets must collect distinct evidence rather than paraphrase the same attitude.",
+    "",
+    "Required construct-separation rules:",
+    ...(activeBoundaryRules.length > 0
+      ? activeBoundaryRules.map((rule) => `- ${rule.instruction}`)
+      : ["- No additional construct-separation rules are active for this selected concept set."]),
     "",
     "Planner mission:",
     "- Design the best instrument you can under the methodology contract while keeping respondent burden proportionate.",
@@ -314,7 +338,7 @@ export function buildMeasurementPlannerPrompt(
     "Do not use schema targets such as flexpulse_behavioural_schema.* as concept_key values.",
     "For each concept decide the measurement_type, aggregation_rule, threshold_profile and slot_count yourself.",
     "For each planned survey question slot, provide one slot_intent. slot_intents.length must equal slot_count.",
-    "Use short stable facet labels in snake_case, such as reliability, predictability, delegation_readiness, oversight_need, mistake_tolerance, perceived_understanding, applied_recognition, automation_limits, explanation_before_adoption, explanation_after_action, explanation_depth, inconvenience_tolerance, routine_disruption, cost_vs_convenience_tradeoff or bill_volatility_aversion.",
+    "Use short stable facet labels in snake_case aligned with the semantic guidance or a justified alternative facet.",
     "Facet labels are interpretive measurement roles, not hard diagnostic categories. Concept scores remain canonical downstream.",
     "If a facet has only one planned slot, it will be treated as an interpretive signal. Only reuse the same facet across two or more slots when you intentionally want enough evidence for a facet subscore.",
     "Do not create many one-off facet labels just to sound specific; prefer the smallest reusable label that cleanly separates neighboring constructs.",

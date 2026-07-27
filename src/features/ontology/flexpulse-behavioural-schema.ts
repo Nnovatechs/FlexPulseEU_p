@@ -61,7 +61,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.awareness_of_energy_systems",
     label: "Awareness of energy systems",
     description:
-      "How well the respondent understands energy systems, energy flexibility and the role of automation in household energy management.",
+      "Self-reported recognition of household energy-flexibility mechanisms, including time-varying demand or prices, shiftable loads, system consequences, and the scope and limits of automation.",
     concept_role: "primary_profile_axis",
     dimension: "awareness_of_energy_systems",
     output_type: "number",
@@ -73,7 +73,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.flexibility_willingness",
     label: "Flexibility willingness",
     description:
-      "Overall willingness to participate in flexibility or demand response programmes under realistic domestic conditions.",
+      "Declared readiness to consent to or participate in specific household energy-flexibility actions when those actions are practically feasible.",
     concept_role: "primary_profile_axis",
     dimension: "flexibility_willingness",
     output_type: "number",
@@ -98,7 +98,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.thermal_comfort_norms",
     label: "Thermal comfort norms",
     description:
-      "How strict the respondent is about preserving thermal comfort and how much indoor variation they consider acceptable.",
+      "Strength of the respondent’s preference for preserving their chosen indoor temperature and limiting temporary thermal deviation.",
     concept_role: "primary_profile_axis",
     dimension: "thermal_comfort_norms",
     output_type: "number",
@@ -110,7 +110,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.tariff_preference_orientation",
     label: "Tariff preference orientation",
     description:
-      "Attitudinal orientation toward tariff structures, variability and risk when deciding whether flexibility feels acceptable.",
+      "Declared acceptance of time-varying or flexibility-linked electricity tariffs, including their associated price variability and planning effort.",
     concept_role: "primary_profile_axis",
     dimension: "tariff_preferences",
     output_type: "number",
@@ -122,7 +122,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.trust_in_automation",
     label: "Trust in automation",
     description:
-      "The respondent's readiness to trust automated control in residential energy management under realistic safeguards.",
+      "Readiness to rely on automated household energy control to act competently and predictably within stated operational boundaries.",
     concept_role: "primary_profile_axis",
     dimension: "trust_in_automation",
     output_type: "number",
@@ -134,7 +134,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.der_engagement",
     label: "DER engagement",
     description:
-      "General behavioural engagement with distributed energy resources, including openness to using, adopting and flexibly operating DER-relevant assets.",
+      "Degree of engagement with household distributed-energy technologies across personal relevance, information seeking, adoption consideration, and active use.",
     concept_role: "primary_profile_axis",
     dimension: "der_engagement",
     output_type: "number",
@@ -146,7 +146,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.manual_override_need",
     label: "Manual override need",
     description:
-      "How important manual override capability is before automated energy control feels acceptable.",
+      "Importance of being able to cancel, pause or change an automated action.",
     concept_role: "behavioural_modulator",
     dimension: "trust_in_automation",
     output_type: "number",
@@ -158,7 +158,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.explainability_need",
     label: "Explainability need",
     description:
-      "How strongly the respondent needs transparent explanations before trusting automated control.",
+      "Information required about automated decisions, reasons and consequences.",
     concept_role: "behavioural_modulator",
     dimension: "trust_in_automation",
     output_type: "number",
@@ -170,7 +170,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.bill_stability_need",
     label: "Bill stability need",
     description:
-      "How important it is for the respondent to protect against unstable or unpredictable bills before adopting flexibility or automation.",
+      "Importance of predictable energy expenditure and protection from unexpectedly high bills.",
     concept_role: "behavioural_modulator",
     dimension: "tariff_preferences",
     output_type: "number",
@@ -182,7 +182,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.event_frequency_tolerance",
     label: "Event frequency tolerance",
     description:
-      "How often flexibility events can happen before the programme feels intrusive or unacceptable.",
+      "Degree to which repeated flexibility events remain acceptable over time.",
     concept_role: "behavioural_modulator",
     dimension: "flexibility_willingness",
     output_type: "number",
@@ -194,7 +194,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.savings_motivation",
     label: "Savings motivation",
     description:
-      "How strongly bill savings motivate the respondent to consider flexibility or new tariff arrangements.",
+      "Strength of financial savings as a reason to consider flexibility-related actions.",
     concept_role: "behavioural_modulator",
     dimension: "tariff_preferences",
     output_type: "number",
@@ -206,7 +206,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     schema_target: "flexpulse_behavioural_schema.routine_dependency",
     label: "Routine dependency",
     description:
-      "How strongly daily routines depend on devices or comfort patterns that could be affected by flexibility programmes.",
+      "Degree to which schedules, coordination and recurring obligations constrain when household activities can occur.",
     concept_role: "behavioural_modulator",
     dimension: "der_engagement",
     output_type: "number",

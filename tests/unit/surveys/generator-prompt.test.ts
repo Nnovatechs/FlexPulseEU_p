@@ -7,6 +7,10 @@ import {
 } from "@/features/surveys/survey-generation-prompts";
 import { createMeasurementPlanBlueprint } from "@/features/surveys/measurement-plan";
 
+function countOccurrences(text: string, needle: string) {
+  return text.split(needle).length - 1;
+}
+
 describe("measurement planner prompt", () => {
   it("uses explicit agent blocks instead of a flat instruction blob", () => {
     const behaviouralConceptKeys = ["trust_in_automation"];
@@ -181,6 +185,12 @@ describe("measurement planner prompt", () => {
         })),
       },
     });
+    const tariffPreferenceConfig = configs.find(
+      (config) => config.concept.concept_key === "tariff_preference_orientation",
+    );
+    const billStabilityConfig = configs.find(
+      (config) => config.concept.concept_key === "bill_stability_need",
+    );
 
     expect(writerPrompt.system).toContain(
       "write items that cover distinct facets rather than paraphrases",
@@ -204,13 +214,100 @@ describe("measurement planner prompt", () => {
       "network reliability",
     );
     expect(writerPrompt.user).toContain("lower-demand times");
-    expect(writerPrompt.user).toContain("what the respondent needs to know");
+    expect(writerPrompt.user).not.toContain("   - notes:");
+    expect(tariffPreferenceConfig).toBeDefined();
+    expect(
+      countOccurrences(
+        writerPrompt.user,
+        tariffPreferenceConfig?.prompt_notes ?? "",
+      ),
+    ).toBe(1);
+    expect(writerPrompt.user).toContain(
+      `   - measurement goal: ${tariffPreferenceConfig?.semantic_guidance?.measurement_intent}`,
+    );
+    expect(writerPrompt.user).toContain(
+      `   - excluded evidence: ${tariffPreferenceConfig?.semantic_guidance?.must_not_measure.join(" | ")}`,
+    );
+    expect(writerPrompt.user).toContain(
+      `   - measurement goal: ${billStabilityConfig?.semantic_guidance?.measurement_intent}`,
+    );
+    expect(writerPrompt.user).toContain(
+      `   - excluded evidence: ${billStabilityConfig?.semantic_guidance?.must_not_measure.join(" | ")}`,
+    );
+    expect(writerPrompt.user).not.toContain("measurement goal: undefined");
+    expect(writerPrompt.user).not.toContain("excluded evidence: undefined");
+    expect(writerPrompt.user).not.toContain("candidate facets, non-exhaustive");
+    expect(writerPrompt.user).toContain(
+      "For each slot, first identify the single respondent judgement that would provide the planned evidence.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Write one independently answerable claim about that judgement.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Ensure that the response anchors directly answer the wording used.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Compare sibling items under the same concept and ensure that each item captures distinct planned evidence rather than a paraphrase.",
+    );
+    expect(writerPrompt.user).not.toContain(
+      "how to override it.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Do not turn explainability into manual override or prior approval.",
+    );
     expect(writerPrompt.user).toContain("duration-only item");
     expect(writerPrompt.system).toContain("respondent-facing label");
     expect(writerPrompt.user).toContain("Same price most of the time");
     expect(writerPrompt.user).toContain("Not sure / I would need more information");
     expect(writerPrompt.user).toContain("facet: importance");
     expect(writerPrompt.user).toContain("polarity: negative");
+  });
+
+  it("keeps writer prompts valid for concepts without semantic guidance", () => {
+    const behaviouralConceptKeys = ["preferred_tariff_model"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const writerPrompt = buildSurveyGeneratorPrompt({
+      surveyName: "Tariff choice survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      schemaTargets,
+      configs,
+      measurementPlanBlueprint: {
+        schema_version: 1,
+        schema_namespace: "flexpulse_behavioural_schema",
+        concepts: baseMeasurementPlanBlueprint.concepts.map((concept) => ({
+          ...concept,
+          measurement_type: "single_choice_enum",
+          aggregation_rule: "identity",
+          threshold_profile: "enum_identity",
+          minimum_answer_count: 1,
+          question_slots: [
+            {
+              slot_key: `${concept.concept_key}_slot_1`,
+              facet: "tariff_choice",
+              intent: "Measure preferred tariff model.",
+              polarity: "neutral",
+            },
+          ],
+        })),
+      },
+    });
+
+    expect(writerPrompt.user).not.toContain("measurement goal: undefined");
+    expect(writerPrompt.user).not.toContain("excluded evidence: undefined");
+    expect(writerPrompt.user).not.toContain("   - measurement goal:");
+    expect(writerPrompt.user).not.toContain("   - excluded evidence:");
+    expect(writerPrompt.user).toContain("Measure preferred tariff model.");
+    expect(writerPrompt.user).toContain("facet: tariff_choice");
+    expect(writerPrompt.user).toContain("polarity: neutral");
   });
 
   it("omits inactive planner boundaries when the paired concept is not selected", () => {

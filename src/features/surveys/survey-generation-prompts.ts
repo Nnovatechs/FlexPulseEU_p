@@ -61,7 +61,12 @@ export function buildSurveyGeneratorPrompt(
         `   - compatible question formats: ${config.allowed_question_types.join(", ") || "(planner decides no visible question)"}`,
         `   - expected mapped value type: ${config.expected_type}`,
         `   - priority: ${config.priority}`,
-        `   - notes: ${config.prompt_notes}`,
+        ...(config.semantic_guidance
+          ? [
+              `   - measurement goal: ${config.semantic_guidance.measurement_intent}`,
+              `   - excluded evidence: ${config.semantic_guidance.must_not_measure.join(" | ")}`,
+            ]
+          : []),
         `   - methodology notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
       ].join("\n");
     })
@@ -161,7 +166,11 @@ export function buildSurveyGeneratorPrompt(
     "- For positive-polarity slots, write an item where higher agreement indicates more of the target construct.",
     "- For negative-polarity slots, write an item where higher agreement indicates the opposite or limiting side of the construct.",
     "- For neutral-polarity slots, use factual or categorical wording without implying high/low construct direction.",
-    "- Before writing each item, state internally what the question is trying to find out in plain words. The final title must make that purpose obvious to a non-expert respondent.",
+    "- For each slot, first identify the single respondent judgement that would provide the planned evidence.",
+    "- Write one independently answerable claim about that judgement. A condition or example may clarify the claim, but it must not introduce a second construct.",
+    "- Use only conditions required by the slot intent. Do not make acceptance artificially easy through favourable but undefined conditions.",
+    "- Ensure that the response anchors directly answer the wording used.",
+    "- Compare sibling items under the same concept and ensure that each item captures distinct planned evidence rather than a paraphrase.",
     "- A strong item names a concrete action, object, situation, or trade-off. Avoid abstract nouns when a household example would be clearer.",
     "- Use one primary example domain per item. Do not write 'temperature change or appliance delay' style items unless the slot intent explicitly compares those domains.",
     "- Each item should feel like a realistic household decision, concern, motivation, or limit, not like a description of the energy system.",
@@ -172,7 +181,7 @@ export function buildSurveyGeneratorPrompt(
     "- For savings motivation, ask about money, bills, rewards, or willingness to accept inconvenience for savings.",
     "- For bill stability, ask about predictable bills, month-to-month changes, or lower savings in exchange for certainty.",
     "- For automation trust, ask about delegating a concrete task to an automated system; do not mix trust with explanation need or manual override unless the slot intent explicitly asks for that boundary.",
-    "- For explainability, ask what the respondent needs to know: what changed, why it changed, effect on comfort/bill, or how to override it.",
+    "- For explainability, ask what information the respondent requires about an automated action: what changed, why it changed, and its consequences for comfort, costs, or device operation. Do not turn explainability into manual override or prior approval.",
     "- For comfort and override, prioritize the respondent's comfort/control judgement and avoid turning the item into support for a programme.",
     "- For event-frequency tolerance, every item should include a frequency anchor such as several times per week or a few times per month. Do not make a duration-only item for this concept.",
     "- For tariff single-choice options, the label must be a plain-language description, not an internal value like dynamic_price or shift_rewards. Good labels look like 'Same price most of the time', 'Cheaper electricity at certain times of day', 'Rewards for shifting use when asked', 'Prices change often, with more risk and possible savings', or 'Not sure / I would need more information'.",
@@ -181,8 +190,6 @@ export function buildSurveyGeneratorPrompt(
     "- The title must be the actual question or statement shown to the respondent.",
     "- The description must never carry the main semantic burden of the item.",
     "- When a concept blueprint contains multiple slots, generate separate questions for those slots. Never compress multiple statements into one question.",
-    "- When a concept blueprint contains multiple slots, make each question cover a distinct facet implied by the target-specific notes.",
-    "- Do not fill extra slots with mild rewordings of the same attitude.",
     "- Do not borrow content from neighboring constructs just to make items sound more varied.",
     "- Do not use matrix wording like 'Please rate your agreement with the following statements' unless the actual statements are returned as separate questions.",
     "- Use multiple_choice for conditions, barriers, motivators, accepted scopes, or device lists.",

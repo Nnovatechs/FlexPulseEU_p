@@ -10,6 +10,11 @@ import {
   SurveyGeneratorLLMOutput,
   SurveyGeneratorLLMQuestion,
 } from "./survey-generation-contracts";
+import {
+  getCanonicalDerAssetOptionLabel,
+  isDerAssetInventoryTarget,
+} from "./asset-option-labels";
+import { getCanonicalPreferredTariffOptionLabel } from "./tariff-option-labels";
 
 type TransformGeneratedSurveyInput = {
   output: SurveyGeneratorLLMOutput;
@@ -127,23 +132,6 @@ function normalizeQuestionCopy(question: SurveyGeneratorLLMQuestion) {
   };
 }
 
-export const PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE: Record<string, string> = {
-  fixed_price: "Same price most of the time",
-  fixed_tariff: "Same price most of the time",
-  same_price: "Same price most of the time",
-  time_of_use: "Cheaper electricity at certain times of day",
-  tou: "Cheaper electricity at certain times of day",
-  shift_rewards: "Rewards for shifting use when asked",
-  shift_reward: "Rewards for shifting use when asked",
-  flexibility_rewards: "Rewards for shifting use when asked",
-  dynamic_price: "Prices change often, with more risk and possible savings",
-  dynamic_pricing: "Prices change often, with more risk and possible savings",
-  variable_pricing: "Prices change often, with more risk and possible savings",
-  not_sure: "Not sure / I would need more information",
-  unsure: "Not sure / I would need more information",
-  dont_know: "Not sure / I would need more information",
-};
-
 const PREFERRED_TARIFF_CANONICAL_VALUE_BY_ALIAS: Record<string, string> = {
   fixed_price: "same_price",
   fixed_tariff: "same_price",
@@ -177,9 +165,15 @@ function normalizePreferredTariffOntologyValue(value: string) {
   return PREFERRED_TARIFF_CANONICAL_VALUE_BY_ALIAS[normalized] ?? normalized;
 }
 
-function getPreferredTariffOptionLabel(option: SurveyGeneratorLLMQuestion["options"][number]) {
+function getPreferredTariffOptionLabel(
+  option: SurveyGeneratorLLMQuestion["options"][number],
+  defaultLanguage: string,
+) {
   const normalizedValue = normalizePreferredTariffOntologyValue(option.ontology_value);
-  const canonical = PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE[normalizedValue];
+  const canonical = getCanonicalPreferredTariffOptionLabel(
+    normalizedValue,
+    defaultLanguage,
+  );
   if (canonical) {
     return canonical;
   }
@@ -187,7 +181,10 @@ function getPreferredTariffOptionLabel(option: SurveyGeneratorLLMQuestion["optio
   return option.label.trim();
 }
 
-function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
+function normalizeChoiceOptions(
+  question: SurveyGeneratorLLMQuestion,
+  defaultLanguage: string,
+) {
   const baseKeys = question.options.map((option) =>
     slugify(
       question.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model"
@@ -205,7 +202,12 @@ function normalizeChoiceOptions(question: SurveyGeneratorLLMQuestion) {
         : option.ontology_value.trim(),
     label:
       question.ontology_target === "flexpulse_behavioural_schema.preferred_tariff_model"
-        ? getPreferredTariffOptionLabel(option)
+        ? getPreferredTariffOptionLabel(option, defaultLanguage)
+        : isDerAssetInventoryTarget(question.ontology_target)
+          ? getCanonicalDerAssetOptionLabel(
+              option.ontology_value,
+              defaultLanguage,
+            ) ?? option.label.trim()
         : option.label.trim(),
     is_truthy: option.is_truthy,
   }));
@@ -367,7 +369,10 @@ export function transformGeneratedSurvey(
       );
     }
     slotBindings[normalizedQuestion.slot_key] = questionKey;
-    const normalizedOptions = normalizeChoiceOptions(normalizedQuestion);
+    const normalizedOptions = normalizeChoiceOptions(
+      normalizedQuestion,
+      input.defaultLanguage,
+    );
 
     questions.push({
       question_key: questionKey,

@@ -43,6 +43,7 @@ import type {
   MeasurementPlanBlueprint,
 } from "./measurement-plan";
 import { timeSurveyStep } from "./local-timing";
+import { getCanonicalDerAssetOptionLabel } from "./asset-option-labels";
 
 type GenerateSurveyDraftProposalInput = {
   survey: PersistedSurvey;
@@ -433,7 +434,12 @@ function compileWriterOutputWithDeclaredFlexibilityCapability(input: {
                 )?.label;
                 return [
                   option.option_key,
-                  writerLabel?.trim() || humanizeOptionValue(option.option_key),
+                  getCanonicalDerAssetOptionLabel(
+                    option.option_key,
+                    context.defaultLanguage,
+                  ) ||
+                    writerLabel?.trim() ||
+                    humanizeOptionValue(option.option_key),
                 ];
               }),
             ),

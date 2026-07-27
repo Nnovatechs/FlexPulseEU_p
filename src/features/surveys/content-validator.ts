@@ -463,6 +463,7 @@ async function checkSemanticAlignment(
     "asking about food preferences when the concept is energy flexibility willingness. " +
     "Do NOT fail questions for minor wording imperfections, minor subjectivity, or harmless phrasing differences when the item is still clear, publishable and aligned with the planned intent. " +
     "Only flag semantic mismatches that would produce data unmappable to the stated concept or to the planned slot intent. " +
+    "For system-owned owned_der_assets and interested_der_assets inventories, it can be intentional to mix DER assets, household systems, and flexible appliances for applicability and capability branching. Do not fail those inventories merely for mixing those classes. Also do not treat 'None of these' or 'Not sure' as conflicting by default when they are exclusive sentinel options controlled by the system. Only flag genuinely ambiguous respondent-facing labels or wording that makes the categories hard to interpret. " +
     untrustedContentNotice;
 
   const userPrompt =

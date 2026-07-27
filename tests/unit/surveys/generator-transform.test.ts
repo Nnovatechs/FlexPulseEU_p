@@ -307,6 +307,95 @@ describe("generator transform", () => {
     });
   });
 
+  it("localizes preferred tariff labels in Spanish", () => {
+    const baseDefinition = createInitialSurveyDefinition("Spanish", ["Spanish"]);
+    const measurementPlanBlueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["preferred_tariff_model"]),
+      {
+        concepts: [
+          {
+            concept_key: "preferred_tariff_model",
+            measurement_type: "single_choice_enum",
+            aggregation_rule: "identity",
+            threshold_profile: "enum_identity",
+            slot_count: 1,
+            slot_intents: [
+              {
+                facet: "tariff_choice",
+                intent: "Measure preferred tariff model.",
+                polarity: "neutral",
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    const result = transformGeneratedSurvey({
+      output: {
+        survey_title: "Encuesta de tarifa",
+        survey_description: "Mide la preferencia tarifaria.",
+        estimated_completion_minutes: 2,
+        questions: [
+          {
+            slot_key: "SLOT_PREFERRED_TARIFF_MODEL_01",
+            title: "¿Qué tipo de tarifa eléctrica preferiría para su hogar?",
+            description: "",
+            ontology_target: "flexpulse_behavioural_schema.preferred_tariff_model",
+            type: "single_choice",
+            options: [
+              {
+                label: "same price",
+                ontology_value: "same_price",
+                is_truthy: true,
+              },
+              {
+                label: "time based",
+                ontology_value: "time_of_use",
+                is_truthy: true,
+              },
+              {
+                label: "rewards",
+                ontology_value: "shift_rewards",
+                is_truthy: true,
+              },
+              {
+                label: "variable price",
+                ontology_value: "dynamic_price",
+                is_truthy: true,
+              },
+              {
+                label: "not sure",
+                ontology_value: "not_sure",
+                is_truthy: true,
+              },
+            ],
+            scale: null,
+            numeric: null,
+          },
+        ],
+      },
+      baseDefinition,
+      defaultLanguage: "Spanish",
+      supportedLanguages: ["Spanish"],
+      ontologyTargets: ["flexpulse_behavioural_schema.preferred_tariff_model"],
+      measurementPlanBlueprint,
+      fallbackSurveyTitle: "Encuesta de tarifa",
+      fallbackSurveyDescription: "Mide la preferencia tarifaria.",
+    });
+
+    expect(
+      result.definition.translations.Spanish.questions.Q_PREFERRED_TARIFF_MODEL_01?.options,
+    ).toEqual({
+      same_price: "El mismo precio la mayor parte del tiempo",
+      time_of_use: "Electricidad más barata en ciertas horas del día",
+      shift_rewards: "Recompensas por desplazar el consumo cuando se solicite",
+      dynamic_price:
+        "Los precios cambian con frecuencia, con más riesgo y posible ahorro",
+      not_sure: "No lo sé / necesitaría más información",
+    });
+  });
+
   it("canonicalizes preferred tariff ontology values from common writer aliases", () => {
     const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
     const measurementPlanBlueprint = applyMeasurementPlannerOutput(
@@ -396,6 +485,162 @@ describe("generator transform", () => {
       same_price: "same_price",
       time_of_use: "time_of_use",
       dynamic_price: "dynamic_price",
+    });
+  });
+
+  it("uses canonical respondent-facing labels for DER asset inventories", () => {
+    const baseDefinition = createInitialSurveyDefinition("English", ["English"]);
+    const measurementPlanBlueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["owned_der_assets"]),
+      {
+        concepts: [
+          {
+            concept_key: "owned_der_assets",
+            measurement_type: "multi_choice_tag_set",
+            aggregation_rule: "set_union",
+            threshold_profile: "asset_inventory",
+            slot_count: 1,
+            slot_intents: [
+              {
+                facet: "asset_inventory",
+                intent: "Capture the household energy assets or flexible appliances that are present.",
+                polarity: "neutral",
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    const result = transformGeneratedSurvey({
+      output: {
+        survey_title: "Asset survey",
+        survey_description: "Measures household assets.",
+        estimated_completion_minutes: 2,
+        questions: [
+          {
+            slot_key: "SLOT_OWNED_DER_ASSETS_01",
+            title:
+              "Which of these energy-related assets or flexible appliances are present in your household or regularly available to you?",
+            description: "",
+            ontology_target: "flexpulse_behavioural_schema.owned_der_assets",
+            type: "multiple_choice",
+            options: [
+              {
+                label: "Inverter",
+                ontology_value: "inverter",
+                is_truthy: true,
+              },
+              {
+                label: "Programmable appliance",
+                ontology_value: "programmable_appliance",
+                is_truthy: true,
+              },
+              {
+                label: "Heating system",
+                ontology_value: "heating_system",
+                is_truthy: true,
+              },
+            ],
+            scale: null,
+            numeric: null,
+          },
+        ],
+      },
+      baseDefinition,
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      ontologyTargets: ["flexpulse_behavioural_schema.owned_der_assets"],
+      measurementPlanBlueprint,
+      fallbackSurveyTitle: "Asset survey",
+      fallbackSurveyDescription: "Measures household assets.",
+    });
+
+    expect(
+      result.definition.translations.English.questions.Q_OWNED_DER_ASSETS_01?.options,
+    ).toEqual({
+      inverter: "Solar or battery inverter (if you know you have one)",
+      programmable_appliance: "Appliance with a timer or delayed-start setting",
+      heating_system: "Home heating system (other than a heat pump)",
+    });
+  });
+
+  it("uses localized canonical labels for DER asset inventories in Spanish", () => {
+    const baseDefinition = createInitialSurveyDefinition("Spanish", ["Spanish"]);
+    const measurementPlanBlueprint = applyMeasurementPlannerOutput(
+      createMeasurementPlanBlueprint(["interested_der_assets"]),
+      {
+        concepts: [
+          {
+            concept_key: "interested_der_assets",
+            measurement_type: "multi_choice_tag_set",
+            aggregation_rule: "set_union",
+            threshold_profile: "asset_inventory",
+            slot_count: 1,
+            slot_intents: [
+              {
+                facet: "asset_interest",
+                intent: "Capture the household energy assets or flexible appliances the respondent may be interested in.",
+                polarity: "neutral",
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    const result = transformGeneratedSurvey({
+      output: {
+        survey_title: "Encuesta de activos",
+        survey_description: "Mide el interés por activos del hogar.",
+        estimated_completion_minutes: 2,
+        questions: [
+          {
+            slot_key: "SLOT_INTERESTED_DER_ASSETS_01",
+            title:
+              "¿En cuáles de estas tecnologías o equipos de energía para el hogar tendría interés de cara al futuro?",
+            description: "",
+            ontology_target: "flexpulse_behavioural_schema.interested_der_assets",
+            type: "multiple_choice",
+            options: [
+              {
+                label: "Inverter",
+                ontology_value: "inverter",
+                is_truthy: true,
+              },
+              {
+                label: "Programmable appliance",
+                ontology_value: "programmable_appliance",
+                is_truthy: true,
+              },
+              {
+                label: "Heating system",
+                ontology_value: "heating_system",
+                is_truthy: true,
+              },
+            ],
+            scale: null,
+            numeric: null,
+          },
+        ],
+      },
+      baseDefinition,
+      defaultLanguage: "Spanish",
+      supportedLanguages: ["Spanish"],
+      ontologyTargets: ["flexpulse_behavioural_schema.interested_der_assets"],
+      measurementPlanBlueprint,
+      fallbackSurveyTitle: "Encuesta de activos",
+      fallbackSurveyDescription: "Mide el interés por activos del hogar.",
+    });
+
+    expect(
+      result.definition.translations.Spanish.questions.Q_INTERESTED_DER_ASSETS_01?.options,
+    ).toEqual({
+      inverter: "Inversor solar o de batería (si sabe que dispone de uno)",
+      programmable_appliance:
+        "Electrodoméstico con temporizador o función de inicio diferido",
+      heating_system:
+        "Sistema de calefacción del hogar (que no sea una bomba de calor)",
     });
   });
 

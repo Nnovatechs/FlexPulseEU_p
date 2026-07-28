@@ -129,14 +129,14 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure willingness to adapt concrete household actions. Name the action and trade-off: delaying laundry, running the dishwasher later, charging a device/EV later, accepting a short heating or cooling adjustment, or refusing disruption to a routine. Distinguish general openness, inconvenience tolerance, routine disruption, and boundary conditions. Avoid vague phrases like 'shift some household electricity use', 'normal home life', or 'if needed'. Avoid contaminating this construct with trust in automation, savings motivation, or tariff preference unless the survey brief explicitly asks for that trade-off.",
+      "Measure willingness to accept concrete household timing or comfort changes. Name the action and its minimum trade-off, such as delaying a non-urgent task until later the same day, charging later, accepting a short thermal adjustment, or refusing disruption to an important routine. For participation_intention, do not hide willingness behind favourable undefined conditions such as 'when feasible', 'when practical', 'when suitable' or 'when it fits'; specify what action or inconvenience the arrangement may require. Keep willingness separate from capability, trust, savings motivation and tariff preference.",
     semantic_guidance: {
       measurement_intent:
         "Collect whether the respondent would accept a concrete flexibility action, not whether the household can execute it.",
       high_score_meaning:
         "Greater declared readiness to participate in flexibility actions.",
       recommended_facets: [
-        { key: "participation_intention", meaning: "readiness to participate in a concrete arrangement." },
+        { key: "participation_intention", meaning: "readiness to join an arrangement that requires a defined, non-urgent timing change." },
         { key: "appliance_shift_acceptance", meaning: "acceptance of moving an appliance task." },
         { key: "temporary_thermal_adjustment_acceptance", meaning: "acceptance of a limited thermal adjustment." },
         { key: "inconvenience_acceptance", meaning: "acceptance of a defined inconvenience." },
@@ -158,7 +158,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure comfort expectations with concrete temperature situations. Distinguish preference for stable indoor temperature, tolerance for being slightly warmer/cooler for a limited time, and expectation that the home returns to the chosen temperature. Do not write internally conflicted items such as staying close to the chosen temperature while it is being adjusted. Avoid abstract terms like 'operational adjustments'. Avoid turning this into general flexibility willingness, automation trust, or environmental support.",
+      "Measure comfort expectations with concrete temperature situations. Distinguish temperature stability, tolerance for a limited deviation, recovery expectations, and the point where variation becomes unacceptable. Polarity follows the construct direction, not the linguistic tone of the statement: agreement with tolerance for deviation is negative evidence; agreement with stability requirements, prompt recovery, rejection or intolerance of deviation is positive evidence. Avoid internally conflicted items, abstract operational language, and drift into willingness, trust or programme support.",
     semantic_guidance: {
       measurement_intent:
         "Collect comfort-preservation expectations independently of willingness to participate.",
@@ -166,9 +166,9 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
         "Stronger comfort-preservation requirements and lower deviation tolerance.",
       recommended_facets: [
         { key: "temperature_stability_requirement", meaning: "need to preserve the chosen indoor temperature." },
-        { key: "temporary_deviation_tolerance", meaning: "tolerance for limited temperature deviation." },
+        { key: "temporary_deviation_tolerance", meaning: "tolerance for limited temperature deviation; agreement expressing tolerance must use negative polarity." },
         { key: "recovery_expectation", meaning: "expectation that the home returns to the chosen temperature." },
-        { key: "comfort_variation_boundary", meaning: "point where thermal variation stops being acceptable." },
+        { key: "comfort_variation_boundary", meaning: "point where thermal variation becomes unacceptable; agreement expressing rejection or intolerance must use positive polarity." },
       ],
       must_not_measure: [
         "Flexibility willingness.",
@@ -209,7 +209,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure trust in concrete automated actions at home. Use situations like the system delaying a dishwasher cycle, charging a device later, or making a short heating/cooling adjustment within household settings. Distinguish reliability confidence, predictability confidence, readiness to delegate, expectation that the system respects predefined operational boundaries, and trust after minor mistakes. Keep each slot single-focus: do not merge predictability with understandability, delegation with override or approval requirements, or trust resilience with ease of correction. Avoid contaminating this with manual override need, explainability need, thermal comfort, incentives, savings, or general technology enthusiasm.",
+      "Measure trust in concrete automated actions at home. Use situations like the system delaying a dishwasher cycle, charging a device later, or making a short heating/cooling adjustment within household settings. Distinguish reliability confidence, predictability confidence, readiness to delegate, expectation that the system respects predefined operational boundaries, and trust after minor mistakes. When delegation_readiness and boundary_respect_expectation are both selected, delegation measures handing off one suitable action without manual handling each time. Settings, limits, schedules and predefined conditions belong to boundary_respect_expectation and must not be used to qualify the delegation slot. Keep each slot single-focus: do not merge predictability with understandability, delegation with override or approval requirements, or trust resilience with ease of correction. Avoid contaminating this with manual override need, explainability need, thermal comfort, incentives, savings, or general technology enthusiasm.",
     semantic_guidance: {
       measurement_intent:
         "Collect readiness to rely on automated control, not requirements for override or explanation.",
@@ -218,8 +218,8 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
       recommended_facets: [
         { key: "reliability_confidence", meaning: "confidence that the system will act dependably." },
         { key: "predictability_confidence", meaning: "confidence that the system behaves predictably." },
-        { key: "delegation_readiness", meaning: "readiness to let the system handle a suitable action." },
-        { key: "boundary_respect_expectation", meaning: "expectation that the system stays within stated limits." },
+        { key: "delegation_readiness", meaning: "readiness to let the system handle one suitable action without manual handling each time." },
+        { key: "boundary_respect_expectation", meaning: "confidence that the system stays within household-defined settings and limits." },
         { key: "trust_resilience", meaning: "capacity for trust to remain after a minor mistake." },
       ],
       must_not_measure: [
@@ -237,7 +237,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure engagement with concrete household energy devices or services: solar panels, home batteries, EV charging, heat pumps, smart thermostats, or energy management apps. Distinguish interest, readiness to use, and perceived relevance. Avoid collapsing it into asset ownership, environmental motivation, or general technology openness.",
+      "Measure engagement with concrete household energy devices or services: solar panels, home batteries, EV charging, heat pumps, smart thermostats, or energy management apps. Distinguish interest, readiness to use, and perceived relevance. For active_use_engagement, measure one behaviour: actual use of an available DER-related tool or service. Do not combine 'pay attention to' and 'use' in the same slot. Select this facet only when the survey population or branching establishes access to a relevant tool or service; otherwise prefer personal relevance, information-seeking, adoption consideration or adoption readiness. Avoid collapsing it into asset ownership, environmental motivation, or general technology openness.",
     semantic_guidance: {
       measurement_intent:
         "Collect position in an engagement/adoption continuum, not ownership or willingness to operate an asset flexibly.",
@@ -248,7 +248,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
         { key: "information_seeking", meaning: "interest in learning more about DER technologies." },
         { key: "adoption_consideration", meaning: "active consideration of future adoption." },
         { key: "adoption_readiness", meaning: "readiness to move toward adoption or setup." },
-        { key: "active_use_engagement", meaning: "engagement with using DER-related tools or services." },
+        { key: "active_use_engagement", meaning: "active use of a DER-related tool or service when access is established." },
       ],
       must_not_measure: [
         "Ownership.",

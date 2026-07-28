@@ -121,6 +121,93 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain("For context-only or quality-only concepts");
   });
 
+  it("propagates focused planner guidance for thermal, willingness, trust and DER engagement", () => {
+    const behaviouralConceptKeys = [
+      "thermal_comfort_norms",
+      "flexibility_willingness",
+      "trust_in_automation",
+      "der_engagement",
+    ];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const prompt = buildMeasurementPlannerPrompt({
+      surveyName: "Core behavioural survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      behaviouralConceptKeys,
+      schemaTargets,
+      configs,
+      baseMeasurementPlanBlueprint,
+    });
+
+    const thermalConfig = configs.find(
+      (config) => config.concept.concept_key === "thermal_comfort_norms",
+    );
+    const willingnessConfig = configs.find(
+      (config) => config.concept.concept_key === "flexibility_willingness",
+    );
+    const trustConfig = configs.find(
+      (config) => config.concept.concept_key === "trust_in_automation",
+    );
+    const derConfig = configs.find(
+      (config) => config.concept.concept_key === "der_engagement",
+    );
+
+    expect(thermalConfig).toBeDefined();
+    expect(willingnessConfig).toBeDefined();
+    expect(trustConfig).toBeDefined();
+    expect(derConfig).toBeDefined();
+
+    expect(
+      countOccurrences(prompt.user, thermalConfig?.prompt_notes ?? ""),
+    ).toBe(1);
+    expect(
+      countOccurrences(prompt.user, willingnessConfig?.prompt_notes ?? ""),
+    ).toBe(1);
+    expect(
+      countOccurrences(prompt.user, trustConfig?.prompt_notes ?? ""),
+    ).toBe(1);
+    expect(
+      countOccurrences(prompt.user, derConfig?.prompt_notes ?? ""),
+    ).toBe(1);
+
+    expect(prompt.user).toContain(
+      "Polarity follows the construct direction, not the linguistic tone of the statement",
+    );
+    expect(prompt.user).toContain(
+      "agreement with tolerance for deviation is negative evidence",
+    );
+    expect(prompt.user).toContain(
+      "agreement with stability requirements, prompt recovery, rejection or intolerance of deviation is positive evidence",
+    );
+    expect(prompt.user).toContain("'when feasible'");
+    expect(prompt.user).toContain("'when practical'");
+    expect(prompt.user).toContain("'when suitable'");
+    expect(prompt.user).toContain("'when it fits'");
+    expect(prompt.user).toContain(
+      "specify what action or inconvenience the arrangement may require",
+    );
+    expect(prompt.user).toContain(
+      "delegation measures handing off one suitable action without manual handling each time",
+    );
+    expect(prompt.user).toContain(
+      "Settings, limits, schedules and predefined conditions belong to boundary_respect_expectation",
+    );
+    expect(prompt.user).toContain(
+      "Do not combine 'pay attention to' and 'use' in the same slot",
+    );
+    expect(prompt.user).toContain(
+      "Select this facet only when the survey population or branching establishes access to a relevant tool or service",
+    );
+  });
+
   it("renders active planner boundaries only when both related concepts are selected", () => {
     const behaviouralConceptKeys = [
       "tariff_preference_orientation",

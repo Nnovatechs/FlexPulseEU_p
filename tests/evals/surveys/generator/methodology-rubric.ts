@@ -154,7 +154,7 @@ export async function evaluateGeneratedSurveyMethodology(input: {
             // product reviewers, not only by survey-methodology specialists.
             scoring_guidance: {
               constructAlignment:
-                "Do items measure the intended construct rather than adjacent constructs?",
+                "Do items measure the intended construct rather than adjacent constructs? Verify that each item's planned polarity is coherent with the item wording and the direction of the construct. Linguistic negation alone does not make an item negative.",
               measurementDepthAdequacy:
                 "Does each behavioural or psychological construct have enough distinct items for a defensible profiling signal, considering the fixture purpose? Do not penalize a factual applicability_factor or enum preference for being single-item if the option wording is clear and analyzable.",
               questionClarity:

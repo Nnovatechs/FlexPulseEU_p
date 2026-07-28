@@ -47,9 +47,66 @@ export type MeasurementPlannerPrompt = {
   user: string;
 };
 
+const canonicalLanguageProfiles: Record<
+  string,
+  {
+    locale: string;
+    register: string;
+    surveyStyle: string;
+    inclusivity: string;
+  }
+> = {
+  English: {
+    locale: "International English",
+    register: "neutral, professional and accessible",
+    surveyStyle:
+      "natural direct questions or first-person statements; consistent throughout",
+    inclusivity:
+      "prefer natural inclusive reformulation over awkward repeated forms",
+  },
+  Spanish: {
+    locale: "Spain Spanish (es-ES)",
+    register: "neutral, professional and accessible",
+    surveyStyle:
+      "natural direct questions or first-person statements; consistent throughout",
+    inclusivity:
+      "prefer naturally inclusive reformulation over slash forms or duplicated gender endings",
+  },
+  French: {
+    locale: "France French (fr-FR)",
+    register: "neutral, professional and accessible",
+    surveyStyle:
+      "natural direct questions or first-person statements; consistent throughout",
+    inclusivity:
+      "prefer naturally inclusive reformulation over awkward duplicated forms",
+  },
+  Croatian: {
+    locale: "Standard Croatian",
+    register: "neutral, professional and accessible",
+    surveyStyle:
+      "natural direct questions or first-person statements; consistent throughout",
+    inclusivity:
+      "prefer naturally inclusive reformulation over awkward duplicated forms",
+  },
+};
+
+function getCanonicalLanguageProfile(language: string) {
+  return (
+    canonicalLanguageProfiles[language] ?? {
+      locale: `${language} (default locale)`,
+      register: "neutral, professional and accessible",
+      surveyStyle:
+        "natural direct questions or first-person statements; consistent throughout",
+      inclusivity:
+        "prefer naturally inclusive reformulation when the language allows it",
+    }
+  );
+}
+
 export function buildSurveyGeneratorPrompt(
   input: BuildSurveyGeneratorPromptInput,
 ): SurveyGeneratorPrompt {
+  const languageProfile = getCanonicalLanguageProfile(input.defaultLanguage);
   const targetRules = input.configs
     .map((config, index) => {
       return [
@@ -108,6 +165,15 @@ export function buildSurveyGeneratorPrompt(
   const system = [
     "You are a survey generation engine for FlexPulseEU.",
     "Realize an already-planned behavioural measurement instrument in the canonical language only.",
+    "Canonical-language writing contract:",
+    "Write directly in the selected canonical language as a native survey author; do not translate or mirror the wording of the English metadata.",
+    "Definitions, notes, examples and planner intents are semantic specifications, not source sentences.",
+    "Treat each planner intent as binding for meaning, facet and polarity, but not for vocabulary, syntax or phrase structure.",
+    "Reconstruct each item from the intended respondent judgement using idiomatic, respondent-facing language.",
+    "Replace internal technical expressions and English noun chains with natural wording understood on first reading.",
+    "Keep one consistent register, grammatical perspective and survey style across the survey.",
+    "Prefer naturally inclusive reformulation over slash forms or duplicated gender endings when the language allows it.",
+    "Examples in the prompt illustrate meaning only and must not be translated literally.",
     "Return JSON only.",
     "Do not invent schema targets or slot keys outside the allowed list.",
     "Do not ask for direct personal identifiers.",
@@ -138,7 +204,7 @@ export function buildSurveyGeneratorPrompt(
     "Follow each slot's facet, intent and polarity when writing the question.",
     "Every respondent-facing question generated from the blueprint is mandatory by system design.",
     "Do not return a required field for questions; the system applies obligatoriness automatically.",
-    "For system-locked DFC module slots, provide faithful canonical-language title and description copy for every exact slot_key. For each locked DFC rating slot, also provide natural canonical-language min_label and max_label anchors. The compiler, not you, owns question keys, question types, numeric scale min/max/step, option keys and values, order, facets, visibility, mappings, aggregation and scoring.",
+    "For system-locked DFC module slots, provide native respondent-facing wording that preserves the locked slot meaning for every exact slot_key. For each locked DFC rating slot, also provide natural canonical-language min_label and max_label anchors. The compiler, not you, owns question keys, question types, numeric scale min/max/step, option keys and values, order, facets, visibility, mappings, aggregation and scoring.",
     "For the locked owned_der_assets inventory slot, provide respondent-facing labels for all requested asset values while preserving each ontology_value exactly; these labels are linguistic copy and do not alter the locked option structure.",
     "For preferred_tariff_model single-choice questions, keep the ontology_value within this canonical set only: same_price, time_of_use, shift_rewards, dynamic_price, not_sure. Use respondent-facing labels for the visible text and do not invent new tariff ontology_value variants.",
   ].join(" ");
@@ -146,6 +212,10 @@ export function buildSurveyGeneratorPrompt(
   const user = [
     `Survey name: ${input.surveyName}`,
     `Canonical language: ${input.defaultLanguage}`,
+    `Canonical language locale: ${languageProfile.locale}`,
+    `Canonical language register: ${languageProfile.register}`,
+    `Canonical language survey style: ${languageProfile.surveyStyle}`,
+    `Canonical language inclusivity guidance: ${languageProfile.inclusivity}`,
     `Supported languages in the draft: ${input.supportedLanguages.join(", ")}`,
     `Existing survey description: ${input.surveyDescription || "(empty)"}`,
     `Selected behavioural schema targets: ${input.schemaTargets.join(", ")}`,
@@ -200,7 +270,7 @@ export function buildSurveyGeneratorPrompt(
     "- survey_description should briefly explain the survey purpose in the canonical language.",
     "- Do not include a required field in question objects.",
     "- Locked DFC inventory ontology values are: pv_system, battery_storage, heating_system, ev, inverter, heat_pump, thermal_storage, hot_water_tank, programmable_appliance, washing_machine, air_conditioning, none_of_these, not_sure.",
-    "- For locked DFC rating slots, min/max/step are transport placeholders and are ignored during compilation; min_label/max_label are respondent-facing canonical-language anchors and must be meaningful translations of the answer direction.",
+    "- For locked DFC rating slots, min/max/step are transport placeholders and are ignored during compilation; min_label/max_label are respondent-facing canonical-language anchors and must be natural canonical-language endpoint labels that express the required answer direction.",
   ].join("\n");
 
   return {

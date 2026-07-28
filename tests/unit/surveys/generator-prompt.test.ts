@@ -283,6 +283,15 @@ describe("measurement planner prompt", () => {
       "write items that cover distinct facets rather than paraphrases",
     );
     expect(writerPrompt.system).toContain(
+      "Write directly in the selected canonical language as a native survey author",
+    );
+    expect(writerPrompt.system).toContain(
+      "Definitions, notes, examples and planner intents are semantic specifications, not source sentences.",
+    );
+    expect(writerPrompt.system).toContain(
+      "Treat each planner intent as binding for meaning, facet and polarity, but not for vocabulary, syntax or phrase structure.",
+    );
+    expect(writerPrompt.system).toContain(
       "Write from the household respondent's point of view",
     );
     expect(writerPrompt.system).toContain(
@@ -348,6 +357,12 @@ describe("measurement planner prompt", () => {
     expect(writerPrompt.user).toContain("Not sure / I would need more information");
     expect(writerPrompt.user).toContain("facet: importance");
     expect(writerPrompt.user).toContain("polarity: negative");
+    expect(writerPrompt.system).not.toContain(
+      "faithful canonical-language title and description copy",
+    );
+    expect(writerPrompt.user).not.toContain(
+      "meaningful translations of the answer direction",
+    );
   });
 
   it("keeps writer prompts valid for concepts without semantic guidance", () => {
@@ -395,6 +410,67 @@ describe("measurement planner prompt", () => {
     expect(writerPrompt.user).toContain("Measure preferred tariff model.");
     expect(writerPrompt.user).toContain("facet: tariff_choice");
     expect(writerPrompt.user).toContain("polarity: neutral");
+  });
+
+  it("adds a native-writing contract and locale profile for Spanish writer prompts", () => {
+    const behaviouralConceptKeys = ["trust_in_automation"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const writerPrompt = buildSurveyGeneratorPrompt({
+      surveyName: "Encuesta de confianza",
+      surveyDescription: "",
+      defaultLanguage: "Spanish",
+      supportedLanguages: ["Spanish"],
+      schemaTargets,
+      configs,
+      measurementPlanBlueprint: {
+        schema_version: 1,
+        schema_namespace: "flexpulse_behavioural_schema",
+        concepts: baseMeasurementPlanBlueprint.concepts.map((concept) => ({
+          ...concept,
+          measurement_type: "single_item_direct",
+          aggregation_rule: "identity",
+          threshold_profile: "likert_1_5_low_mid_high",
+          minimum_answer_count: 1,
+          question_slots: [
+            {
+              slot_key: `${concept.concept_key}_slot_1`,
+              facet: "delegation_readiness",
+              intent: "Measure willingness to hand off one suitable action.",
+              polarity: "positive",
+            },
+          ],
+        })),
+      },
+    });
+
+    expect(writerPrompt.user).toContain(
+      "Canonical language locale: Spain Spanish (es-ES)",
+    );
+    expect(writerPrompt.user).toContain(
+      "Canonical language register: neutral, professional and accessible",
+    );
+    expect(writerPrompt.user).toContain(
+      "Canonical language survey style: natural direct questions or first-person statements; consistent throughout",
+    );
+    expect(writerPrompt.user).toContain(
+      "Canonical language inclusivity guidance: prefer naturally inclusive reformulation over slash forms or duplicated gender endings",
+    );
+    expect(writerPrompt.system).toContain(
+      "Examples in the prompt illustrate meaning only and must not be translated literally.",
+    );
+    expect(writerPrompt.system).toContain(
+      "native respondent-facing wording that preserves the locked slot meaning",
+    );
+    expect(writerPrompt.user).toContain(
+      "natural canonical-language endpoint labels that express the required answer direction",
+    );
   });
 
   it("omits inactive planner boundaries when the paired concept is not selected", () => {

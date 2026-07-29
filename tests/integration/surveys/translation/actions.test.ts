@@ -408,7 +408,63 @@ describe("survey translation actions", () => {
     });
   });
 
-  it("downgrades non-PII blocking findings to advisory product issues", async () => {
+  it("keeps explicit blocking parity findings as blockers", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-parity-blocking",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "parity",
+        severity: "blocking",
+        message: "La traduccion cambia el significado de la pregunta.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-parity-blocking");
+
+    await generateSurveyTranslationsAction(formData);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: false,
+      issues: [
+        {
+          type: "parity",
+          severity: "blocking",
+        },
+      ],
+    });
+  });
+
+  it("keeps explicit blocking quality findings as blockers", async () => {
     const fixture = buildTranslationSurveyFixture();
     fixture.definition.survey_meta.validation_result = {
       validated_at: "2026-04-01T12:00:00.000Z",
@@ -454,11 +510,67 @@ describe("survey translation actions", () => {
     expect(
       updatePayload.definition_json.survey_meta.multilingual_validation_result,
     ).toMatchObject({
-      passed: true,
+      passed: false,
       issues: [
         {
           type: "quality",
-          severity: "advisory",
+          severity: "blocking",
+        },
+      ],
+    });
+  });
+
+  it("keeps explicit blocking cultural findings as blockers", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-cultural-blocking",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "cultural",
+        severity: "blocking",
+        message: "La localizacion introduce un sesgo cultural claro.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-cultural-blocking");
+
+    await generateSurveyTranslationsAction(formData);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: false,
+      issues: [
+        {
+          type: "cultural",
+          severity: "blocking",
         },
       ],
     });

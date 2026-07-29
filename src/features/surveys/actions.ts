@@ -112,17 +112,21 @@ function buildMultilingualValidationResult(
 function toProductMultilingualIssues(
   issues: MultilingualValidationIssue[],
 ): MultilingualValidationIssue[] {
-  const blockingIssues = issues
-    .filter((issue) => issue.type === "pii")
-    .map((issue) => ({
-      ...issue,
-      severity: "blocking" as const,
-    }));
+  const blockingIssues = issues.filter((issue) => {
+    if (issue.type === "pii") {
+      return true;
+    }
+
+    return issue.severity === "blocking";
+  }).map((issue) => ({
+    ...issue,
+    severity: "blocking" as const,
+  }));
 
   const advisoryByLanguage = new Map<string, MultilingualValidationIssue[]>();
 
   for (const issue of issues) {
-    if (issue.type === "pii") {
+    if (issue.type === "pii" || issue.severity === "blocking") {
       continue;
     }
 

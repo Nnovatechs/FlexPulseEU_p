@@ -13,6 +13,7 @@ import {
   hasDeclaredFlexibilityCapability,
   mergeDeclaredFlexibilityCapabilityWriterBlueprint,
 } from "./declared-flexibility-capability-module";
+import { runCanonicalLanguageCopyEditor } from "./canonical-language-editor";
 import {
   resetSurveyGeneratorDebugLatest,
   writeSurveyGeneratorDebugJson,
@@ -263,9 +264,7 @@ export async function runWriterPhase(input: {
   acceptedBlueprint: MeasurementPlanBlueprint;
 }): Promise<SurveyGeneratorLLMOutput> {
   const { context, acceptedBlueprint } = input;
-  const writerBlueprint = context.capabilityModuleSelected
-    ? mergeDeclaredFlexibilityCapabilityWriterBlueprint(acceptedBlueprint)
-    : acceptedBlueprint;
+  const writerBlueprint = getWriterBlueprint(context, acceptedBlueprint);
 
   return timeSurveyStep(
     "writer_phase",
@@ -288,6 +287,15 @@ export async function runWriterPhase(input: {
         debugFilePrefix: "writer",
       }),
   );
+}
+
+function getWriterBlueprint(
+  context: SurveyGenerationContext,
+  acceptedBlueprint: MeasurementPlanBlueprint,
+) {
+  return context.capabilityModuleSelected
+    ? mergeDeclaredFlexibilityCapabilityWriterBlueprint(acceptedBlueprint)
+    : acceptedBlueprint;
 }
 
 export function compileWriterOutput(input: {
@@ -524,7 +532,26 @@ export async function runSurveyGenerationFlow(
       );
 
       const acceptedBlueprint = await runPlannerOrchestrator(context);
+      const writerBlueprint = getWriterBlueprint(context, acceptedBlueprint);
       const writerOutput = await runWriterPhase({ context, acceptedBlueprint });
+      const finalWriterOutput =
+        context.defaultLanguage === "English"
+          ? writerOutput
+          : await timeSurveyStep(
+              "canonical_language_editor_phase",
+              {
+                question_count: writerOutput.questions.length,
+                default_language: context.defaultLanguage,
+              },
+              async () =>
+                (
+                  await runCanonicalLanguageCopyEditor({
+                    defaultLanguage: context.defaultLanguage,
+                    writerOutput,
+                    writerBlueprint,
+                  })
+                ).output,
+            );
       const compiledSurvey = await timeSurveyStep(
         "compile_writer_output",
         {
@@ -534,7 +561,7 @@ export async function runSurveyGenerationFlow(
           compileWriterOutput({
             context,
             acceptedBlueprint,
-            writerOutput,
+            writerOutput: finalWriterOutput,
           }),
       );
 

@@ -14,6 +14,7 @@ import {
   DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
   DFC_INVENTORY_CONCEPT_KEY,
 } from "./declared-flexibility-capability-module";
+import { getSurveyLanguageProfile } from "./survey-language-profile";
 
 type BuildSurveyGeneratorPromptInput = {
   surveyName: string;
@@ -47,66 +48,10 @@ export type MeasurementPlannerPrompt = {
   user: string;
 };
 
-const canonicalLanguageProfiles: Record<
-  string,
-  {
-    locale: string;
-    register: string;
-    surveyStyle: string;
-    inclusivity: string;
-  }
-> = {
-  English: {
-    locale: "International English",
-    register: "neutral, professional and accessible",
-    surveyStyle:
-      "natural direct questions or first-person statements; consistent throughout",
-    inclusivity:
-      "prefer natural inclusive reformulation over awkward repeated forms",
-  },
-  Spanish: {
-    locale: "Spain Spanish (es-ES)",
-    register: "neutral, professional and accessible",
-    surveyStyle:
-      "natural direct questions or first-person statements; consistent throughout",
-    inclusivity:
-      "prefer naturally inclusive reformulation over slash forms or duplicated gender endings",
-  },
-  French: {
-    locale: "France French (fr-FR)",
-    register: "neutral, professional and accessible",
-    surveyStyle:
-      "natural direct questions or first-person statements; consistent throughout",
-    inclusivity:
-      "prefer naturally inclusive reformulation over awkward duplicated forms",
-  },
-  Croatian: {
-    locale: "Standard Croatian",
-    register: "neutral, professional and accessible",
-    surveyStyle:
-      "natural direct questions or first-person statements; consistent throughout",
-    inclusivity:
-      "prefer naturally inclusive reformulation over awkward duplicated forms",
-  },
-};
-
-function getCanonicalLanguageProfile(language: string) {
-  return (
-    canonicalLanguageProfiles[language] ?? {
-      locale: `${language} (default locale)`,
-      register: "neutral, professional and accessible",
-      surveyStyle:
-        "natural direct questions or first-person statements; consistent throughout",
-      inclusivity:
-        "prefer naturally inclusive reformulation when the language allows it",
-    }
-  );
-}
-
 export function buildSurveyGeneratorPrompt(
   input: BuildSurveyGeneratorPromptInput,
 ): SurveyGeneratorPrompt {
-  const languageProfile = getCanonicalLanguageProfile(input.defaultLanguage);
+  const languageProfile = getSurveyLanguageProfile(input.defaultLanguage);
   const targetRules = input.configs
     .map((config, index) => {
       return [
@@ -215,7 +160,7 @@ export function buildSurveyGeneratorPrompt(
     `Canonical language locale: ${languageProfile.locale}`,
     `Canonical language register: ${languageProfile.register}`,
     `Canonical language survey style: ${languageProfile.surveyStyle}`,
-    `Canonical language inclusivity guidance: ${languageProfile.inclusivity}`,
+    `Canonical language inclusivity guidance: ${languageProfile.inclusivityGuidance}`,
     `Supported languages in the draft: ${input.supportedLanguages.join(", ")}`,
     `Existing survey description: ${input.surveyDescription || "(empty)"}`,
     `Selected behavioural schema targets: ${input.schemaTargets.join(", ")}`,

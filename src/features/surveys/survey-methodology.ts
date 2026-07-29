@@ -13,7 +13,7 @@ export const SURVEY_METHODOLOGY_CONTRACT = {
     "The chosen question type must fit the measurement type and later aggregation logic.",
     "The design must compile cleanly into question-level mappings and construct-level aggregation rules.",
     "The total burden must remain acceptable, but under-measuring core constructs is a worse failure than adding a few useful items.",
-    "Question wording must avoid unnecessary linguistic ambiguity; full multicultural adaptation is handled by later translation workflows.",
+    "Respondent-facing wording must be natural, unambiguous and publishable in the selected canonical language. Additional language versions are handled by the later translation workflow.",
     "Reject matrix-style compression, hidden sub-items, and nearly identical duplicates.",
   ],
   soft_optimization_goals: [

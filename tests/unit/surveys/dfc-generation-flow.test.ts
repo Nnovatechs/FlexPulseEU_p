@@ -5,6 +5,10 @@ vi.mock("@/features/surveys/generator-service", () => ({
   generateSurveyWithLLM: vi.fn(),
 }));
 
+vi.mock("@/features/surveys/canonical-language-editor", () => ({
+  runCanonicalLanguageCopyEditor: vi.fn(),
+}));
+
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   DFC_INVENTORY_QUESTION_KEY,
@@ -16,6 +20,7 @@ import {
   generateMeasurementPlanWithLLM,
   generateSurveyWithLLM,
 } from "@/features/surveys/generator-service";
+import { runCanonicalLanguageCopyEditor } from "@/features/surveys/canonical-language-editor";
 import {
   createInitialSurveyDefinition,
   type PersistedSurvey,
@@ -25,6 +30,9 @@ import { parseSurveyLanguageLLMOutput } from "@/features/surveys/translation-out
 
 const mockedPlanner = vi.mocked(generateMeasurementPlanWithLLM);
 const mockedWriter = vi.mocked(generateSurveyWithLLM);
+const mockedRunCanonicalLanguageCopyEditor = vi.mocked(
+  runCanonicalLanguageCopyEditor,
+);
 
 function buildSurveyFixture(conceptKeys: string[]): PersistedSurvey {
   const targets = deriveSchemaTargetsFromBehaviouralConceptKeys(conceptKeys);
@@ -55,6 +63,20 @@ function buildSurveyFixture(conceptKeys: string[]): PersistedSurvey {
 describe("DFC generation-language flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockedRunCanonicalLanguageCopyEditor.mockImplementation(
+      async ({ writerOutput, defaultLanguage }) => ({
+        output: writerOutput,
+        report: {
+          language: defaultLanguage,
+          status: "completed",
+          total_slots: writerOutput.questions.length,
+          kept_slots: writerOutput.questions.length,
+          applied_rewrites: 0,
+          fallback_slots: 0,
+          diagnostics: [],
+        },
+      }),
+    );
   });
 
   it("filters the planner, locks writer slots, and imposes deterministic DFC artifacts", async () => {

@@ -278,7 +278,7 @@ describe("survey translation actions", () => {
           question_key: "Q_TEST_01",
           type: "quality",
           severity: "advisory",
-          message: "This wording may be worth reviewing for respondent clarity.",
+          message: "Sigue sonando poco natural.",
         },
       ],
     });
@@ -342,12 +342,180 @@ describe("survey translation actions", () => {
           question_key: "Q_TEST_01",
           type: "quality",
           severity: "advisory",
-          message: "This wording may be worth reviewing for respondent clarity.",
+          message: "The option labels could be clearer for respondents.",
         },
       ],
       language_statuses: [
         { language: fixture.sourceLanguage, passed: true, issue_count: 0 },
         { language: fixture.targetLanguage, passed: true, issue_count: 0 },
+      ],
+    });
+  });
+
+  it("stores parity advisories without blocking publication", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-parity-advisory",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "parity",
+        severity: "advisory",
+        message: "El matiz es reconocible, pero algo mas amplio.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-parity-advisory");
+
+    await generateSurveyTranslationsAction(formData);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: true,
+      issues: [
+        {
+          type: "parity",
+          severity: "advisory",
+        },
+      ],
+    });
+  });
+
+  it("downgrades non-PII blocking findings to advisory product issues", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-quality-blocking",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "quality",
+        severity: "blocking",
+        message: "La pregunta sigue sonando poco natural.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-quality-blocking");
+
+    await generateSurveyTranslationsAction(formData);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: true,
+      issues: [
+        {
+          type: "quality",
+          severity: "advisory",
+        },
+      ],
+    });
+  });
+
+  it("keeps PII findings blocking", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-pii-blocking",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    translateSurveyLanguage.mockResolvedValueOnce(fixture.targetTranslations);
+    polishSurveyLanguage.mockResolvedValue(fixture.targetTranslations);
+    validateTranslatedSurveyLanguage.mockResolvedValue([
+      {
+        language: fixture.targetLanguage,
+        question_key: "Q_TEST_01",
+        type: "pii",
+        severity: "advisory",
+        message: "Se introduce una peticion de dato personal.",
+      },
+    ]);
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-pii-blocking");
+
+    await generateSurveyTranslationsAction(formData);
+
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(
+      updatePayload.definition_json.survey_meta.multilingual_validation_result,
+    ).toMatchObject({
+      passed: false,
+      issues: [
+        {
+          type: "pii",
+          severity: "blocking",
+        },
       ],
     });
   });

@@ -166,16 +166,16 @@ describe("translation validation prompt", () => {
       "A translation can receive a quality finding even when parity is mostly preserved.",
     );
     expect(prompt.system).toContain(
-      "Use severity = advisory when the item is understandable but noticeably translated-sounding",
+      "Use severity = advisory when the construct, referent, and answer direction are still recognizable",
     );
     expect(prompt.system).toContain(
-      "Do not emit advisory findings for pure style preferences",
+      "Do not emit advisory findings for purely cosmetic style preferences",
     );
     expect(prompt.system).toContain(
       "Return at most 3 advisory findings for the target language.",
     );
     expect(prompt.system).toContain(
-      "Most acceptable items should pass with no finding.",
+      "Many acceptable items should pass with no finding.",
     );
     expect(prompt.system).toContain(
       "Treat native clarity, respondent-facing framing, idiomaticity, and publishability as mandatory quality checks for every item.",

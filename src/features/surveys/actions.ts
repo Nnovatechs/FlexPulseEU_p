@@ -109,42 +109,36 @@ function buildMultilingualValidationResult(
   };
 }
 
-const PRODUCT_QUALITY_ADVISORY_MESSAGE =
-  "This wording may be worth reviewing for respondent clarity.";
-
 function toProductMultilingualIssues(
   issues: MultilingualValidationIssue[],
 ): MultilingualValidationIssue[] {
-  const blockingIssues = issues.filter((issue) => (
-    issue.type === "pii" ||
-    issue.type === "parity" ||
-    issue.type === "cultural"
-  )).map((issue) => ({
-    ...issue,
-    severity: "blocking" as const,
-  }));
+  const blockingIssues = issues
+    .filter((issue) => issue.type === "pii")
+    .map((issue) => ({
+      ...issue,
+      severity: "blocking" as const,
+    }));
 
-  const advisoryByLanguage = new Map<string, MultilingualValidationIssue>();
+  const advisoryByLanguage = new Map<string, MultilingualValidationIssue[]>();
 
   for (const issue of issues) {
-    if (issue.type !== "quality") {
+    if (issue.type === "pii") {
       continue;
     }
 
-    if (advisoryByLanguage.has(issue.language)) {
-      continue;
-    }
-
-    advisoryByLanguage.set(issue.language, {
-      language: issue.language,
-      ...(issue.question_key ? { question_key: issue.question_key } : {}),
-      type: issue.type,
+    const normalizedIssue: MultilingualValidationIssue = {
+      ...issue,
       severity: "advisory",
-      message: PRODUCT_QUALITY_ADVISORY_MESSAGE,
-    });
+    };
+    const languageIssues = advisoryByLanguage.get(issue.language) ?? [];
+
+    if (languageIssues.length < 3) {
+      languageIssues.push(normalizedIssue);
+      advisoryByLanguage.set(issue.language, languageIssues);
+    }
   }
 
-  return [...blockingIssues, ...advisoryByLanguage.values()];
+  return [...blockingIssues, ...Array.from(advisoryByLanguage.values()).flat()];
 }
 
 // ---------------------------------------------------------------------------

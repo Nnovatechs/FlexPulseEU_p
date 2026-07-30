@@ -2767,6 +2767,36 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   background: var(--card);
 }
 
+.preview-tab__publish-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.preview-tab__publish-actions form {
+  margin-left: auto;
+}
+
+.preview-tab__expert-review-actions,
+.preview-tab__modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.preview-tab__expert-review-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.preview-tab__expert-review-summary p {
+  margin: 0;
+}
+
 .preview-tab__publish-hint {
   margin: 0;
   font-size: 0.83rem;
@@ -2830,6 +2860,49 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   background: color-mix(in srgb, var(--border) 40%, transparent);
 }
 
+.preview-tab__modal-card {
+  width: min(720px, calc(100vw - 2rem));
+  min-width: min(720px, calc(100vw - 2rem));
+  align-items: stretch;
+  text-align: left;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+.preview-tab__modal-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.preview-tab__modal-header .generate-overlay__title {
+  margin: 0;
+}
+
+.preview-tab__modal-intro {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.preview-tab__modal-help {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.preview-tab__survey-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.qov-card__title-input {
+  flex: 1 1 18rem;
+  min-width: 18rem;
+}
+
 @media (max-width: 720px) {
   .topbar,
   .section-header,
@@ -2882,6 +2955,28 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   .qov-card__mapping {
     align-items: flex-start;
     max-width: none;
+  }
+
+  .preview-tab__publish-actions {
+    align-items: stretch;
+  }
+
+  .preview-tab__publish-actions form {
+    margin-left: 0;
+  }
+
+  .preview-tab__expert-review-actions,
+  .preview-tab__modal-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .preview-tab__modal-card {
+    padding: 1.25rem;
+  }
+
+  .qov-card__title-input {
+    min-width: 0;
   }
 }
 

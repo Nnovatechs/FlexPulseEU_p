@@ -387,7 +387,7 @@ export function PreviewTab({
 
   function handleStartExpertReview() {
     if (!reviewBasis.trim()) {
-      setExpertReviewError("Review basis is required.");
+      setExpertReviewError("Review note is required.");
       return;
     }
 
@@ -592,50 +592,6 @@ export function PreviewTab({
         </div>
       )}
 
-      {!expertReviewResult && (
-        <div className="preview-tab__expert-review-actions">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={() => {
-              setExpertReviewError(null);
-              setIsExpertReviewModalOpen(true);
-            }}
-            disabled={!canStartExpertReview || publishPending || applyPending}
-            title={
-              canStartExpertReview
-                ? "Start expert review"
-                : "Expert review is available only when the automatic baseline is fully current"
-            }
-          >
-            Start expert review
-          </button>
-
-          {isExpertReviewMode && (
-            <>
-              <button
-                type="button"
-                className="button button--primary"
-                onClick={handleApplyExpertReview}
-                disabled={applyPending}
-              >
-                {applyPending
-                  ? "Applying expert review…"
-                  : "Apply and freeze expert review"}
-              </button>
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={handleDiscardLocalExpertReview}
-                disabled={applyPending}
-              >
-                Discard local review
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
       {expertReviewResult && (
         <div className="preview-tab__expert-review-summary">
           <p className="muted">
@@ -647,21 +603,67 @@ export function PreviewTab({
         </div>
       )}
 
-      <form onSubmit={handlePublish}>
-        <input type="hidden" name="surveyId" value={surveyId} />
-        <button
-          type="submit"
-          className="button button--primary"
-          disabled={publishPending || !canPublish}
-          title={
-            canPublish
-              ? "Publish survey"
-              : "Publishing stays blocked until the automatic or expert-review integrity checks are satisfied"
-          }
-        >
-          {publishPending ? "Publishing…" : "Publish survey"}
-        </button>
-      </form>
+      <div className="preview-tab__publish-actions">
+        {!expertReviewResult && (
+          <div className="preview-tab__expert-review-actions">
+            {isExpertReviewMode ? (
+              <>
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={handleDiscardLocalExpertReview}
+                  disabled={applyPending}
+                >
+                  Discard local review
+                </button>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={handleApplyExpertReview}
+                  disabled={applyPending}
+                >
+                  {applyPending
+                    ? "Applying peer review…"
+                    : "Apply and freeze peer review"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => {
+                  setExpertReviewError(null);
+                  setIsExpertReviewModalOpen(true);
+                }}
+                disabled={!canStartExpertReview || publishPending || applyPending}
+                title={
+                  canStartExpertReview
+                    ? "Start peer review"
+                    : "Peer review is available only when the automatic baseline is fully current"
+                }
+              >
+                Start peer review
+              </button>
+            )}
+          </div>
+        )}
+
+        <form onSubmit={handlePublish}>
+          <input type="hidden" name="surveyId" value={surveyId} />
+          <button
+            type="submit"
+            className="button button--primary"
+            disabled={publishPending || !canPublish}
+            title={
+              canPublish
+                ? "Publish survey"
+                : "Publishing stays blocked until the automatic or expert-review integrity checks are satisfied"
+            }
+          >
+            {publishPending ? "Publishing…" : "Publish survey"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 
@@ -671,14 +673,18 @@ export function PreviewTab({
 
       {isExpertReviewModalOpen && (
         <div className="generate-overlay" role="dialog" aria-modal="true">
-          <div className="generate-overlay__card">
-            <p className="generate-overlay__title">Start expert review</p>
-            <p className="muted">
-              You are entering a human review stage after automated validation.
-              Changes made here will not be re-evaluated automatically.
-            </p>
+          <div className="generate-overlay__card preview-tab__modal-card">
+            <div className="preview-tab__modal-header">
+              <p className="generate-overlay__title">Start peer review</p>
+              <p className="preview-tab__modal-intro muted">
+                You are entering the expert review stage after automated validation.
+                Changes made here will not be re-evaluated automatically, so the
+                final wording should only be adjusted with linguistic or expert
+                input.
+              </p>
+            </div>
             <label className="field">
-              <span>Reviewer type</span>
+              <span>Reviewer role</span>
               <select
                 value={reviewerType}
                 onChange={(event) =>
@@ -691,12 +697,17 @@ export function PreviewTab({
               </select>
             </label>
             <label className="field">
-              <span>Review basis</span>
-              <input
+              <span>Review note</span>
+              <textarea
                 value={reviewBasis}
+                rows={4}
                 onChange={(event) => setReviewBasis(event.target.value)}
-                placeholder="Reviewed with a native French linguist."
+                placeholder="Example: Reviewed with a native French linguist and approved for publication."
               />
+              <span className="preview-tab__modal-help">
+                This note is saved in the audit trail so it stays clear who reviewed
+                the final wording and why.
+              </span>
             </label>
             <label className="field">
               <span>Type {EXPERT_REVIEW_CONFIRMATION}</span>
@@ -704,19 +715,22 @@ export function PreviewTab({
                 value={reviewConfirmation}
                 onChange={(event) => setReviewConfirmation(event.target.value)}
               />
+              <span className="preview-tab__modal-help">
+                This confirms that the final wording is being accepted manually.
+              </span>
             </label>
             {expertReviewError && (
               <p className="review-notice review-notice--error" role="alert">
                 {expertReviewError}
               </p>
             )}
-            <div className="qov-card__edit-actions">
+            <div className="preview-tab__modal-actions">
               <button
                 type="button"
                 className="button button--primary"
                 onClick={handleStartExpertReview}
               >
-                Enter expert review
+                Enter peer review
               </button>
               <button
                 type="button"

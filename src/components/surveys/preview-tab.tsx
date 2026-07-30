@@ -1,17 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   DPA_ACCEPTANCE_REQUIRED_ERROR,
   PRIVACY_PROFILE_INCOMPLETE_ERROR,
 } from "@/features/privacy/types";
-import { publishSurveyAction } from "@/features/surveys/actions";
+import {
+  applyExpertReviewAction,
+  publishSurveyAction,
+} from "@/features/surveys/actions";
+import type { SurveyIntegrityState } from "@/features/surveys/expert-review";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 import type {
   ContentValidationResult,
+  ExpertReviewResult,
+  ExpertReviewerType,
   MultilingualValidationIssue,
   MultilingualValidationResult,
   SurveyDefinition,
@@ -28,6 +35,8 @@ const TYPE_LABELS: Record<string, string> = {
   numeric: "Numeric",
   boolean: "Boolean",
 };
+
+const EXPERT_REVIEW_CONFIRMATION = "EXPERT REVIEW";
 
 function getMultilingualFlagLabel(flag: MultilingualValidationIssue) {
   if (flag.severity === "advisory") return "Recommendation";
@@ -55,6 +64,10 @@ type ReadOnlyQuestionCardProps = {
     | SurveyDefinition["translations"][string]["questions"][string]
     | undefined;
   languageFlags?: MultilingualValidationIssue[];
+  questionIntent?: string[];
+  editableTitle?: string;
+  expertMode?: boolean;
+  onChangeTitle?: (title: string) => void;
 };
 
 function ReadOnlyQuestionCard({
@@ -63,15 +76,26 @@ function ReadOnlyQuestionCard({
   mapping,
   translation,
   languageFlags = [],
+  questionIntent = [],
+  editableTitle = translation?.title ?? question.question_key,
+  expertMode = false,
+  onChangeTitle,
 }: ReadOnlyQuestionCardProps) {
   return (
     <div className="qov-card qov-card--preview">
       <div className="qov-card__main">
         <div className="qov-card__header">
           <span className="qov-card__number">{index + 1}</span>
-          <span className="qov-card__title">
-            {translation?.title ?? question.question_key}
-          </span>
+          {expertMode ? (
+            <input
+              className="qov-card__title-input"
+              value={editableTitle}
+              onChange={(event) => onChangeTitle?.(event.target.value)}
+              aria-label={`Expert review title for ${question.question_key}`}
+            />
+          ) : (
+            <span className="qov-card__title">{editableTitle}</span>
+          )}
           <span className={`qov-card__type qov-card__type--${question.type}`}>
             {TYPE_LABELS[question.type] ?? question.type}
           </span>
@@ -137,10 +161,104 @@ function ReadOnlyQuestionCard({
           <span className="qov-card__mapping-target">
             {getReadableOntologyTargetLabel(mapping.ontology_target)}
           </span>
+          {questionIntent.length > 0 && (
+            <>
+              <span className="qov-card__mapping-label">Intent</span>
+              <span className="qov-card__mapping-target">
+                {questionIntent.join(" · ")}
+              </span>
+            </>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+type ExpertReviewLocalBundle = {
+  survey_title: string;
+  survey_description: string;
+  questions: Record<string, string>;
+};
+
+function buildLocalExpertReviewDraft(
+  translations: SurveyDefinition["translations"],
+  supportedLanguages: SurveyLanguageCode[],
+  questions: SurveyQuestionDefinition[],
+): Record<SurveyLanguageCode, ExpertReviewLocalBundle> {
+  return Object.fromEntries(
+    supportedLanguages.map((language) => {
+      const bundle = translations[language];
+      return [
+        language,
+        {
+          survey_title: bundle?.survey_title ?? "",
+          survey_description: bundle?.survey_description ?? "",
+          questions: Object.fromEntries(
+            questions.map((question) => [
+              question.question_key,
+              bundle?.questions?.[question.question_key]?.title ?? "",
+            ]),
+          ),
+        },
+      ];
+    }),
+  );
+}
+
+function buildExpertReviewBatch(input: {
+  translations: SurveyDefinition["translations"];
+  supportedLanguages: SurveyLanguageCode[];
+  questions: SurveyQuestionDefinition[];
+  draft: Record<SurveyLanguageCode, ExpertReviewLocalBundle>;
+}) {
+  const changes: Array<{
+    language: SurveyLanguageCode;
+    field: "survey_title" | "survey_description" | "question_title";
+    question_key?: string;
+    reviewed_value: string;
+  }> = [];
+
+  for (const language of input.supportedLanguages) {
+    const bundle = input.translations[language];
+    const draftBundle = input.draft[language];
+    if (!bundle || !draftBundle) {
+      continue;
+    }
+
+    if (draftBundle.survey_title !== (bundle.survey_title ?? "")) {
+      changes.push({
+        language,
+        field: "survey_title",
+        reviewed_value: draftBundle.survey_title,
+      });
+    }
+
+    if (draftBundle.survey_description !== (bundle.survey_description ?? "")) {
+      changes.push({
+        language,
+        field: "survey_description",
+        reviewed_value: draftBundle.survey_description,
+      });
+    }
+
+    for (const question of input.questions) {
+      const questionKey = question.question_key;
+      const previousTitle = bundle.questions?.[questionKey]?.title ?? "";
+      const reviewedTitle = draftBundle.questions[questionKey] ?? "";
+
+      if (reviewedTitle !== previousTitle) {
+        changes.push({
+          language,
+          field: "question_title",
+          question_key: questionKey,
+          reviewed_value: reviewedTitle,
+        });
+      }
+    }
+  }
+
+  return changes;
 }
 
 type PreviewTabProps = {
@@ -156,6 +274,9 @@ type PreviewTabProps = {
   multilingualValidationResult: MultilingualValidationResult | null;
   isValidationStale: boolean;
   isMultilingualValidationStale: boolean;
+  expertReviewResult: ExpertReviewResult | null;
+  integrity: SurveyIntegrityState;
+  questionIntentLookup: Record<string, string[]>;
 };
 
 export function PreviewTab({
@@ -171,12 +292,30 @@ export function PreviewTab({
   multilingualValidationResult,
   isValidationStale,
   isMultilingualValidationStale,
+  expertReviewResult,
+  integrity,
+  questionIntentLookup,
 }: PreviewTabProps) {
+  const router = useRouter();
   const [activeLanguage, setActiveLanguage] = useState<SurveyLanguageCode>(
     defaultLanguage,
   );
   const [publishPending, startPublish] = useTransition();
+  const [applyPending, startApply] = useTransition();
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [expertReviewError, setExpertReviewError] = useState<string | null>(null);
+  const [expertReviewAppliedMessage, setExpertReviewAppliedMessage] = useState<
+    string | null
+  >(null);
+  const [isExpertReviewMode, setIsExpertReviewMode] = useState(false);
+  const [isExpertReviewModalOpen, setIsExpertReviewModalOpen] = useState(false);
+  const [reviewerType, setReviewerType] =
+    useState<ExpertReviewerType>("language_expert");
+  const [reviewBasis, setReviewBasis] = useState("");
+  const [reviewConfirmation, setReviewConfirmation] = useState("");
+  const [localExpertReviewDraft, setLocalExpertReviewDraft] = useState(() =>
+    buildLocalExpertReviewDraft(translations, supportedLanguages, questions),
+  );
 
   const mappingByKey: Record<string, SurveyMappingDefinition> = {};
   for (const m of mappings) {
@@ -187,19 +326,32 @@ export function PreviewTab({
   const hasSecondaryLanguages = supportedLanguages.some(
     (language) => language !== defaultLanguage,
   );
-  const contentPassed =
-    validationResult?.passed === true && !isValidationStale;
-  const multilingualPassed =
-    !hasSecondaryLanguages ||
-    (multilingualValidationResult?.passed === true && !isMultilingualValidationStale);
-  const canPublish = contentPassed && multilingualPassed;
+  const contentPassed = expertReviewResult
+    ? integrity.expert_review_baseline_linked
+    : validationResult?.passed === true && !isValidationStale;
+  const multilingualPassed = expertReviewResult
+    ? integrity.expert_review_baseline_linked
+    : !hasSecondaryLanguages ||
+      (multilingualValidationResult?.passed === true &&
+        !isMultilingualValidationStale);
+  const canPublish =
+    !isExpertReviewMode &&
+    (expertReviewResult
+      ? integrity.can_publish_expert_reviewed
+      : integrity.can_publish_automatic);
+  const canStartExpertReview =
+    !isExpertReviewMode &&
+    expertReviewResult == null &&
+    integrity.automatic_baseline_ready;
   const multilingualBlockingIssueCount = (
     multilingualValidationResult?.issues ?? []
   ).filter((issue) => issue.severity !== "advisory").length;
-  const surveyTitleForLanguage =
-    activeTranslations?.survey_title || surveyTitle;
-  const surveyDescriptionForLanguage =
-    activeTranslations?.survey_description || surveyDescription;
+  const surveyTitleForLanguage = isExpertReviewMode
+    ? localExpertReviewDraft[activeLanguage]?.survey_title ?? ""
+    : activeTranslations?.survey_title || surveyTitle;
+  const surveyDescriptionForLanguage = isExpertReviewMode
+    ? localExpertReviewDraft[activeLanguage]?.survey_description ?? ""
+    : activeTranslations?.survey_description || surveyDescription;
   const activeLanguageIssues = (multilingualValidationResult?.issues ?? []).filter(
     (issue) => issue.language === activeLanguage && issue.question_key,
   );
@@ -233,6 +385,107 @@ export function PreviewTab({
     });
   }
 
+  function handleStartExpertReview() {
+    if (!reviewBasis.trim()) {
+      setExpertReviewError("Review basis is required.");
+      return;
+    }
+
+    if (reviewConfirmation.trim() !== EXPERT_REVIEW_CONFIRMATION) {
+      setExpertReviewError(
+        `Confirmation must be exactly "${EXPERT_REVIEW_CONFIRMATION}".`,
+      );
+      return;
+    }
+
+    setExpertReviewError(null);
+    setLocalExpertReviewDraft(
+      buildLocalExpertReviewDraft(translations, supportedLanguages, questions),
+    );
+    setExpertReviewAppliedMessage(null);
+    setIsExpertReviewModalOpen(false);
+    setIsExpertReviewMode(true);
+  }
+
+  function handleDiscardLocalExpertReview() {
+    setExpertReviewError(null);
+    setExpertReviewAppliedMessage(null);
+    setIsExpertReviewMode(false);
+    setLocalExpertReviewDraft(
+      buildLocalExpertReviewDraft(translations, supportedLanguages, questions),
+    );
+  }
+
+  function handleApplyExpertReview() {
+    const changes = buildExpertReviewBatch({
+      translations,
+      supportedLanguages,
+      questions,
+      draft: localExpertReviewDraft,
+    });
+
+    setExpertReviewError(null);
+    setExpertReviewAppliedMessage(null);
+    startApply(async () => {
+      try {
+        const result = await applyExpertReviewAction({
+          surveyId,
+          reviewerType,
+          reviewBasis,
+          confirmation: EXPERT_REVIEW_CONFIRMATION,
+          changes,
+        });
+        setIsExpertReviewMode(false);
+        setExpertReviewAppliedMessage(
+          result.appliedChangeCount > 0
+            ? `Expert review applied with ${result.appliedChangeCount} saved change${
+                result.appliedChangeCount === 1 ? "" : "s"
+              }.`
+            : "Expert review applied without text changes.",
+        );
+        router.refresh();
+      } catch (err) {
+        rethrowNextNavigationError(err);
+        setExpertReviewError(
+          err instanceof Error
+            ? err.message
+            : "Expert review failed. Please try again.",
+        );
+      }
+    });
+  }
+
+  function updateSurveyHeaderField(
+    language: SurveyLanguageCode,
+    field: "survey_title" | "survey_description",
+    value: string,
+  ) {
+    setLocalExpertReviewDraft((current) => ({
+      ...current,
+      [language]: {
+        ...current[language],
+        [field]: value,
+      },
+    }));
+  }
+
+  function updateQuestionTitle(
+    language: SurveyLanguageCode,
+    questionKey: string,
+    value: string,
+  ) {
+    setLocalExpertReviewDraft((current) => ({
+      ...current,
+      [language]: {
+        ...current[language],
+        questions: {
+          ...current[language].questions,
+          [questionKey]: value,
+        },
+      },
+    }));
+  }
+
   const publishSection = (
     <div className="preview-tab__publish">
       <p className="preview-tab__publish-hint muted">
@@ -243,26 +496,60 @@ export function PreviewTab({
       {!contentPassed && (
         <p className="review-notice review-notice--warning">
           Preview remains available, but publication is blocked until content validation
-          passes{isValidationStale ? " and is up to date" : ""}.
+          passes
+          {isValidationStale && !expertReviewResult ? " and is up to date" : ""}.
         </p>
       )}
 
-      {!multilingualPassed && hasSecondaryLanguages && (
+      {!multilingualPassed && hasSecondaryLanguages && !expertReviewResult && (
         <p className="review-notice review-notice--warning">
           Preview remains available, but publication is blocked until multicultural
           blocking flags are cleared and the adapted language versions pass validation
           {isMultilingualValidationStale ? " again" : ""}.
         </p>
       )}
+      {isExpertReviewMode && (
+        <p className="review-notice review-notice--warning">
+          Expert review is active locally. Publication is disabled until you apply
+          or discard the review.
+        </p>
+      )}
+      {expertReviewResult && integrity.can_publish_expert_reviewed && !isExpertReviewMode && (
+        <p className="review-notice review-notice--success">
+          Automated baseline: Passed. Expert review: Applied. Final version: Current.
+          Publication is allowed using the expert-reviewed version.
+        </p>
+      )}
+      {expertReviewResult &&
+        !integrity.can_publish_expert_reviewed &&
+        !isExpertReviewMode && (
+          <p className="review-notice review-notice--warning">
+            Expert review is stored, but publication remains blocked until the final
+            expert-reviewed copy matches the frozen review snapshot and the automatic
+            baseline remains valid.
+          </p>
+        )}
       {multilingualPassed &&
         hasSecondaryLanguages &&
         multilingualBlockingIssueCount === 0 &&
+        !expertReviewResult &&
         (multilingualValidationResult?.issues.length ?? 0) > 0 && (
           <p className="review-notice review-notice--success">
             Publication is allowed. Non-blocking multicultural recommendations are
             available for review before publishing.
           </p>
         )}
+
+      {expertReviewAppliedMessage && (
+        <p className="review-notice review-notice--success">
+          {expertReviewAppliedMessage}
+        </p>
+      )}
+      {expertReviewError && (
+        <p className="review-notice review-notice--error" role="alert">
+          {expertReviewError}
+        </p>
+      )}
 
       {publishError && (
         <div
@@ -305,6 +592,61 @@ export function PreviewTab({
         </div>
       )}
 
+      {!expertReviewResult && (
+        <div className="preview-tab__expert-review-actions">
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={() => {
+              setExpertReviewError(null);
+              setIsExpertReviewModalOpen(true);
+            }}
+            disabled={!canStartExpertReview || publishPending || applyPending}
+            title={
+              canStartExpertReview
+                ? "Start expert review"
+                : "Expert review is available only when the automatic baseline is fully current"
+            }
+          >
+            Start expert review
+          </button>
+
+          {isExpertReviewMode && (
+            <>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={handleApplyExpertReview}
+                disabled={applyPending}
+              >
+                {applyPending
+                  ? "Applying expert review…"
+                  : "Apply and freeze expert review"}
+              </button>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={handleDiscardLocalExpertReview}
+                disabled={applyPending}
+              >
+                Discard local review
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {expertReviewResult && (
+        <div className="preview-tab__expert-review-summary">
+          <p className="muted">
+            Expert review applied by {expertReviewResult.reviewer_type} with{" "}
+            {expertReviewResult.changes.length} change
+            {expertReviewResult.changes.length === 1 ? "" : "s"}.
+          </p>
+          <p className="muted">{expertReviewResult.review_basis}</p>
+        </div>
+      )}
+
       <form onSubmit={handlePublish}>
         <input type="hidden" name="surveyId" value={surveyId} />
         <button
@@ -314,7 +656,7 @@ export function PreviewTab({
           title={
             canPublish
               ? "Publish survey"
-              : "Publishing stays blocked until validation and multicultural blocking flags are resolved"
+              : "Publishing stays blocked until the automatic or expert-review integrity checks are satisfied"
           }
         >
           {publishPending ? "Publishing…" : "Publish survey"}
@@ -326,6 +668,70 @@ export function PreviewTab({
   return (
     <div className="preview-tab">
       {publishSection}
+
+      {isExpertReviewModalOpen && (
+        <div className="generate-overlay" role="dialog" aria-modal="true">
+          <div className="generate-overlay__card">
+            <p className="generate-overlay__title">Start expert review</p>
+            <p className="muted">
+              You are entering a human review stage after automated validation.
+              Changes made here will not be re-evaluated automatically.
+            </p>
+            <label className="field">
+              <span>Reviewer type</span>
+              <select
+                value={reviewerType}
+                onChange={(event) =>
+                  setReviewerType(event.target.value as ExpertReviewerType)
+                }
+              >
+                <option value="language_expert">Language expert</option>
+                <option value="domain_expert">Domain expert</option>
+                <option value="research_team">Research team</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Review basis</span>
+              <input
+                value={reviewBasis}
+                onChange={(event) => setReviewBasis(event.target.value)}
+                placeholder="Reviewed with a native French linguist."
+              />
+            </label>
+            <label className="field">
+              <span>Type {EXPERT_REVIEW_CONFIRMATION}</span>
+              <input
+                value={reviewConfirmation}
+                onChange={(event) => setReviewConfirmation(event.target.value)}
+              />
+            </label>
+            {expertReviewError && (
+              <p className="review-notice review-notice--error" role="alert">
+                {expertReviewError}
+              </p>
+            )}
+            <div className="qov-card__edit-actions">
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={handleStartExpertReview}
+              >
+                Enter expert review
+              </button>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => {
+                  setExpertReviewError(null);
+                  setIsExpertReviewModalOpen(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Language sub-tabs */}
       {supportedLanguages.length > 1 && (
@@ -358,11 +764,45 @@ export function PreviewTab({
 
       {/* Survey header */}
       <div className="preview-tab__survey-header">
-        <h3 className="preview-tab__survey-title">{surveyTitleForLanguage}</h3>
-        {surveyDescriptionForLanguage && (
-          <p className="preview-tab__survey-description muted">
-            {surveyDescriptionForLanguage}
-          </p>
+        {isExpertReviewMode ? (
+          <div className="preview-tab__survey-edit">
+            <label className="field">
+              <span>Survey title</span>
+              <input
+                value={surveyTitleForLanguage}
+                onChange={(event) =>
+                  updateSurveyHeaderField(
+                    activeLanguage,
+                    "survey_title",
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Survey description</span>
+              <textarea
+                value={surveyDescriptionForLanguage}
+                rows={3}
+                onChange={(event) =>
+                  updateSurveyHeaderField(
+                    activeLanguage,
+                    "survey_description",
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            <h3 className="preview-tab__survey-title">{surveyTitleForLanguage}</h3>
+            {surveyDescriptionForLanguage && (
+              <p className="preview-tab__survey-description muted">
+                {surveyDescriptionForLanguage}
+              </p>
+            )}
+          </>
         )}
         {surveyLevelFlags.length > 0 && (
           <div className="preview-tab__survey-flags">
@@ -394,6 +834,19 @@ export function PreviewTab({
               mapping={mappingByKey[q.question_key]}
               translation={activeTranslations?.questions?.[q.question_key]}
               languageFlags={issuesByQuestionKey[q.question_key] ?? []}
+              questionIntent={questionIntentLookup[q.question_key] ?? []}
+              editableTitle={
+                isExpertReviewMode
+                  ? localExpertReviewDraft[activeLanguage]?.questions[q.question_key] ??
+                    activeTranslations?.questions?.[q.question_key]?.title ??
+                    q.question_key
+                  : activeTranslations?.questions?.[q.question_key]?.title ??
+                    q.question_key
+              }
+              expertMode={isExpertReviewMode}
+              onChangeTitle={(title) =>
+                updateQuestionTitle(activeLanguage, q.question_key, title)
+              }
             />
           ))
         )}

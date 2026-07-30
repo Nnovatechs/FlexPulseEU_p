@@ -284,6 +284,55 @@ describe("survey translation actions", () => {
     });
   });
 
+  it("rejects multilingual validation when expert review has already been applied", async () => {
+    const fixture = buildTranslationSurveyFixture();
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-04-01T12:00:00.000Z",
+      content_hash: computeContentHash(
+        fixture.questions,
+        fixture.sourceTranslations,
+      ),
+      passed: true,
+      issues: [],
+    };
+    fixture.definition.survey_meta.expert_review_result = {
+      schema_version: 1,
+      baseline_content_hash: fixture.definition.survey_meta.validation_result.content_hash,
+      baseline_copy_hash: "baseline-copy-hash",
+      final_content_hash: "final-content-hash",
+      final_copy_hash: "final-copy-hash",
+      applied_at: "2026-07-30T10:00:00.000Z",
+      applied_by_user_id: "user-1",
+      reviewer_type: "language_expert",
+      review_basis: "Reviewed with a native French linguist.",
+      acknowledgement_version: "v1",
+      changes: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-translation-locked",
+      name: "Energy flexibility survey",
+      default_language: fixture.sourceLanguage,
+      supported_languages: [fixture.sourceLanguage, fixture.targetLanguage],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { generateSurveyTranslationsAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-translation-locked");
+
+    await expect(generateSurveyTranslationsAction(formData)).rejects.toThrow(
+      "Multilingual validation is locked after expert review. Make a normal edit to clear the expert review snapshot first.",
+    );
+    expect(translateSurveyLanguage).not.toHaveBeenCalled();
+    expect(polishSurveyLanguage).not.toHaveBeenCalled();
+    expect(validateTranslatedSurveyLanguage).not.toHaveBeenCalled();
+  });
+
   it("uses advisory translation findings for retries but stores product-safe recommendations", async () => {
     const fixture = buildTranslationSurveyFixture();
     fixture.definition.survey_meta.validation_result = {

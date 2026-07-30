@@ -117,6 +117,39 @@ export type MultilingualValidationResult = {
   language_statuses: MultilingualValidationLanguageStatus[];
 };
 
+export type ExpertReviewerType =
+  | "language_expert"
+  | "domain_expert"
+  | "research_team";
+
+export type ExpertReviewChangeField =
+  | "survey_title"
+  | "survey_description"
+  | "question_title";
+
+export type ExpertReviewChange = {
+  language: SurveyLanguageCode;
+  target: "survey" | "question";
+  question_key?: string;
+  field: ExpertReviewChangeField;
+  previous_value: string;
+  reviewed_value: string;
+};
+
+export type ExpertReviewResult = {
+  schema_version: 1;
+  baseline_content_hash: string;
+  baseline_copy_hash: string;
+  final_content_hash: string;
+  final_copy_hash: string;
+  applied_at: string;
+  applied_by_user_id: string;
+  reviewer_type: ExpertReviewerType;
+  review_basis: string;
+  acknowledgement_version: "v1";
+  changes: ExpertReviewChange[];
+};
+
 export type SurveyValidationRules = {
   pii: {
     allow_direct_identifiers: boolean;
@@ -185,6 +218,7 @@ export type SurveyDefinition = {
     response_context?: SurveyResponseContextConfig;
     validation_result?: ContentValidationResult;
     multilingual_validation_result?: MultilingualValidationResult;
+    expert_review_result?: ExpertReviewResult;
   };
   questions: SurveyQuestionDefinition[];
   translations: Record<SurveyLanguageCode, SurveyLanguageTranslations>;

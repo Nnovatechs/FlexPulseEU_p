@@ -128,6 +128,19 @@ describe("survey validation actions", () => {
         { language: "French", passed: true, issue_count: 0 },
       ],
     };
+    fixture.definition.survey_meta.expert_review_result = {
+      schema_version: 1,
+      baseline_content_hash: fixture.definition.survey_meta.validation_result.content_hash,
+      baseline_copy_hash: "translation-hash",
+      final_content_hash: "expert-final-content-hash",
+      final_copy_hash: "expert-final-copy-hash",
+      applied_at: "2026-04-01T12:20:00.000Z",
+      applied_by_user_id: "user-1",
+      reviewer_type: "language_expert",
+      review_basis: "Checked by a native reviewer.",
+      acknowledgement_version: "v1",
+      changes: [],
+    };
 
     getOwnedSurveyById.mockResolvedValue({
       id: "survey-2",
@@ -158,6 +171,9 @@ describe("survey validation actions", () => {
       updatePayload.definition_json.survey_meta.multilingual_validation_result,
     ).toBeUndefined();
     expect(
+      updatePayload.definition_json.survey_meta.expert_review_result,
+    ).toBeUndefined();
+    expect(
       updatePayload.definition_json.translations[fixture.language].questions
         .Q_TEST_01.title,
     ).toBe("How confident are you in automated load shifting?");
@@ -178,7 +194,9 @@ describe("survey validation actions", () => {
 
     getOwnedSurveyById.mockResolvedValue({
       id: "survey-3",
+      status: "draft",
       default_language: fixture.language,
+      supported_languages: [fixture.language],
       definition_json: fixture.definition,
     });
 
@@ -203,7 +221,9 @@ describe("survey validation actions", () => {
 
     getOwnedSurveyById.mockResolvedValue({
       id: "survey-4",
+      status: "draft",
       default_language: fixture.language,
+      supported_languages: [fixture.language],
       definition_json: fixture.definition,
     });
 
@@ -247,6 +267,45 @@ describe("survey validation actions", () => {
     );
     expect(runContentValidation).not.toHaveBeenCalled();
     expect(updateSurveyDraft).not.toHaveBeenCalled();
+  });
+
+  it("rejects validation when expert review has already been applied", async () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+    });
+    fixture.definition.survey_meta.expert_review_result = {
+      schema_version: 1,
+      baseline_content_hash: "baseline-content-hash",
+      baseline_copy_hash: "baseline-copy-hash",
+      final_content_hash: "final-content-hash",
+      final_copy_hash: "final-copy-hash",
+      applied_at: "2026-07-30T10:00:00.000Z",
+      applied_by_user_id: "user-1",
+      reviewer_type: "domain_expert",
+      review_basis: "Checked by the research team.",
+      acknowledgement_version: "v1",
+      changes: [],
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-expert-locked-validation",
+      status: "draft",
+      default_language: fixture.language,
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { validateSurveyContentAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-expert-locked-validation");
+
+    await expect(validateSurveyContentAction(formData)).rejects.toThrow(
+      "Validation is locked after expert review. Make a normal edit to clear the expert review snapshot first.",
+    );
+    expect(runContentValidation).not.toHaveBeenCalled();
   });
 
   it("persists normalized response context settings when survey configuration is saved", async () => {

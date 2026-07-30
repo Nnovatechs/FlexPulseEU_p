@@ -18,6 +18,13 @@ import {
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import { ensureDeclaredFlexibilityCapabilityDependencies } from "./declared-flexibility-capability-module";
 import { runContentValidation, computeContentHash } from "./content-validator";
+import {
+  applyExpertReviewChanges,
+  EXPERT_REVIEW_CONFIRMATION,
+  getSurveyIntegrityState,
+  normalizeExpertReviewBatch,
+  type ApplyExpertReviewInput,
+} from "./expert-review";
 import { generateSurveyDraftProposal } from "./survey-generation-flow";
 import { generateAndValidateTranslatedLanguage } from "./translation-loop";
 import {
@@ -32,6 +39,8 @@ import {
   archiveOwnedSurvey,
 } from "./generator-repository";
 import type {
+  ExpertReviewChangeField,
+  ExpertReviewerType,
   MultilingualValidationIssue,
   MultilingualValidationResult,
   SurveyDefinition,
@@ -61,6 +70,7 @@ function clearReviewValidationResults(definition: SurveyDefinition): SurveyDefin
   const next = structuredClone(definition);
   delete next.survey_meta.validation_result;
   delete next.survey_meta.multilingual_validation_result;
+  delete next.survey_meta.expert_review_result;
   return next;
 }
 
@@ -80,6 +90,83 @@ function assertCurrentContentValidation(survey: Awaited<ReturnType<typeof getOwn
     throw new Error(
       "Content validation is outdated. Re-run content validation before generating translations.",
     );
+  }
+}
+
+function assertExpertReviewNotApplied(
+  survey: Awaited<ReturnType<typeof getOwnedSurveyById>>,
+  actionLabel: string,
+) {
+  if (survey.definition_json.survey_meta.expert_review_result) {
+    throw new Error(
+      `${actionLabel} is locked after expert review. Make a normal edit to clear the expert review snapshot first.`,
+    );
+  }
+}
+
+function assertValidApplyExpertReviewInput(
+  survey: Awaited<ReturnType<typeof getOwnedSurveyById>>,
+  input: ApplyExpertReviewInput,
+) {
+  const reviewerTypes = new Set<ExpertReviewerType>([
+    "language_expert",
+    "domain_expert",
+    "research_team",
+  ]);
+  const changeFields = new Set<ExpertReviewChangeField>([
+    "survey_title",
+    "survey_description",
+    "question_title",
+  ]);
+
+  if (!reviewerTypes.has(input.reviewerType)) {
+    throw new Error("Reviewer type is invalid.");
+  }
+
+  if (!Array.isArray(input.changes)) {
+    throw new Error("Expert review changes must be provided as an array.");
+  }
+
+  const questionKeys = new Set(
+    survey.definition_json.questions.map((question) => question.question_key),
+  );
+
+  for (const change of input.changes) {
+    if (!change || typeof change !== "object") {
+      throw new Error("Each expert review change must be an object.");
+    }
+
+    if (typeof change.language !== "string" || !change.language.trim()) {
+      throw new Error("Expert review change language is invalid.");
+    }
+
+    if (!changeFields.has(change.field)) {
+      throw new Error("Expert review change field is invalid.");
+    }
+
+    if (typeof change.reviewed_value !== "string") {
+      throw new Error("Expert review change value is invalid.");
+    }
+
+    if (change.field === "question_title") {
+      if (typeof change.question_key !== "string" || !change.question_key.trim()) {
+        throw new Error("Question title changes require a valid question_key.");
+      }
+
+      if (!questionKeys.has(change.question_key.trim())) {
+        throw new Error(
+          `Question "${change.question_key.trim()}" is not part of the survey definition.`,
+        );
+      }
+      continue;
+    }
+
+    if (
+      change.question_key != null &&
+      (typeof change.question_key !== "string" || !change.question_key.trim())
+    ) {
+      throw new Error("Survey-level expert review changes cannot use an empty question_key.");
+    }
   }
 }
 
@@ -371,6 +458,122 @@ export async function updateQuestionTranslationAction(
 }
 
 // ---------------------------------------------------------------------------
+// Expert review
+// ---------------------------------------------------------------------------
+
+export async function applyExpertReviewAction(
+  input: ApplyExpertReviewInput,
+): Promise<{ appliedChangeCount: number }> {
+  const surveyId = input.surveyId.trim();
+  const reviewBasis = input.reviewBasis.trim();
+  const confirmation = input.confirmation.trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+  if (!reviewBasis) {
+    throw new Error("Review basis is required.");
+  }
+  if (confirmation !== EXPERT_REVIEW_CONFIRMATION) {
+    throw new Error(
+      `Confirmation must be exactly "${EXPERT_REVIEW_CONFIRMATION}".`,
+    );
+  }
+
+  const survey = await getOwnedSurveyById(surveyId);
+  redirectIfSurveyNotEditable(surveyId, survey.status);
+
+  if (survey.definition_json.survey_meta.expert_review_result) {
+    throw new Error(
+      "Expert review has already been applied. Make a normal edit to clear it before applying a new one.",
+    );
+  }
+
+  assertValidApplyExpertReviewInput(survey, input);
+
+  const integrity = getSurveyIntegrityState({
+    definition: survey.definition_json,
+    defaultLanguage: survey.default_language,
+    supportedLanguages: survey.supported_languages,
+  });
+
+  if (!integrity.automatic_content_passed) {
+    throw new Error(
+      "Survey must pass content validation before applying expert review.",
+    );
+  }
+
+  if (!integrity.automatic_content_current) {
+    throw new Error(
+      "Content validation is outdated. Re-run validation before applying expert review.",
+    );
+  }
+
+  if (integrity.automatic_multilingual_required) {
+    if (!integrity.automatic_multilingual_passed) {
+      throw new Error(
+        "Survey must pass multilingual validation before applying expert review.",
+      );
+    }
+
+    if (!integrity.automatic_multilingual_current) {
+      throw new Error(
+        "Multilingual validation is outdated. Re-run translation validation before applying expert review.",
+      );
+    }
+
+    if (!integrity.automatic_multilingual_languages_complete) {
+      throw new Error(
+        "Multilingual validation is missing one or more supported languages.",
+      );
+    }
+  }
+
+  const normalizedChanges = normalizeExpertReviewBatch(input.changes);
+
+  for (const change of normalizedChanges) {
+    if (!survey.supported_languages.includes(change.language)) {
+      throw new Error(`Unsupported language "${change.language}".`);
+    }
+
+    if (change.field === "question_title") {
+      if (!change.question_key) {
+        throw new Error("Question title changes require question_key.");
+      }
+      if (!change.reviewed_value) {
+        throw new Error("Question title cannot be empty.");
+      }
+      continue;
+    }
+
+    if (change.field === "survey_title" && !change.reviewed_value) {
+      throw new Error("Survey title cannot be empty.");
+    }
+  }
+
+  const appliedAt = new Date().toISOString();
+  const { definition, result } = applyExpertReviewChanges({
+    definition: survey.definition_json,
+    supportedLanguages: survey.supported_languages,
+    normalizedChanges,
+    reviewerType: input.reviewerType,
+    reviewBasis,
+    appliedByUserId: survey.created_by,
+    appliedAt,
+  });
+
+  await updateSurveyDraft({
+    surveyId,
+    definition_json: definition,
+  });
+
+  revalidatePath(appRoutes.surveyEdit(surveyId));
+  revalidatePath(appRoutes.surveyDetail(surveyId));
+
+  return { appliedChangeCount: result.changes.length };
+}
+
+// ---------------------------------------------------------------------------
 // Validate survey content (PII + semantic)
 // ---------------------------------------------------------------------------
 
@@ -385,6 +588,7 @@ export async function validateSurveyContentAction(
 
   const survey = await getOwnedSurveyById(surveyId);
   redirectIfSurveyNotEditable(surveyId, survey.status);
+  assertExpertReviewNotApplied(survey, "Validation");
   const { questions } = survey.definition_json;
   const { mappings } = survey.mapping_contract_json;
   const translations =
@@ -452,6 +656,7 @@ export async function generateSurveyTranslationsAction(
 
   const survey = await getOwnedSurveyById(surveyId);
   redirectIfSurveyNotEditable(surveyId, survey.status);
+  assertExpertReviewNotApplied(survey, "Multilingual validation");
   assertCurrentContentValidation(survey);
 
   const sourceTranslations =
@@ -560,54 +765,71 @@ export async function publishSurveyAction(
   const validationResult = survey.definition_json.survey_meta.validation_result;
   const translations =
     survey.definition_json.translations[survey.default_language];
-  const multilingualValidationResult =
-    survey.definition_json.survey_meta.multilingual_validation_result;
+  if (!translations) {
+    throw new Error("Canonical survey translations are missing.");
+  }
+
+  const integrity = getSurveyIntegrityState({
+    definition: survey.definition_json,
+    defaultLanguage: survey.default_language,
+    supportedLanguages: survey.supported_languages,
+  });
 
   if (!validationResult?.passed) {
-    throw new Error(
-      "Survey must pass content validation before publishing.",
-    );
+    throw new Error("Survey must pass content validation before publishing.");
   }
 
-  // Guard against stale validation (questions edited after validation ran)
-  const currentHash = computeContentHash(
-    survey.definition_json.questions,
-    translations,
-  );
-
-  if (currentHash !== validationResult.content_hash) {
-    throw new Error(
-      "Validation result is outdated. Re-run validation after your recent edits.",
-    );
-  }
-
-  if (survey.supported_languages.length > 1) {
-    if (!multilingualValidationResult?.passed) {
+  if (survey.definition_json.survey_meta.expert_review_result) {
+    if (!integrity.expert_review_baseline_linked) {
       throw new Error(
-        "Survey must pass multilingual validation before publishing.",
+        "Expert review baseline is no longer linked to the validated automatic baseline.",
       );
     }
 
-    const currentTranslationHash = computeMultilingualTranslationHash(
-      survey.definition_json,
-      survey.supported_languages,
-    );
-
-    if (currentTranslationHash !== multilingualValidationResult.translation_hash) {
+    if (!integrity.expert_review_final_current) {
       throw new Error(
-        "Multilingual validation is outdated. Re-run translation validation before publishing.",
+        "Expert-reviewed content is outdated. Re-apply expert review or make a normal edit and validate again.",
       );
     }
 
-    const missingValidatedLanguages = survey.supported_languages.filter(
-      (language) =>
-        !multilingualValidationResult.validated_languages.includes(language),
-    );
-
-    if (missingValidatedLanguages.length > 0) {
+    if (!integrity.can_publish_expert_reviewed) {
       throw new Error(
-        `Multilingual validation is missing languages: ${missingValidatedLanguages.join(", ")}.`,
+        "Survey must pass the automatic publication gates before publishing the expert-reviewed version.",
       );
+    }
+  } else {
+    if (!integrity.automatic_content_current) {
+      throw new Error(
+        "Validation result is outdated. Re-run validation after your recent edits.",
+      );
+    }
+
+    if (survey.supported_languages.length > 1) {
+      const multilingualValidationResult =
+        survey.definition_json.survey_meta.multilingual_validation_result;
+
+      if (!multilingualValidationResult?.passed) {
+        throw new Error(
+          "Survey must pass multilingual validation before publishing.",
+        );
+      }
+
+      if (!integrity.automatic_multilingual_current) {
+        throw new Error(
+          "Multilingual validation is outdated. Re-run translation validation before publishing.",
+        );
+      }
+
+      const missingValidatedLanguages = survey.supported_languages.filter(
+        (language) =>
+          !multilingualValidationResult.validated_languages.includes(language),
+      );
+
+      if (missingValidatedLanguages.length > 0) {
+        throw new Error(
+          `Multilingual validation is missing languages: ${missingValidatedLanguages.join(", ")}.`,
+        );
+      }
     }
   }
 

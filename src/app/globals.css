@@ -3386,6 +3386,74 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   line-height: 1.55;
 }
 
+.sf-visibility {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sf-visibility--compact {
+  margin: 1.1rem auto 0;
+  padding: 0.85rem 0.95rem;
+}
+
+.sf-visibility__logos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(180px, 0.95fr);
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.sf-visibility__logo-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 72px;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(91, 111, 151, 0.12);
+}
+
+.sf-visibility__logo-card--eu {
+  justify-content: flex-start;
+}
+
+.sf-visibility__eu-image,
+.sf-visibility__ocei-image {
+  width: 100%;
+  height: auto;
+}
+
+.sf-visibility__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sf-visibility__statement,
+.sf-visibility__disclaimer {
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.sf-visibility__statement {
+  font-size: 0.84rem;
+}
+
+.sf-visibility__disclaimer {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 /* ── Block indicator dots ────────────────────────────────── */
 
 .sf-block-dots {
@@ -3989,6 +4057,27 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 @media (max-width: 480px) {
   .sf-container {
     padding: 3rem 1rem 4.5rem;
+  }
+
+  .sf-visibility {
+    padding: 0.9rem;
+  }
+
+  .sf-visibility__logos {
+    grid-template-columns: 1fr;
+  }
+
+  .sf-visibility__logo-card {
+    min-height: 64px;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .sf-visibility__statement {
+    font-size: 0.8rem;
+  }
+
+  .sf-visibility__disclaimer {
+    font-size: 0.75rem;
   }
 
   .sf-survey-title {

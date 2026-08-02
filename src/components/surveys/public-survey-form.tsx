@@ -17,6 +17,7 @@ import {
   pruneHiddenQuestionAnswers,
   toggleExclusiveMultipleChoiceOption,
 } from "@/features/surveys/question-visibility";
+import { PublicSurveyVisibility } from "@/components/surveys/public-survey-visibility";
 
 declare global {
   interface Window {
@@ -183,6 +184,7 @@ function LanguagePickerScreen({
           );
         })}
       </div>
+      <PublicSurveyVisibility compact />
     </div>
   );
 }
@@ -747,6 +749,8 @@ export function PublicSurveyForm({
           )}
         </header>
 
+        {currentBlock === 0 ? <PublicSurveyVisibility language={language} /> : null}
+
         <BlockDots count={blocks.length} current={currentBlock} />
 
         <form ref={formRef} onSubmit={handleSubmit} noValidate>
@@ -881,6 +885,8 @@ export function PublicSurveyForm({
               )}
             </div>
           </div>
+
+          {currentBlock > 0 ? <PublicSurveyVisibility compact /> : null}
         </form>
       </div>
     </div>

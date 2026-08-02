@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PublicSurveyVisibility } from "@/components/surveys/public-survey-visibility";
 import { PublicSurveyForm } from "@/components/surveys/public-survey-form";
 import { submitPublicSurveyResponseAction } from "@/features/surveys/public-actions";
 import { getPublicSurveyCopy } from "@/features/surveys/public-copy";
@@ -66,6 +67,7 @@ export default async function PublicSurveyLinkPage({
                 <p>This published survey does not expose any respondent questions yet.</p>
               </div>
             </section>
+            <PublicSurveyVisibility compact />
           </div>
         </div>
       )}

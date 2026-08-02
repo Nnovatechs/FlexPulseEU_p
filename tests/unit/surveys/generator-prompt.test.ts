@@ -185,7 +185,28 @@ describe("measurement planner prompt", () => {
       "agreement with tolerance for deviation is negative evidence",
     );
     expect(prompt.user).toContain(
-      "agreement with stability requirements, prompt recovery, rejection or intolerance of deviation is positive evidence",
+      "Do not characterize a deviation as small, short, limited or easy to tolerate",
+    );
+    expect(prompt.user).toContain(
+      "For deviation-tolerance, recovery and boundary items, use neutral numerical conditions for magnitude and duration",
+    );
+    expect(prompt.user).toContain(
+      "Terms such as 'temporary', 'for a while', 'noticeable', 'soon' or 'quickly' are not sufficient on their own",
+    );
+    expect(prompt.user).toContain(
+      "The boundary item must represent a meaningfully stronger condition than the tolerance item rather than paraphrasing the stability requirement",
+    );
+    expect(prompt.user).toContain(
+      "Measure the respondent's norm for comfort preservation, not willingness to accept a flexibility event",
+    );
+    expect(prompt.user).toContain(
+      "agreement with stability requirements, defined recovery requirements, rejection or intolerance of deviation is positive evidence",
+    );
+    expect(prompt.user).toContain(
+      "such as 1\u00b0C for 1 hour",
+    );
+    expect(prompt.user).toContain(
+      "such as 2\u00b0C for 1 hour",
     );
     expect(prompt.user).toContain(
       "bounded, incentive-neutral conditions",
@@ -334,6 +355,18 @@ describe("measurement planner prompt", () => {
       "Do not borrow content from neighboring constructs",
     );
     expect(writerPrompt.user).toContain("realistic household decision");
+    expect(writerPrompt.user).toContain(
+      "For thermal_comfort_norms rating-scale slots, measure comfort-preservation norms rather than willingness to accept a flexibility event.",
+    );
+    expect(writerPrompt.user).toContain(
+      "For deviation-tolerance, recovery and boundary items, use neutral numerical conditions for magnitude and duration.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Terms such as 'temporary', 'for a while', 'noticeable', 'soon' or 'quickly' are not sufficient on their own.",
+    );
+    expect(writerPrompt.user).toContain(
+      "The boundary item must represent a meaningfully stronger condition than the tolerance item rather than paraphrasing the stability requirement.",
+    );
     expect(writerPrompt.user).toContain(
       "For tariff_preference_orientation rating-scale slots, ask directly how acceptable one specified tariff arrangement would be.",
     );

@@ -199,17 +199,33 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure comfort expectations with concrete temperature situations. Distinguish temperature stability, tolerance for a limited deviation, recovery expectations, and the point where variation becomes unacceptable. Polarity follows the construct direction, not the linguistic tone of the statement: agreement with tolerance for deviation is negative evidence; agreement with stability requirements, prompt recovery, rejection or intolerance of deviation is positive evidence. Avoid internally conflicted items, abstract operational language, and drift into willingness, trust or programme support.",
+      "Measure comfort expectations with concrete indoor-temperature situations. Distinguish need for temperature stability, tolerance for deviation, recovery expectations, and the point where variation becomes unacceptable. Do not characterize a deviation as small, short, limited or easy to tolerate. For deviation-tolerance, recovery and boundary items, use neutral numerical conditions for magnitude and duration. Terms such as 'temporary', 'for a while', 'noticeable', 'soon' or 'quickly' are not sufficient on their own. The boundary item must represent a meaningfully stronger condition than the tolerance item rather than paraphrasing the stability requirement. Measure the respondent's norm for comfort preservation, not willingness to accept a flexibility event. Polarity follows the construct direction, not the linguistic tone of the statement: agreement with tolerance for deviation is negative evidence; agreement with stability requirements, defined recovery requirements, rejection or intolerance of deviation is positive evidence. Avoid internally conflicted items, abstract operational language, and drift into willingness, trust or programme support.",
     semantic_guidance: {
       measurement_intent:
-        "Collect comfort-preservation expectations independently of willingness to participate.",
+        "Collect comfort-preservation expectations and personal tolerance boundaries for indoor-temperature variation independently of willingness to participate. Use defined conditions when the item concerns deviation tolerance, recovery or the point of unacceptability.",
       high_score_meaning:
-        "Stronger comfort-preservation requirements and lower deviation tolerance.",
+        "Stronger requirements for thermal stability and defined recovery, and lower tolerance for defined temperature variation.",
       recommended_facets: [
-        { key: "temperature_stability_requirement", meaning: "need to preserve the chosen indoor temperature." },
-        { key: "temporary_deviation_tolerance", meaning: "tolerance for limited temperature deviation; agreement expressing tolerance must use negative polarity." },
-        { key: "recovery_expectation", meaning: "expectation that the home returns to the chosen temperature." },
-        { key: "comfort_variation_boundary", meaning: "point where thermal variation becomes unacceptable; agreement expressing rejection or intolerance must use positive polarity." },
+        {
+          key: "temperature_stability_requirement",
+          meaning:
+            "Need to preserve the chosen indoor temperature while at home.",
+        },
+        {
+          key: "temporary_deviation_tolerance",
+          meaning:
+            "Tolerance for a defined moderate indoor-temperature deviation, such as 1°C for 1 hour. Agreement expressing tolerance must use negative polarity.",
+        },
+        {
+          key: "recovery_expectation",
+          meaning:
+            "Expectation that after a defined moderate deviation, such as 1°C for 1 hour, the home returns to the chosen temperature within a defined follow-up period.",
+        },
+        {
+          key: "comfort_variation_boundary",
+          meaning:
+            "Point where a meaningfully stronger defined deviation, such as 2°C for 1 hour, becomes unacceptable. Keep this stronger than the tolerance condition rather than paraphrasing the stability requirement. Agreement expressing rejection or intolerance must use positive polarity.",
+        },
       ],
       must_not_measure: [
         "Flexibility willingness.",

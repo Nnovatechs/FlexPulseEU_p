@@ -252,6 +252,18 @@ describe("measurement planner prompt", () => {
     expect(plannerPrompt.user).toContain(
       "Tariff preference measures acceptance of a tariff structure; bill stability measures the underlying need for predictable expenditure.",
     );
+    expect(plannerPrompt.user).toContain(
+      "fixed price periods, price-update frequency and notice, a conditional reward requirement, an observable planning action, or a stated degree of cost variability",
+    );
+    expect(plannerPrompt.user).toContain(
+      "Do not present a financial benefit without its condition",
+    );
+    expect(plannerPrompt.user).toContain(
+      "do not invent an economic magnitude that the scenario does not provide",
+    );
+    expect(plannerPrompt.user).toContain(
+      "'more often', 'some benefit', 'possible savings' or 'a bit more planning'",
+    );
     expect(plannerPrompt.user).not.toContain(
       "Trust measures readiness to rely; override measures the requirement to intervene.",
     );
@@ -322,6 +334,29 @@ describe("measurement planner prompt", () => {
       "Do not borrow content from neighboring constructs",
     );
     expect(writerPrompt.user).toContain("realistic household decision");
+    expect(writerPrompt.user).toContain(
+      "For tariff_preference_orientation rating-scale slots, ask directly how acceptable one specified tariff arrangement would be.",
+    );
+    expect(writerPrompt.user).toContain("Not at all acceptable");
+    expect(writerPrompt.user).toContain("Completely acceptable");
+    expect(writerPrompt.user).toContain(
+      "Each item must identify the tariff structure and one defining condition or burden required by the facet.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Qualitative expressions such as 'more often', 'some benefit', 'possible savings' or 'a bit more planning' do not operationalise those attributes.",
+    );
+    expect(writerPrompt.user).toContain(
+      "If a reward is part of the tariff, eligibility for the reward must depend on one bounded and observable household action.",
+    );
+    expect(writerPrompt.user).toContain(
+      "If the action involves shifting use in time, specify the bounded timing change; 'when asked' alone is not sufficient.",
+    );
+    expect(writerPrompt.user).toContain(
+      "State the condition required to receive the reward and do not invent an economic magnitude that the scenario does not provide.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Do not combine several independent tariff trade-offs in one item or turn the question into general savings motivation or flexibility willingness.",
+    );
     expect(writerPrompt.user).toContain(
       "For flexibility_willingness rating-scale slots, ask directly how willing the respondent would be to accept one specified flexibility action.",
     );

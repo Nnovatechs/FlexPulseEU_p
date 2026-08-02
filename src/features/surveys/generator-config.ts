@@ -224,18 +224,38 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure preference for concrete bill and tariff arrangements, not technical tariff literacy. Use plain situations: same price most of the day, cheaper electricity at certain times, higher prices at busy times, predictable monthly bills, or more effort in exchange for possible savings. Avoid measuring pure savings motivation, generic flexibility willingness, or technical tariff knowledge unless used as a clearly separated facet.",
+      "Measure the acceptability of specified electricity tariff arrangements. For rating-scale items, ask directly how acceptable one tariff structure would be. Define the structure using only the attributes needed by the selected facet: fixed price periods, price-update frequency and notice, a conditional reward requirement, an observable planning action, or a stated degree of cost variability. Do not present a financial benefit without its condition, do not invent an economic magnitude that the scenario does not provide, and do not use vague expressions such as 'more often', 'some benefit', 'possible savings' or 'a bit more planning' as if they defined a tariff. Keep tariff acceptance separate from general savings motivation, bill-stability need, tariff knowledge and generic flexibility willingness.",
     semantic_guidance: {
       measurement_intent:
-        "Collect acceptance of concrete tariff structures and their trade-offs.",
+        "Collect declared acceptability of specified time-varying or flexibility-linked electricity tariff arrangements and their defining conditions. Each item must evaluate one concrete tariff arrangement, not general motivation to save money, tariff knowledge or generic willingness to shift household activities.",
       high_score_meaning:
-        "Greater acceptance of time-varying or flexibility-linked tariffs.",
+        "Greater declared acceptance of the specified time-varying or flexibility-linked tariff arrangements included in the survey.",
       recommended_facets: [
-        { key: "time_of_use_acceptance", meaning: "acceptance of tariffs with cheaper and costlier times." },
-        { key: "dynamic_price_acceptance", meaning: "acceptance of more variable price structures." },
-        { key: "flexibility_reward_acceptance", meaning: "acceptance of tariff designs that reward shifting use." },
-        { key: "planning_effort_acceptance", meaning: "acceptance of planning effort imposed by tariff timing." },
-        { key: "price_variability_tolerance", meaning: "tolerance for variability or uncertainty in costs." },
+        {
+          key: "time_of_use_acceptance",
+          meaning:
+            "Measure acceptance of a tariff with fixed recurring cheaper and more expensive periods whose schedule is known in advance. Do not describe only the cheaper periods or imply guaranteed savings.",
+        },
+        {
+          key: "dynamic_price_acceptance",
+          meaning:
+            "Measure acceptance of a tariff whose electricity price is updated at a defined interval and communicated with a defined notice period. Do not describe price changes only as frequent, dynamic or variable.",
+        },
+        {
+          key: "flexibility_reward_acceptance",
+          meaning:
+            "Measure acceptance of a tariff in which receiving a stated reward depends on completing one bounded and observable flexibility action. If the action involves shifting use in time, specify the bounded timing change; 'when asked' alone is not sufficient. State the condition required to receive the reward, but do not invent an economic amount that the scenario does not provide. Do not present the reward as a free benefit or replace tariff acceptance with general willingness to shift.",
+        },
+        {
+          key: "planning_effort_acceptance",
+          meaning:
+            "Measure acceptance of a tariff that requires one observable planning action, such as checking announced prices and scheduling one appliance use. Do not describe the burden only as additional or moderate planning.",
+        },
+        {
+          key: "price_variability_tolerance",
+          meaning:
+            "Measure acceptance of a stated degree of price or cost variability under a tariff. Keep this separate from the respondent's general need for predictable monthly bills.",
+        },
       ],
       must_not_measure: [
         "Generic savings motivation.",

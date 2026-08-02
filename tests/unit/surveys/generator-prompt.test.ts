@@ -525,4 +525,118 @@ describe("measurement planner prompt", () => {
       "what consequences it had for comfort, costs, or device operation",
     );
   });
+
+  it("propagates awareness familiarity guidance without changing the allowed measurement contract", () => {
+    const behaviouralConceptKeys = ["awareness_of_energy_systems"];
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
+    const configs = getGeneratorTargetConfigs(schemaTargets);
+    const baseMeasurementPlanBlueprint = createMeasurementPlanBlueprint(
+      behaviouralConceptKeys,
+    );
+
+    const plannerPrompt = buildMeasurementPlannerPrompt({
+      surveyName: "Energy awareness survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      behaviouralConceptKeys,
+      schemaTargets,
+      configs,
+      baseMeasurementPlanBlueprint,
+    });
+
+    const writerPrompt = buildSurveyGeneratorPrompt({
+      surveyName: "Energy awareness survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English"],
+      schemaTargets,
+      configs,
+      measurementPlanBlueprint: {
+        schema_version: 1,
+        schema_namespace: "flexpulse_behavioural_schema",
+        concepts: baseMeasurementPlanBlueprint.concepts.map((concept) => ({
+          ...concept,
+          measurement_type: "multi_item_likert_mean",
+          aggregation_rule: "mean",
+          threshold_profile: "likert_1_5_low_mid_high",
+          minimum_answer_count: 2,
+          question_slots: [
+            {
+              slot_key: "SLOT_AWARENESS_01",
+              facet: "temporal_demand_recognition",
+              intent:
+                "Measure familiarity with how electricity demand varies across busier and quieter periods.",
+              polarity: "positive",
+            },
+            {
+              slot_key: "SLOT_AWARENESS_02",
+              facet: "automation_scope_recognition",
+              intent:
+                "Measure familiarity with what household automation can and cannot schedule.",
+              polarity: "positive",
+            },
+          ],
+        })),
+      },
+    });
+
+    const awarenessConfig = configs.find(
+      (config) => config.concept.concept_key === "awareness_of_energy_systems",
+    );
+
+    expect(awarenessConfig).toBeDefined();
+    expect(awarenessConfig?.allowed_measurement_types).toEqual([
+      "single_item_direct",
+      "multi_item_likert_mean",
+    ]);
+    expect(awarenessConfig?.allowed_question_types).toEqual([
+      "rating_scale",
+      "single_choice",
+    ]);
+    expect(plannerPrompt.user).toContain(
+      awarenessConfig?.semantic_guidance?.measurement_intent ?? "",
+    );
+    expect(plannerPrompt.user).toContain(
+      "Measure declared familiarity with how total electricity demand changes throughout the day",
+    );
+    expect(plannerPrompt.user).toContain(
+      "Measure declared understanding that shifting a household electricity use changes when electricity is consumed",
+    );
+    expect(plannerPrompt.user).toContain(
+      "Measure declared familiarity with what household energy controls can schedule or adjust automatically",
+    );
+    expect(
+      countOccurrences(writerPrompt.user, awarenessConfig?.prompt_notes ?? ""),
+    ).toBe(1);
+    expect(writerPrompt.user).toContain(
+      "prefer one distinct question slot for each of the five recommended facets",
+    );
+    expect(writerPrompt.user).toContain(
+      "For awareness_of_energy_systems rating-scale slots, use the direct self-report judgement implied by the slot intent and facet meaning",
+    );
+    expect(writerPrompt.user).toContain(
+      "Use understanding framing when the respondent must distinguish or understand a conceptual difference",
+    );
+    expect(writerPrompt.user).toContain(
+      "Use response anchors that match the question stem",
+    );
+    expect(writerPrompt.user).toContain(
+      "Do not ask about awareness through a bare task, tariff, device, technology or generic fact",
+    );
+    expect(writerPrompt.user).toContain(
+      "a higher response value indicates more of the target construct",
+    );
+    expect(writerPrompt.user).toContain(
+      "a higher response value indicates the opposite or limiting side of the construct",
+    );
+    expect(writerPrompt.user).not.toContain(
+      "higher agreement indicates more of the target construct",
+    );
+    expect(writerPrompt.user).not.toContain(
+      "higher agreement indicates the opposite or limiting side of the construct",
+    );
+  });
 });

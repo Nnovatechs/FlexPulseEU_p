@@ -102,18 +102,38 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure practical awareness, not vague self-confidence. Prefer items that test whether respondents recognize a concrete mechanism: peak/busy times, lower-demand periods, shiftable appliance tasks, network reliability, price signals, or what automation can and cannot schedule. Avoid circular wording like 'I understand the basic idea' unless the item names the specific mechanism. Avoid 'some electricity use', 'certain uses', and 'when needed'. Avoid using ability to explain as a proxy for awareness when explainability_need is also selected. Avoid drifting into trust, acceptance, or environmental motivation.",
+      "Measure self-reported awareness of how residential energy-flexibility mechanisms work, not vague self-confidence or agreement with factual statements. Use direct familiarity or understanding judgements that match the facet being measured. The object of the judgement must be one complete knowledge-bearing relationship: how a mechanism works, what effect an action has, when a pricing condition applies, or what a system can do within defined limits. Do not reduce the target to familiarity with a bare task, tariff, device, technology or generic fact. Preserve the intended mechanism, but express it in plain household language rather than as a full technical explanation. Do not use 'Before this survey, I already knew...'. Do not write factual statements and ask for agreement. Do not introduce trick items, false statements or artificial negations. Keep awareness separate from willingness, capability, trust, motivation, explainability and general technology comfort. When awareness_of_energy_systems is used as a primary profile axis, prefer one distinct question slot for each of the five recommended facets so the resulting score covers temporal demand, load shifting, price timing, system consequences and automation scope. Reduce this coverage only when the survey brief explicitly requires a shorter or narrower awareness measure.",
     semantic_guidance: {
       measurement_intent:
-        "Collect declared recognition of concrete flexibility mechanisms, not objective knowledge, willingness or trust.",
+        "Collect self-reported awareness of how distinct residential energy-flexibility mechanisms work, expressed through direct familiarity or understanding judgements. Each item must identify one knowledge-bearing relationship: a temporal pattern, a service-preserving shift, a pricing condition, a system consequence, or an automation scope boundary. Do not reduce the target to familiarity with a bare task, tariff, device or generic fact. Do not turn it into an objective knowledge test.",
       high_score_meaning:
-        "Stronger declared recognition of residential energy-flexibility mechanisms.",
+        "Greater self-reported awareness of residential energy-flexibility mechanisms, expressed through familiarity or understanding judgements.",
       recommended_facets: [
-        { key: "temporal_demand_recognition", meaning: "recognises higher- and lower-demand periods." },
-        { key: "shiftable_load_recognition", meaning: "recognises activities that may be moved in time." },
-        { key: "price_timing_recognition", meaning: "recognises relationships between timing and prices." },
-        { key: "system_consequence_recognition", meaning: "recognises effects on network pressure or reliability." },
-        { key: "automation_scope_recognition", meaning: "recognises what automation can and cannot schedule." },
+        {
+          key: "temporal_demand_recognition",
+          meaning:
+            "Measure declared familiarity with how total electricity demand changes throughout the day, resulting in periods of higher and lower demand. Ask about familiarity with this temporal pattern, not agreement with the fact that demand varies.",
+        },
+        {
+          key: "shiftable_load_recognition",
+          meaning:
+            "Measure declared understanding that shifting a household electricity use changes when electricity is consumed without necessarily reducing the total electricity used or changing the service delivered. Do not measure whether the respondent is personally able or willing to shift the activity.",
+        },
+        {
+          key: "price_timing_recognition",
+          meaning:
+            "Measure declared familiarity with how the time electricity is used can affect the household bill when the applicable tariff or reward scheme varies by time. Do not measure whether the respondent has such a tariff or would change behaviour because of it.",
+        },
+        {
+          key: "system_consequence_recognition",
+          meaning:
+            "Measure declared familiarity with how moving electricity use from higher-demand to lower-demand periods can change demand peaks and pressure on the electricity system. Do not replace the system consequence with household savings, comfort or willingness.",
+        },
+        {
+          key: "automation_scope_recognition",
+          meaning:
+            "Measure declared familiarity with what household energy controls can schedule or adjust automatically and the household-defined or technical limits within which they operate. Do not measure trust in automation, willingness to delegate or current use of the technology.",
+        },
       ],
       must_not_measure: [
         "Willingness.",
@@ -121,6 +141,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
         "Trust.",
         "DER adoption.",
         "Financial or environmental motivation.",
+        "Explainability need.",
       ],
     },
   },

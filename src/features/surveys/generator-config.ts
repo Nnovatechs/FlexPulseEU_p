@@ -150,18 +150,38 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
     allowed_question_types: ["rating_scale", "single_choice"],
     slot_capacity_max: 6,
     prompt_notes:
-      "Measure willingness to accept concrete household timing or comfort changes. Name the action and its minimum trade-off, such as delaying a non-urgent task until later the same day, charging later, accepting a short thermal adjustment, or refusing disruption to an important routine. For participation_intention, do not hide willingness behind favourable undefined conditions such as 'when feasible', 'when practical', 'when suitable' or 'when it fits'; specify what action or inconvenience the arrangement may require. Keep willingness separate from capability, trust, savings motivation and tariff preference.",
+      "Measure declared willingness to accept specified residential energy-flexibility actions under bounded, incentive-neutral conditions. Ask directly how willing the respondent would be to accept one concrete action. Include one moderate trade-off only when the intent requires it, such as a defined delay, a defined duration, a modest temperature deviation or a limited amount of replanning. Qualitative adjectives such as 'small', 'moderate', 'short' or 'limited' do not define a bounded trade-off on their own. When timing, duration or replanning is part of the intended trade-off, specify either a concrete duration or an observable scheduling consequence. Do not invent precision when the slot does not require a trade-off. Do not add multiple costs, favourable undefined conditions or financial rewards. Keep programme participation distinct from acceptance of a single action. Keep willingness separate from actual household capability, trust, savings motivation and tariff preference.",
     semantic_guidance: {
       measurement_intent:
-        "Collect whether the respondent would accept a concrete flexibility action, not whether the household can execute it.",
+        "Collect declared willingness to accept specified residential energy-flexibility actions under bounded, incentive-neutral conditions. Use direct willingness judgements and keep actual capability, trust, tariff preference and motivation outside this construct.",
       high_score_meaning:
-        "Greater declared readiness to participate in flexibility actions.",
+        "Greater declared willingness across the bounded residential energy-flexibility actions included in the survey.",
       recommended_facets: [
-        { key: "participation_intention", meaning: "readiness to join an arrangement that requires a defined, non-urgent timing change." },
-        { key: "appliance_shift_acceptance", meaning: "acceptance of moving an appliance task." },
-        { key: "temporary_thermal_adjustment_acceptance", meaning: "acceptance of a limited thermal adjustment." },
-        { key: "inconvenience_acceptance", meaning: "acceptance of a defined inconvenience." },
-        { key: "routine_disruption_boundary", meaning: "point where disruption reduces willingness." },
+        {
+          key: "participation_intention",
+          meaning:
+            "Measure willingness to opt into an ongoing household flexibility programme. When participation may involve timing changes, state the maximum bounded request the programme may make, such as a delay of up to a defined duration. 'At a different time' is not sufficiently bounded. Keep ongoing programme commitment distinct from willingness to perform one isolated action.",
+        },
+        {
+          key: "appliance_shift_acceptance",
+          meaning:
+            "Measure willingness to delay a named appliance task by a fixed defined period while preserving completion of the task within the same day. Use a single-event condition such as 'by 2 hours', not an 'up to' range, unless the intent explicitly measures a maximum or threshold. Do not measure whether the household is able to make the change.",
+        },
+        {
+          key: "temporary_thermal_adjustment_acceptance",
+          meaning:
+            "Measure willingness to accept a fixed indoor-temperature deviation for a fixed duration during a high-demand period, assuming that the adjustment is technically possible. Use a single-event condition such as '1°C for 1 hour', not an 'up to' range, unless the intent explicitly measures a maximum or threshold. Do not measure the respondent's underlying comfort standard.",
+        },
+        {
+          key: "inconvenience_acceptance",
+          meaning:
+            "Measure willingness to accept one explicit non-financial inconvenience required by a flexibility action. Name the inconvenience in observable terms rather than describing it only as small or moderate. Use this facet only when it adds evidence not already captured by timing, temperature or routine rescheduling.",
+        },
+        {
+          key: "routine_disruption_boundary",
+          meaning:
+            "Measure willingness to reschedule an electricity-using household task after its timing has already been planned. Define the disruption through a duration or an observable change to the planned schedule while preserving the required household service. Do not describe the disruption only as small or moderate.",
+        },
       ],
       must_not_measure: [
         "Operational control.",

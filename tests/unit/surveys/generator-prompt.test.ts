@@ -187,12 +187,29 @@ describe("measurement planner prompt", () => {
     expect(prompt.user).toContain(
       "agreement with stability requirements, prompt recovery, rejection or intolerance of deviation is positive evidence",
     );
-    expect(prompt.user).toContain("'when feasible'");
-    expect(prompt.user).toContain("'when practical'");
-    expect(prompt.user).toContain("'when suitable'");
-    expect(prompt.user).toContain("'when it fits'");
     expect(prompt.user).toContain(
-      "specify what action or inconvenience the arrangement may require",
+      "bounded, incentive-neutral conditions",
+    );
+    expect(prompt.user).toContain(
+      "defined delay, a defined duration, a modest temperature deviation or a limited amount of replanning",
+    );
+    expect(prompt.user).toContain(
+      "Qualitative adjectives such as 'small', 'moderate', 'short' or 'limited' do not define a bounded trade-off on their own",
+    );
+    expect(prompt.user).toContain(
+      "specify either a concrete duration or an observable scheduling consequence",
+    );
+    expect(prompt.user).toContain(
+      "'At a different time' is not sufficiently bounded",
+    );
+    expect(prompt.user).toContain(
+      "Use a single-event condition such as 'by 2 hours', not an 'up to' range, unless the intent explicitly measures a maximum or threshold",
+    );
+    expect(prompt.user).toContain(
+      "Use a single-event condition such as '1\u00b0C for 1 hour', not an 'up to' range, unless the intent explicitly measures a maximum or threshold",
+    );
+    expect(prompt.user).toContain(
+      "Keep programme participation distinct from acceptance of a single action",
     );
     expect(prompt.user).toContain(
       "delegation measures handing off one suitable action without manual handling each time",
@@ -305,7 +322,26 @@ describe("measurement planner prompt", () => {
       "Do not borrow content from neighboring constructs",
     );
     expect(writerPrompt.user).toContain("realistic household decision");
-    expect(writerPrompt.user).toContain("willingness to delay");
+    expect(writerPrompt.user).toContain(
+      "For flexibility_willingness rating-scale slots, ask directly how willing the respondent would be to accept one specified flexibility action.",
+    );
+    expect(writerPrompt.user).toContain("Not at all willing");
+    expect(writerPrompt.user).toContain("Very willing");
+    expect(writerPrompt.user).toContain(
+      "Qualitative adjectives such as 'small', 'moderate', 'short' or 'limited' do not define a bounded trade-off on their own.",
+    );
+    expect(writerPrompt.user).toContain(
+      "specify either a concrete duration or an observable scheduling consequence",
+    );
+    expect(writerPrompt.user).toContain(
+      "For programme-participation items, state the maximum bounded request the programme may make; an open phrase such as 'at a different time' is not sufficient.",
+    );
+    expect(writerPrompt.user).toContain(
+      "For a single-event item, use one fixed scenario rather than an 'up to' range, unless the slot explicitly measures a maximum or threshold.",
+    );
+    expect(writerPrompt.user).toContain(
+      "Keep programme participation distinct from acceptance of a single action",
+    );
     expect(writerPrompt.user).toContain(
       "network reliability",
     );

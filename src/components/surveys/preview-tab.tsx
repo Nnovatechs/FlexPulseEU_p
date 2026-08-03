@@ -317,6 +317,7 @@ export function PreviewTab({
   const [expertReviewError, setExpertReviewError] = useState<string | null>(null);
   const [isExpertReviewMode, setIsExpertReviewMode] = useState(false);
   const [isExpertReviewModalOpen, setIsExpertReviewModalOpen] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [reviewerType, setReviewerType] =
     useState<ExpertReviewerType>("language_expert");
   const [reviewBasis, setReviewBasis] = useState("");
@@ -376,16 +377,18 @@ export function PreviewTab({
     return groups;
   }, {});
 
-  function handlePublish(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+  function handleConfirmPublish() {
     setPublishError(null);
     startPublish(async () => {
       try {
+        const formData = new FormData();
+        formData.set("surveyId", surveyId);
         const result = await publishSurveyAction(formData);
         if (result?.error) {
           setPublishError(result.error);
+          return;
         }
+        setIsPublishModalOpen(false);
       } catch (err) {
         rethrowNextNavigationError(err);
         setPublishError(
@@ -497,11 +500,6 @@ export function PreviewTab({
 
   const publishSection = (
     <div className="preview-tab__publish">
-      <p className="preview-tab__publish-hint muted">
-        Publishing freezes all translations and makes the survey available for
-        responses. This action cannot be undone.
-      </p>
-
       {!contentPassed && (
         <p className="review-notice review-notice--warning">
           Preview remains available, but publication is blocked until content validation
@@ -649,12 +647,15 @@ export function PreviewTab({
           )}
         </div>
 
-        <form onSubmit={handlePublish}>
-          <input type="hidden" name="surveyId" value={surveyId} />
+        <div className="preview-tab__publish-button">
           <button
-            type="submit"
+            type="button"
             className="button button--primary"
             disabled={publishPending || !canPublish}
+            onClick={() => {
+              setPublishError(null);
+              setIsPublishModalOpen(true);
+            }}
             title={
               canPublish
                 ? "Publish survey"
@@ -663,7 +664,7 @@ export function PreviewTab({
           >
             {publishPending ? "Publishing…" : "Publish survey"}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );
@@ -744,6 +745,86 @@ export function PreviewTab({
                   setReviewConfirmation("");
                   setIsExpertReviewModalOpen(false);
                 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPublishModalOpen && (
+        <div className="generate-overlay" role="dialog" aria-modal="true">
+          <div className="generate-overlay__card preview-tab__modal-card">
+            <div className="preview-tab__modal-header">
+              <p className="generate-overlay__title">Publish survey</p>
+              <p className="preview-tab__modal-intro muted">
+                Publishing will freeze the survey and all of its translations.
+                Once published, the survey can no longer be modified through the
+                draft editing flow, and this action cannot be undone.
+              </p>
+              <p className="preview-tab__modal-intro muted">
+                Confirm only if the survey is final and ready to start collecting
+                responses.
+              </p>
+            </div>
+            {publishError && (
+              <div
+                className={`review-notice ${
+                  publishError === PRIVACY_PROFILE_INCOMPLETE_ERROR ||
+                  publishError === DPA_ACCEPTANCE_REQUIRED_ERROR
+                    ? "review-notice--warning"
+                    : "review-notice--error"
+                }`}
+                role="alert"
+              >
+                {publishError === PRIVACY_PROFILE_INCOMPLETE_ERROR ? (
+                  <>
+                    Complete your Privacy Settings before publishing this survey.{" "}
+                    <Link
+                      href={appRoutes.privacySettings}
+                      target="_blank"
+                      className="preview-tab__privacy-settings-link"
+                    >
+                      Open Privacy Settings
+                    </Link>
+                    .
+                  </>
+                ) : publishError === DPA_ACCEPTANCE_REQUIRED_ERROR ? (
+                  <>
+                    Review and accept the current Data Processing Agreement before
+                    publishing this survey.{" "}
+                    <Link
+                      href={appRoutes.dpa}
+                      target="_blank"
+                      className="preview-tab__privacy-settings-link"
+                    >
+                      Open DPA
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  publishError
+                )}
+              </div>
+            )}
+            <div className="preview-tab__modal-actions">
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={handleConfirmPublish}
+                disabled={publishPending}
+              >
+                {publishPending ? "Publishing…" : "Accept and publish"}
+              </button>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => {
+                  setPublishError(null);
+                  setIsPublishModalOpen(false);
+                }}
+                disabled={publishPending}
               >
                 Cancel
               </button>

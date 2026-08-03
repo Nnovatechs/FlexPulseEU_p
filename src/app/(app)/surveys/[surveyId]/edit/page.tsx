@@ -209,16 +209,6 @@ export default async function SurveyEditPage({
     </form>
   );
 
-  const questionsTab = (
-    <QuestionsOverview
-      questions={survey.definition_json.questions}
-      mappings={survey.mapping_contract_json.mappings}
-      translations={activeTranslations}
-      surveyId={survey.id}
-      defaultLanguage={survey.default_language}
-    />
-  );
-
   const hasQuestions = survey.definition_json.questions.length > 0;
   const storedValidation =
     survey.definition_json.survey_meta.validation_result ?? null;
@@ -240,6 +230,23 @@ export default async function SurveyEditPage({
       storedMultilingualValidation !== null;
   const questionIntentLookup = buildQuestionIntentLookup(
     survey.definition_json.survey_meta.measurement_plan_json,
+  );
+  const hasCurrentContentValidation =
+    storedValidation?.passed === true && !isValidationStale;
+  const hasCurrentMultilingualValidation =
+    storedMultilingualValidation?.passed === true && !isMultilingualValidationStale;
+
+  const questionsTab = (
+    <QuestionsOverview
+      questions={survey.definition_json.questions}
+      mappings={survey.mapping_contract_json.mappings}
+      translations={activeTranslations}
+      surveyId={survey.id}
+      defaultLanguage={survey.default_language}
+      hasContentValidation={hasCurrentContentValidation}
+      hasMultilingualValidation={hasCurrentMultilingualValidation}
+      hasExpertReview={expertReviewResult != null}
+    />
   );
 
   const previewUnlocked = hasQuestions;
@@ -327,13 +334,6 @@ export default async function SurveyEditPage({
         <div className="notice notice--error" role="alert">
           Survey generation failed.{" "}
           {generationMessage || "Please review the current settings and try again."}
-        </div>
-      ) : null}
-
-      {expertReviewResult ? (
-        <div className="notice notice--warning" role="status">
-          Expert review has been applied. Normal edits in Configuration or Questions
-          will clear automated validation and the stored expert review snapshot.
         </div>
       ) : null}
 

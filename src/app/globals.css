@@ -2206,6 +2206,10 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   padding-top: 0.25rem;
 }
 
+.qov-card__edit-warning {
+  margin-top: 0.25rem;
+}
+
 .qov-card__error {
   margin: 0;
   font-size: 0.86rem;
@@ -2782,6 +2786,10 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   margin-left: auto;
 }
 
+.preview-tab__publish-button {
+  margin-left: auto;
+}
+
 .preview-tab__expert-review-actions,
 .preview-tab__modal-actions {
   display: flex;
@@ -2907,7 +2915,13 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .qov-card__title-textarea {
-  min-height: 5.5rem;
+  min-height: 4.25rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.qov-card__question-edit-textarea {
+  min-height: 3.35rem;
   resize: vertical;
   line-height: 1.5;
 }
@@ -2976,6 +2990,10 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   }
 
   .preview-tab__publish-actions form {
+    margin-left: 0;
+  }
+
+  .preview-tab__publish-button {
     margin-left: 0;
   }
 

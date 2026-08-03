@@ -75,6 +75,37 @@ function clearReviewValidationResults(definition: SurveyDefinition): SurveyDefin
   return next;
 }
 
+function haveSameStrings(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function shouldPreserveSettingsSnapshots(input: {
+  existing: Awaited<ReturnType<typeof getOwnedSurveyById>>;
+  nextDefaultLanguage: string;
+  nextSupportedLanguages: string[];
+  nextSurveyDescription: string;
+}) {
+  const existingDescription =
+    input.existing.definition_json.translations[input.existing.default_language]
+      ?.survey_description ?? "";
+
+  const defaultLanguageChanged = input.existing.default_language !== input.nextDefaultLanguage;
+  const supportedLanguagesChanged = !haveSameStrings(
+    input.existing.supported_languages,
+    input.nextSupportedLanguages,
+  );
+  const descriptionChanged = existingDescription.trim() !== input.nextSurveyDescription.trim();
+
+  return {
+    preserveSnapshots:
+      !defaultLanguageChanged && !supportedLanguagesChanged && !descriptionChanged,
+  };
+}
+
 function assertCurrentContentValidation(survey: Awaited<ReturnType<typeof getOwnedSurveyById>>) {
   const validationResult = survey.definition_json.survey_meta.validation_result;
   const translations = survey.definition_json.translations[survey.default_language];
@@ -304,9 +335,16 @@ export async function updateSurveySettingsAction(formData: FormData) {
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
+  const settingsSnapshotPolicy = shouldPreserveSettingsSnapshots({
+    existing,
+    nextDefaultLanguage: defaultLanguage,
+    nextSupportedLanguages,
+    nextSurveyDescription: surveyDescription,
+  });
 
-  // Always clear validation when settings or questions change
-  const nextDefinition = clearReviewValidationResults(existing.definition_json);
+  const nextDefinition = settingsSnapshotPolicy.preserveSnapshots
+    ? structuredClone(existing.definition_json)
+    : clearReviewValidationResults(existing.definition_json);
   nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",

@@ -111,6 +111,11 @@ export default async function SurveyEditPage({
                 placeholder="Short introduction or context for respondents"
               />
             </label>
+            <div className="review-notice review-notice--warning">
+              Saving a new description or language configuration clears the
+              current validation and expert review snapshots because it changes
+              visible survey copy.
+            </div>
 
           </div>
         </details>
@@ -184,6 +189,10 @@ export default async function SurveyEditPage({
                 Full postal code enables the strongest spatial granularity, and
                 weather enrichment only works with full postal collection.
               </div>
+              <p className="muted">
+                Saving only the internal survey name or survey context keeps the
+                current validation and expert review snapshots.
+              </p>
             </div>
           </div>
         </details>

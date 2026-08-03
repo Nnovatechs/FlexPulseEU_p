@@ -554,6 +554,100 @@ function ContextSection({
   );
 }
 
+function ConsentScreen({
+  bundle,
+  copy,
+  surveyPrivacyUrl,
+  hasAcceptedLegal,
+  onAcceptedChange,
+  onContinue,
+  onBack,
+  showBack,
+  error,
+  language,
+}: {
+  bundle: SurveyLanguageTranslations;
+  copy: PublicSurveyCopy;
+  surveyPrivacyUrl: string;
+  hasAcceptedLegal: boolean;
+  onAcceptedChange: (value: boolean) => void;
+  onContinue: () => void;
+  onBack?: () => void;
+  showBack: boolean;
+  error: string | null;
+  language: string;
+}) {
+  return (
+    <div className="sf-shell">
+      <div className="sf-container">
+        <header className="sf-survey-header">
+          <p className="sf-survey-eyebrow">{copy.openSurveyEyebrow}</p>
+          <h1 className="sf-survey-title">{bundle?.survey_title ?? ""}</h1>
+          {bundle?.survey_description && (
+            <p className="sf-survey-desc">{bundle.survey_description}</p>
+          )}
+        </header>
+
+        <PublicSurveyVisibility language={language} />
+
+        <section className="sf-context-card">
+          <div>
+            <p className="sf-question__index">{copy.consentEyebrow}</p>
+            <h2 className="sf-question__title">{copy.consentTitle}</h2>
+            <p className="sf-question__desc">{copy.consentDescription}</p>
+          </div>
+
+          <label className="sf-legal-consent">
+            <input
+              type="checkbox"
+              checked={hasAcceptedLegal}
+              onChange={(event) => onAcceptedChange(event.target.checked)}
+            />
+            <span>
+              {copy.legalConsentLabel}{" "}
+              <Link href={surveyPrivacyUrl} target="_blank">
+                {copy.legalConsentPrivacyLink}
+              </Link>
+              {" · "}
+              <Link href={appRoutes.privacy} target="_blank">
+                {copy.legalConsentPlatformPrivacyLink}
+              </Link>
+              {" · "}
+              <Link href={appRoutes.cookies} target="_blank">
+                {copy.legalConsentCookiesLink}
+              </Link>
+            </span>
+          </label>
+
+          {error ? (
+            <div className="sf-error" role="alert">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="sf-nav">
+            <span className="sf-nav__progress-text">Consent required</span>
+            <div className="sf-nav-btns">
+              {showBack && onBack ? (
+                <button
+                  type="button"
+                  className="sf-btn sf-btn--secondary"
+                  onClick={onBack}
+                >
+                  {copy.backLabel}
+                </button>
+              ) : null}
+              <button type="button" className="sf-btn sf-btn--primary" onClick={onContinue}>
+                {copy.nextLabel}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 export function PublicSurveyForm({
@@ -577,8 +671,8 @@ export function PublicSurveyForm({
   const turnstileWidgetIdRef = useRef<string | undefined>(undefined);
 
   const [language, setLanguage] = useState(initialLanguage);
-  const [phase, setPhase] = useState<"language" | "survey">(
-    supportedLanguages.length > 1 && !hasExplicitLangParam ? "language" : "survey",
+  const [phase, setPhase] = useState<"language" | "consent" | "survey">(
+    supportedLanguages.length > 1 && !hasExplicitLangParam ? "language" : "consent",
   );
   const [currentBlock, setCurrentBlock] = useState(0);
   const [selectedValues, setSelectedValues] = useState<AnswerValues>({});
@@ -631,6 +725,18 @@ export function PublicSurveyForm({
 
   function handleLanguageSelect(lang: string) {
     setLanguage(lang);
+    setHasAcceptedLegal(false);
+    setBlockError(null);
+    setPhase("consent");
+  }
+
+  function handleConsentContinue() {
+    if (!hasAcceptedLegal) {
+      setBlockError(copy.legalConsentRequired);
+      return;
+    }
+
+    setBlockError(null);
     setPhase("survey");
   }
 
@@ -778,6 +884,33 @@ export function PublicSurveyForm({
     );
   }
 
+  if (phase === "consent") {
+    return (
+      <ConsentScreen
+        bundle={bundle}
+        copy={copy}
+        surveyPrivacyUrl={surveyPrivacyUrl}
+        hasAcceptedLegal={hasAcceptedLegal}
+        onAcceptedChange={(value) => {
+          setHasAcceptedLegal(value);
+          setBlockError(null);
+        }}
+        onContinue={handleConsentContinue}
+        onBack={
+          supportedLanguages.length > 1 && !hasExplicitLangParam
+            ? () => {
+                setBlockError(null);
+                setPhase("language");
+              }
+            : undefined
+        }
+        showBack={supportedLanguages.length > 1 && !hasExplicitLangParam}
+        error={blockError}
+        language={language}
+      />
+    );
+  }
+
   // ── Survey phase ────────────────────────────────────────────────────────
   return (
     <div className="sf-shell">
@@ -810,6 +943,11 @@ export function PublicSurveyForm({
           ) : null}
           <input type="hidden" name="linkToken" value={linkToken} />
           <input type="hidden" name="submittedLanguage" value={language} />
+          <input
+            type="hidden"
+            name="legalConsentAccepted"
+            value={hasAcceptedLegal ? "true" : "false"}
+          />
 
           {blocks.map((block, blockIdx) => (
             <div
@@ -854,35 +992,6 @@ export function PublicSurveyForm({
               onPostalChange={setPostalCode}
             />
           )}
-
-          {isLastBlock ? (
-            <label className="sf-legal-consent">
-              <input
-                type="checkbox"
-                name="legalConsentAccepted"
-                value="true"
-                checked={hasAcceptedLegal}
-                onChange={(event) => {
-                  setHasAcceptedLegal(event.target.checked);
-                  setBlockError(null);
-                }}
-              />
-              <span>
-                {copy.legalConsentLabel}{" "}
-                <Link href={surveyPrivacyUrl} target="_blank">
-                  {copy.legalConsentPrivacyLink}
-                </Link>
-                {" · "}
-                <Link href={appRoutes.privacy} target="_blank">
-                  {copy.legalConsentPlatformPrivacyLink}
-                </Link>
-                {" · "}
-                <Link href={appRoutes.cookies} target="_blank">
-                  {copy.legalConsentCookiesLink}
-                </Link>
-              </span>
-            </label>
-          ) : null}
 
           {blockError && (
             <div className="sf-error" role="alert">

@@ -1,6 +1,9 @@
 export type PublicSurveyCopy = {
   openSurveyEyebrow: string;
   openSurveyDescription: string;
+  consentEyebrow: string;
+  consentTitle: string;
+  consentDescription: string;
   responseContextEyebrow: string;
   responseContextTitle: string;
   responseContextDescription: string;
@@ -36,6 +39,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
   English: {
     openSurveyEyebrow: "Survey",
     openSurveyDescription: "Complete the published survey and submit your responses securely.",
+    consentEyebrow: "Before you start",
+    consentTitle: "Privacy and consent",
+    consentDescription:
+      "Please review the privacy information and accept it before continuing to the survey questions.",
     responseContextEyebrow: "Almost done",
     responseContextTitle: "One last thing",
     responseContextDescription:
@@ -73,6 +80,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     openSurveyEyebrow: "Encuesta",
     openSurveyDescription:
       "Completa la encuesta publicada y envía tus respuestas de forma segura.",
+    consentEyebrow: "Antes de empezar",
+    consentTitle: "Privacidad y consentimiento",
+    consentDescription:
+      "Revisa la información de privacidad y acéptala antes de continuar con las preguntas de la encuesta.",
     responseContextEyebrow: "Casi listo",
     responseContextTitle: "Una última cosa",
     responseContextDescription:
@@ -110,6 +121,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     openSurveyEyebrow: "Enquête",
     openSurveyDescription:
       "Complétez l'enquête publiée et envoyez vos réponses en toute sécurité.",
+    consentEyebrow: "Avant de commencer",
+    consentTitle: "Confidentialité et consentement",
+    consentDescription:
+      "Veuillez consulter les informations de confidentialité et les accepter avant de continuer vers les questions de l'enquête.",
     responseContextEyebrow: "Presque terminé",
     responseContextTitle: "Une dernière chose",
     responseContextDescription:
@@ -150,6 +165,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     openSurveyEyebrow: "Anketa",
     openSurveyDescription:
       "Ispunite objavljenu anketu i sigurno pošaljite svoje odgovore.",
+    consentEyebrow: "Prije početka",
+    consentTitle: "Privatnost i privola",
+    consentDescription:
+      "Pregledajte informacije o privatnosti i prihvatite ih prije nego nastavite na pitanja ankete.",
     responseContextEyebrow: "Gotovo je",
     responseContextTitle: "Još jedna stvar",
     responseContextDescription:

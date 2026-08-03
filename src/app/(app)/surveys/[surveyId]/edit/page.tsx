@@ -73,8 +73,15 @@ export default async function SurveyEditPage({
   const responseContext = normalizeSurveyResponseContextConfig(
     survey.definition_json.survey_meta.response_context,
   );
-  const collectsLocationContext =
-    responseContext.collect_country_code || responseContext.collect_postal_code;
+  const surveyContextMode = responseContext.enrich_weather_context
+    ? "weather_enriched"
+    : responseContext.collect_postal_code
+      ? responseContext.postal_collection_mode === "prefix"
+        ? "postal_prefix"
+        : "full_postal"
+      : responseContext.collect_country_code
+        ? "country_only"
+        : "none";
 
   const configurationTab = (
     <form action={updateSurveySettingsAction}>
@@ -105,34 +112,78 @@ export default async function SurveyEditPage({
               />
             </label>
 
+          </div>
+        </details>
+
+        <details className="collapsible-section">
+          <summary className="collapsible-section__header">
+            <span className="collapsible-section__title">Survey context</span>
+            <span className="collapsible-section__chevron" aria-hidden>
+              ›
+            </span>
+          </summary>
+
+          <div className="collapsible-section__body">
             <div className="field">
-              <span>Response context</span>
+              <span>Context level</span>
               <p className="muted">
-                Configure whether published respondents should provide coarse
-                location context for later enrichment and profiling.
+                Choose how much respondent location context the public survey
+                should collect. Prefix mode is currently intended for Spain,
+                France and Ireland only.
               </p>
               <div className="choice-stack">
                 <label className="choice-chip">
                   <input
-                    type="checkbox"
-                    name="collectLocation"
-                    defaultChecked={collectsLocationContext}
+                    type="radio"
+                    name="surveyContextMode"
+                    value="none"
+                    defaultChecked={surveyContextMode === "none"}
                   />
-                  <span>Collect location context (country + postal code)</span>
+                  <span>No context</span>
                 </label>
                 <label className="choice-chip">
                   <input
-                    type="checkbox"
-                    name="enrichWeatherContext"
-                    defaultChecked={responseContext.enrich_weather_context}
+                    type="radio"
+                    name="surveyContextMode"
+                    value="country_only"
+                    defaultChecked={surveyContextMode === "country_only"}
                   />
-                  <span>Enrich weather context after submission</span>
+                  <span>Country only</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="radio"
+                    name="surveyContextMode"
+                    value="postal_prefix"
+                    defaultChecked={surveyContextMode === "postal_prefix"}
+                  />
+                  <span>Country + postal prefix</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="radio"
+                    name="surveyContextMode"
+                    value="full_postal"
+                    defaultChecked={surveyContextMode === "full_postal"}
+                  />
+                  <span>Country + full postal code</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="radio"
+                    name="surveyContextMode"
+                    value="weather_enriched"
+                    defaultChecked={surveyContextMode === "weather_enriched"}
+                  />
+                  <span>Country + full postal code + weather enrichment</span>
                 </label>
               </div>
-              <p className="muted">
-                Weather enrichment depends on location context and will force it
-                on even if only the weather option is selected.
-              </p>
+              <div className="review-notice review-notice--warning">
+                Country only keeps the coarsest location layer. Postal prefix
+                adds an intermediate bucket without full geocoding or weather.
+                Full postal code enables the strongest spatial granularity, and
+                weather enrichment only works with full postal collection.
+              </div>
             </div>
           </div>
         </details>

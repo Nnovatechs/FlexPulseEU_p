@@ -1,3 +1,5 @@
+import type { SurveyPostalCollectionMode } from "./postal-code";
+
 export type SurveyLifecycleStatus = "draft" | "published" | "archived";
 
 export type SurveyLanguageCode = string;
@@ -164,6 +166,7 @@ export type SurveyResponseContextConfig = {
   collect_country_code: boolean;
   collect_postal_code: boolean;
   enrich_weather_context: boolean;
+  postal_collection_mode?: SurveyPostalCollectionMode;
 };
 
 export type MeasurementPlanEntry = {
@@ -365,10 +368,16 @@ export function normalizeSurveyResponseContextConfig(
   const collectCountryCode =
     config?.collect_country_code === true || collectPostalCode || enrichWeatherContext;
 
+  const postalCollectionMode: SurveyPostalCollectionMode =
+    config?.postal_collection_mode === "prefix" && !enrichWeatherContext
+      ? "prefix"
+      : "full";
+
   return {
     collect_country_code: collectCountryCode,
     collect_postal_code: collectPostalCode || enrichWeatherContext,
     enrich_weather_context: enrichWeatherContext,
+    postal_collection_mode: collectPostalCode || enrichWeatherContext ? postalCollectionMode : "full",
   };
 }
 

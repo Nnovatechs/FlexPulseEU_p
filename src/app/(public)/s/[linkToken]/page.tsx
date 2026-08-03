@@ -3,6 +3,7 @@ import { PublicSurveyVisibility } from "@/components/surveys/public-survey-visib
 import { PublicSurveyForm } from "@/components/surveys/public-survey-form";
 import { submitPublicSurveyResponseAction } from "@/features/surveys/public-actions";
 import { getPublicSurveyCopy } from "@/features/surveys/public-copy";
+import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
 import { getPublicSurveyRuntimeByLinkToken } from "@/features/surveys/use-cases";
 import { getTurnstileSiteKey } from "@/lib/server/turnstile";
 import { appRoutes } from "@/lib/config/routes";
@@ -34,7 +35,9 @@ export default async function PublicSurveyLinkPage({
     ? (resolvedSearchParams.lang as string)
     : survey.default_language;
 
-  const responseContext = survey.definition_json.survey_meta.response_context;
+  const responseContext = normalizeSurveyResponseContextConfig(
+    survey.definition_json.survey_meta.response_context,
+  );
 
   const allBundles = survey.definition_json.translations;
   const allCopy = Object.fromEntries(

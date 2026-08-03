@@ -64,15 +64,53 @@ describe("survey definition validation — response context", () => {
     ).toBe(true);
   });
 
+  it("rejects weather enrichment when postal collection is set to prefix mode", () => {
+    const definition = createInitialSurveyDefinition("English", ["English"]);
+    definition.translations.English.survey_title = "Baseline survey";
+    definition.survey_meta.response_context = {
+      collect_country_code: true,
+      collect_postal_code: true,
+      enrich_weather_context: true,
+      postal_collection_mode: "prefix",
+    };
+
+    const issues = validateSurveyDefinition(definition, {
+      require_complete_translations: false,
+    });
+
+    expect(
+      issues.some(
+        (issue) => issue.code === "weather_enrichment_requires_full_postal_code",
+      ),
+    ).toBe(true);
+  });
+
   it("normalizes response context so weather enrichment forces required inputs", () => {
     expect(
       normalizeSurveyResponseContextConfig({
         enrich_weather_context: true,
+        postal_collection_mode: "prefix",
       }),
     ).toEqual({
       collect_country_code: true,
       collect_postal_code: true,
       enrich_weather_context: true,
+      postal_collection_mode: "full",
+    });
+  });
+
+  it("preserves postal prefix mode when weather enrichment is not enabled", () => {
+    expect(
+      normalizeSurveyResponseContextConfig({
+        collect_country_code: true,
+        collect_postal_code: true,
+        postal_collection_mode: "prefix",
+      }),
+    ).toEqual({
+      collect_country_code: true,
+      collect_postal_code: true,
+      enrich_weather_context: false,
+      postal_collection_mode: "prefix",
     });
   });
 });

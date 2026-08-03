@@ -10,6 +10,10 @@ import type {
 } from "@/features/surveys/generator-types";
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
+import {
+  getPostalPrefixFieldSpec,
+  getSupportedPostalPrefixCountryCodes,
+} from "@/features/surveys/postal-code";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 import {
@@ -46,6 +50,10 @@ const LANGUAGE_META: Record<string, { flag: string; nativeName: string }> = {
 
 function getLangMeta(lang: string) {
   return LANGUAGE_META[lang] ?? { flag: "🌐", nativeName: lang };
+}
+
+function normalizePrefixInput(value: string) {
+  return value.replace(/[\s-]+/g, "").toUpperCase();
 }
 
 // ─── Block computation ────────────────────────────────────────────────────
@@ -480,6 +488,15 @@ function ContextSection({
   onCountryChange: (v: string) => void;
   onPostalChange: (v: string) => void;
 }) {
+  const prefixMode = responseContext.postal_collection_mode === "prefix";
+  const postalPrefixSpec = prefixMode ? getPostalPrefixFieldSpec(countryCode) : null;
+  const supportedPrefixCountries = new Set(getSupportedPostalPrefixCountryCodes());
+  const visibleCountryOptions = prefixMode
+    ? surveyCountryOptions.filter((option) => supportedPrefixCountries.has(option.code))
+    : surveyCountryOptions;
+  const postalLabel = prefixMode ? copy.postalPrefixLabel : copy.postalCodeLabel;
+  const postalPlaceholder = postalPrefixSpec?.example ?? copy.postalCodePlaceholder;
+
   return (
     <div className="sf-context-card">
       <div>
@@ -498,7 +515,7 @@ function ContextSection({
               onChange={(e) => onCountryChange(e.target.value)}
             >
               <option value="">{copy.countryCodePlaceholder}</option>
-              {surveyCountryOptions.map((c) => (
+              {visibleCountryOptions.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.label} ({c.code})
                 </option>
@@ -511,15 +528,26 @@ function ContextSection({
       {responseContext.collect_postal_code && (
         <div className="sf-postal-input">
           <label>
-            <span className="sf-field-label">{copy.postalCodeLabel}</span>
+            <span className="sf-field-label">{postalLabel}</span>
             <input
               name="postalCode"
               value={postalCode}
-              onChange={(e) => onPostalChange(e.target.value)}
-              placeholder={copy.postalCodePlaceholder}
-              maxLength={24}
+              onChange={(e) =>
+                onPostalChange(
+                  prefixMode ? normalizePrefixInput(e.target.value) : e.target.value,
+                )
+              }
+              placeholder={postalPlaceholder}
+              maxLength={postalPrefixSpec?.maxLength ?? 24}
+              pattern={postalPrefixSpec?.pattern}
+              disabled={prefixMode && !countryCode}
             />
           </label>
+          {postalPrefixSpec ? (
+            <p className="muted">
+              {copy.postalPrefixHelp}
+            </p>
+          ) : null}
         </div>
       )}
     </div>
@@ -690,6 +718,23 @@ export function PublicSurveyForm({
     if (responseContext?.collect_country_code && !countryCode) {
       setBlockError(copy.countryCodeEmpty);
       return;
+    }
+
+    if (responseContext?.collect_postal_code && !postalCode.trim()) {
+      setBlockError(copy.postalCodeEmpty);
+      return;
+    }
+
+    if (responseContext?.postal_collection_mode === "prefix" && countryCode) {
+      const postalPrefixSpec = getPostalPrefixFieldSpec(countryCode);
+      const normalizedPostalCode = normalizePrefixInput(postalCode);
+      if (
+        !postalPrefixSpec ||
+        !new RegExp(postalPrefixSpec.pattern).test(normalizedPostalCode)
+      ) {
+        setBlockError(copy.postalPrefixInvalid);
+        return;
+      }
     }
 
     if (!hasAcceptedLegal) {

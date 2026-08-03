@@ -72,7 +72,9 @@ function summarizeLocationContext(survey: PersistedSurvey) {
   }
 
   if (responseContext.collect_country_code && responseContext.collect_postal_code) {
-    return "Country code and postal code";
+    return responseContext.postal_collection_mode === "prefix"
+      ? "Country code and postal prefix"
+      : "Country code and postal code";
   }
 
   if (responseContext.collect_country_code) {

@@ -1,6 +1,11 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { PersistedSurvey, PersistedSurveyLink } from "./generator-types";
 import {
+  normalizeSurveyResponseContextConfig,
+  type PersistedSurvey,
+  type PersistedSurveyLink,
+} from "./generator-types";
+import {
+  classifyPostalCodeInput,
   deriveNormalizedSurveyLocation,
   fetchHistoricalWeatherWithOpenMeteo,
   geocodePostalCodeWithOpenMeteo,
@@ -192,47 +197,93 @@ async function processEnrichmentJob(job: ProcessingJobRow) {
   await updateResponsePipelineStatus(job.response_id, "enriching");
 
   const { response, survey } = await loadResponseRuntime(job.response_id);
-  const responseContext = survey.definition_json.survey_meta.response_context;
+  const responseContext = normalizeSurveyResponseContextConfig(
+    survey.definition_json.survey_meta.response_context,
+  );
   const normalizedCountryCode = response.country_code_raw?.trim().toUpperCase() ?? null;
-  const weatherRequested = responseContext?.enrich_weather_context === true;
-  const geocodedLocation =
-    normalizedCountryCode && response.postal_code_raw
-      ? await geocodePostalCodeWithOpenMeteo({
-          countryCode: normalizedCountryCode,
-          postalCode: response.postal_code_raw,
-        })
-      : null;
+  const weatherRequested = responseContext.enrich_weather_context === true;
+  const postalCode = response.postal_code_raw?.trim() ?? null;
+  const postalInput = classifyPostalCodeInput({
+    countryCode: normalizedCountryCode,
+    postalCode,
+    collectionMode: responseContext.postal_collection_mode,
+  });
+  const normalizedPostalCode = postalInput.normalizedPostalCode;
+  const canAttemptGeocoding =
+    normalizedCountryCode != null &&
+    postalInput.inputStatus === "full" &&
+    normalizedPostalCode != null;
+  let geocodedLocation = null;
+  let geocodingTechnicalFailure = false;
+
+  if (
+    normalizedCountryCode != null &&
+    postalInput.inputStatus === "full" &&
+    normalizedPostalCode != null
+  ) {
+    try {
+      geocodedLocation = await geocodePostalCodeWithOpenMeteo({
+        countryCode: normalizedCountryCode,
+        postalCode: normalizedPostalCode,
+      });
+    } catch {
+      geocodingTechnicalFailure = true;
+    }
+  }
 
   const normalizedLocation = deriveNormalizedSurveyLocation({
     countryCode: normalizedCountryCode,
-    postalCode: response.postal_code_raw,
+    postalCode: postalInput.normalizedPostalCode,
     geocodedLocation,
+    postalInputStatus: postalInput.inputStatus,
   });
+  const { centroidLat, centroidLon } = normalizedLocation;
 
-  const weatherObservation =
+  const canAttemptWeather =
     weatherRequested &&
-    normalizedLocation.centroidLat != null &&
-    normalizedLocation.centroidLon != null
-      ? await fetchHistoricalWeatherWithOpenMeteo({
-          latitude: normalizedLocation.centroidLat,
-          longitude: normalizedLocation.centroidLon,
-          respondedAt: response.responded_at,
-        })
-      : null;
+    postalInput.inputStatus === "full" &&
+    geocodedLocation != null &&
+    centroidLat != null &&
+    centroidLon != null;
+  let weatherObservation = null;
+  let weatherTechnicalFailure = false;
 
-  const qualityFlag = weatherRequested
-    ? weatherObservation
-      ? "weather_ok"
-      : geocodedLocation
-        ? "weather_unavailable"
-        : "geocoding_fallback_only"
-    : geocodedLocation
-      ? "location_only"
-      : "fallback_location_only";
+  if (canAttemptWeather) {
+    try {
+      weatherObservation = await fetchHistoricalWeatherWithOpenMeteo({
+        latitude: centroidLat,
+        longitude: centroidLon,
+        respondedAt: response.responded_at,
+      });
+    } catch {
+      weatherTechnicalFailure = true;
+    }
+  }
+
+  const qualityFlag =
+    postalInput.inputStatus === "prefix"
+      ? "postal_prefix_location_only"
+      : postalInput.inputStatus === "partial"
+      ? "postal_partial_location_only"
+      : postalInput.inputStatus === "invalid_or_unresolved"
+        ? "postal_invalid_or_unresolved"
+        : geocodingTechnicalFailure
+          ? "geocoding_technical_failure"
+          : weatherRequested
+            ? geocodedLocation == null
+              ? "postal_invalid_or_unresolved"
+              : weatherObservation
+                ? "weather_ok"
+                : weatherTechnicalFailure
+                  ? "weather_technical_failure"
+                  : "weather_unavailable"
+            : "weather_not_requested";
+  const provider =
+    canAttemptGeocoding || canAttemptWeather ? "open_meteo" : "none";
 
   const { error: enrichmentError } = await supabase.from("response_enrichment").upsert({
     response_id: response.id,
-    provider: geocodedLocation || weatherObservation ? "open_meteo" : "none",
+    provider,
     normalized_country_code: normalizedLocation.normalizedCountryCode,
     location_agg_code: normalizedLocation.locationAggCode,
     location_agg_label: normalizedLocation.locationAggLabel,
@@ -245,7 +296,17 @@ async function processEnrichmentJob(job: ProcessingJobRow) {
     observed_at: weatherObservation?.observedAt ?? null,
     quality_flag: qualityFlag,
     payload_json: {
-      weather: weatherObservation?.payload ?? { source: weatherRequested ? "not_available" : "not_requested" },
+      postal_input_status: postalInput.inputStatus,
+      weather:
+        weatherObservation?.payload ??
+        {
+          source: weatherRequested ? "not_available" : "not_requested",
+          technical_failure: weatherTechnicalFailure,
+        },
+      geocoding: {
+        attempted: canAttemptGeocoding,
+        technical_failure: geocodingTechnicalFailure,
+      },
       raw_location_retention_until: response.raw_location_retention_until,
     },
   });

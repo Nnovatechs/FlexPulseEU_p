@@ -280,8 +280,20 @@ export async function updateSurveySettingsAction(formData: FormData) {
     behaviouralConceptKeys.length > 0
       ? deriveSchemaTargetsFromBehaviouralConceptKeys(behaviouralConceptKeys)
       : [];
-  const collectLocation = formData.get("collectLocation") === "on";
-  const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
+  const surveyContextMode = String(formData.get("surveyContextMode") ?? "none").trim();
+  const responseContext = normalizeSurveyResponseContextConfig({
+    collect_country_code:
+      surveyContextMode === "country_only" ||
+      surveyContextMode === "postal_prefix" ||
+      surveyContextMode === "full_postal" ||
+      surveyContextMode === "weather_enriched",
+    collect_postal_code:
+      surveyContextMode === "postal_prefix" ||
+      surveyContextMode === "full_postal" ||
+      surveyContextMode === "weather_enriched",
+    enrich_weather_context: surveyContextMode === "weather_enriched",
+    postal_collection_mode: surveyContextMode === "postal_prefix" ? "prefix" : "full",
+  });
 
   if (!surveyId || !name || !defaultLanguage) {
     redirect(buildEditErrorRedirect(surveyId, "missing-fields"));
@@ -292,11 +304,6 @@ export async function updateSurveySettingsAction(formData: FormData) {
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
-  const responseContext = normalizeSurveyResponseContextConfig({
-    collect_country_code: collectLocation,
-    collect_postal_code: collectLocation,
-    enrich_weather_context: enrichWeatherContext,
-  });
 
   // Always clear validation when settings or questions change
   const nextDefinition = clearReviewValidationResults(existing.definition_json);

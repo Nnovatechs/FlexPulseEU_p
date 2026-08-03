@@ -34,6 +34,7 @@ vi.mock("@/features/surveys/generator-repository", () => ({
   updateSurveyDraft,
   publishSurvey,
   createSurveyDraft: vi.fn(),
+  duplicateOwnedSurvey: vi.fn(),
 }));
 
 vi.mock("@/features/surveys/content-validator", async () => {

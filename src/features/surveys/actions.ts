@@ -32,6 +32,7 @@ import {
 } from "./translation-validation";
 import {
   createSurveyDraft,
+  duplicateOwnedSurvey,
   getOwnedSurveyById,
   updateSurveyDraft,
   publishSurvey,
@@ -905,4 +906,22 @@ export async function archiveSurveyAction(formData: FormData): Promise<void> {
   revalidatePath(appRoutes.surveyDetail(surveyId));
 
   redirect(appRoutes.dashboard);
+}
+
+export async function duplicateSurveyAction(formData: FormData): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+
+  const duplicatedSurvey = await duplicateOwnedSurvey(surveyId);
+
+  revalidatePath(appRoutes.dashboard);
+  revalidatePath(appRoutes.surveys);
+  revalidatePath(appRoutes.surveyDetail(surveyId));
+  revalidatePath(appRoutes.surveyDetail(duplicatedSurvey.id));
+  revalidatePath(appRoutes.surveyEdit(duplicatedSurvey.id));
+
+  redirect(`${appRoutes.surveyEdit(duplicatedSurvey.id)}?duplicated=1`);
 }

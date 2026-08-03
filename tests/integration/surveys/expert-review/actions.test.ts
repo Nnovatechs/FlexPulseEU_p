@@ -37,6 +37,7 @@ vi.mock("@/features/surveys/generator-repository", () => ({
   getOwnedSurveyById,
   updateSurveyDraft,
   publishSurvey,
+  duplicateOwnedSurvey: vi.fn(),
   createSurveyDraft: vi.fn(),
   deleteOwnedSurveyDraft: vi.fn(),
   archiveOwnedSurvey: vi.fn(),

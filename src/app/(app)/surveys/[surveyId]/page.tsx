@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { QuestionList } from "@/components/surveys/question-list";
+import { SurveyDuplicateAction } from "@/components/surveys/survey-duplicate-action";
 import { getSurveyById } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -47,6 +48,7 @@ export default async function SurveyDetailPage({
             <Link href={appRoutes.surveyAnalytics(survey.id)} className="button button--ghost">
               Analytics
             </Link>
+            <SurveyDuplicateAction surveyId={survey.id} />
             {survey.status === "Draft" ? (
               <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
                 Edit survey

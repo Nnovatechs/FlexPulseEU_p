@@ -20,6 +20,7 @@ type SurveyEditPageProps = {
   params: Promise<{ surveyId: string }>;
   searchParams?: Promise<{
     created?: string;
+    duplicated?: string;
     saved?: string;
     generated?: string;
     error?: string;
@@ -57,6 +58,7 @@ export default async function SurveyEditPage({
     survey.definition_json.survey_meta.behavioural_concept_keys ?? [];
 
   const createdMessage = resolvedSearchParams.created === "1";
+  const duplicatedMessage = resolvedSearchParams.duplicated === "1";
   const savedMessage = resolvedSearchParams.saved === "1";
   const generatedMessage = resolvedSearchParams.generated === "1";
   const tabParam = resolvedSearchParams.tab;
@@ -303,6 +305,13 @@ export default async function SurveyEditPage({
       {createdMessage ? (
         <div className="notice notice--info" role="status">
           Survey created. Configure settings and select concepts to generate questions.
+        </div>
+      ) : null}
+
+      {duplicatedMessage ? (
+        <div className="notice notice--info" role="status">
+          Survey duplicated. This new draft preserves the source content and can
+          now be edited independently.
         </div>
       ) : null}
 

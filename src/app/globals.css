@@ -2749,8 +2749,11 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .qov-card--preview {
-  pointer-events: none;
   user-select: text;
+}
+
+.qov-card--preview:not(.qov-card--preview-editable) {
+  pointer-events: none;
 }
 
 .qov-card--preview .qov-card__edit-btn {
@@ -2901,6 +2904,17 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .qov-card__title-input {
   flex: 1 1 18rem;
   min-width: 18rem;
+}
+
+.qov-card__title-textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.qov-card--preview-editable .qov-card__title-input {
+  pointer-events: auto;
+  cursor: text;
 }
 
 @media (max-width: 720px) {

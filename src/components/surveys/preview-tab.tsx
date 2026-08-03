@@ -36,6 +36,12 @@ const TYPE_LABELS: Record<string, string> = {
   boolean: "Boolean",
 };
 
+const REVIEWER_TYPE_LABELS: Record<ExpertReviewerType, string> = {
+  language_expert: "Language expert",
+  domain_expert: "Domain expert",
+  research_team: "Research team",
+};
+
 const EXPERT_REVIEW_CONFIRMATION = "EXPERT REVIEW";
 
 function getMultilingualFlagLabel(flag: MultilingualValidationIssue) {
@@ -82,14 +88,19 @@ function ReadOnlyQuestionCard({
   onChangeTitle,
 }: ReadOnlyQuestionCardProps) {
   return (
-    <div className="qov-card qov-card--preview">
+    <div
+      className={`qov-card qov-card--preview${
+        expertMode ? " qov-card--preview-editable" : ""
+      }`}
+    >
       <div className="qov-card__main">
         <div className="qov-card__header">
           <span className="qov-card__number">{index + 1}</span>
           {expertMode ? (
-            <input
-              className="qov-card__title-input"
+            <textarea
+              className="qov-card__title-input qov-card__title-textarea"
               value={editableTitle}
+              rows={2}
               onChange={(event) => onChangeTitle?.(event.target.value)}
               aria-label={`Expert review title for ${question.question_key}`}
             />
@@ -304,9 +315,6 @@ export function PreviewTab({
   const [applyPending, startApply] = useTransition();
   const [publishError, setPublishError] = useState<string | null>(null);
   const [expertReviewError, setExpertReviewError] = useState<string | null>(null);
-  const [expertReviewAppliedMessage, setExpertReviewAppliedMessage] = useState<
-    string | null
-  >(null);
   const [isExpertReviewMode, setIsExpertReviewMode] = useState(false);
   const [isExpertReviewModalOpen, setIsExpertReviewModalOpen] = useState(false);
   const [reviewerType, setReviewerType] =
@@ -341,8 +349,10 @@ export function PreviewTab({
       : integrity.can_publish_automatic);
   const canStartExpertReview =
     !isExpertReviewMode &&
-    expertReviewResult == null &&
-    integrity.automatic_baseline_ready;
+    (expertReviewResult
+      ? integrity.expert_review_baseline_linked &&
+        integrity.expert_review_final_current
+      : integrity.automatic_baseline_ready);
   const multilingualBlockingIssueCount = (
     multilingualValidationResult?.issues ?? []
   ).filter((issue) => issue.severity !== "advisory").length;
@@ -402,14 +412,12 @@ export function PreviewTab({
     setLocalExpertReviewDraft(
       buildLocalExpertReviewDraft(translations, supportedLanguages, questions),
     );
-    setExpertReviewAppliedMessage(null);
     setIsExpertReviewModalOpen(false);
     setIsExpertReviewMode(true);
   }
 
   function handleDiscardLocalExpertReview() {
     setExpertReviewError(null);
-    setExpertReviewAppliedMessage(null);
     setIsExpertReviewMode(false);
     setLocalExpertReviewDraft(
       buildLocalExpertReviewDraft(translations, supportedLanguages, questions),
@@ -425,10 +433,9 @@ export function PreviewTab({
     });
 
     setExpertReviewError(null);
-    setExpertReviewAppliedMessage(null);
     startApply(async () => {
       try {
-        const result = await applyExpertReviewAction({
+        await applyExpertReviewAction({
           surveyId,
           reviewerType,
           reviewBasis,
@@ -436,13 +443,7 @@ export function PreviewTab({
           changes,
         });
         setIsExpertReviewMode(false);
-        setExpertReviewAppliedMessage(
-          result.appliedChangeCount > 0
-            ? `Expert review applied with ${result.appliedChangeCount} saved change${
-                result.appliedChangeCount === 1 ? "" : "s"
-              }.`
-            : "Expert review applied without text changes.",
-        );
+        setReviewConfirmation("");
         router.refresh();
       } catch (err) {
         rethrowNextNavigationError(err);
@@ -467,6 +468,14 @@ export function PreviewTab({
         [field]: value,
       },
     }));
+  }
+
+  function openExpertReviewModal() {
+    setExpertReviewError(null);
+    setReviewerType(expertReviewResult?.reviewer_type ?? "language_expert");
+    setReviewBasis(expertReviewResult?.review_basis ?? "");
+    setReviewConfirmation("");
+    setIsExpertReviewModalOpen(true);
   }
 
   function updateQuestionTitle(
@@ -516,8 +525,8 @@ export function PreviewTab({
       )}
       {expertReviewResult && integrity.can_publish_expert_reviewed && !isExpertReviewMode && (
         <p className="review-notice review-notice--success">
-          Automated baseline: Passed. Expert review: Applied. Final version: Current.
-          Publication is allowed using the expert-reviewed version.
+          Expert review is applied and the current reviewed version is ready to
+          publish.
         </p>
       )}
       {expertReviewResult &&
@@ -540,11 +549,6 @@ export function PreviewTab({
           </p>
         )}
 
-      {expertReviewAppliedMessage && (
-        <p className="review-notice review-notice--success">
-          {expertReviewAppliedMessage}
-        </p>
-      )}
       {expertReviewError && (
         <p className="review-notice review-notice--error" role="alert">
           {expertReviewError}
@@ -595,58 +599,55 @@ export function PreviewTab({
       {expertReviewResult && (
         <div className="preview-tab__expert-review-summary">
           <p className="muted">
-            Expert review applied by {expertReviewResult.reviewer_type} with{" "}
-            {expertReviewResult.changes.length} change
-            {expertReviewResult.changes.length === 1 ? "" : "s"}.
+            Latest expert review:{" "}
+            {REVIEWER_TYPE_LABELS[expertReviewResult.reviewer_type]}.
           </p>
-          <p className="muted">{expertReviewResult.review_basis}</p>
         </div>
       )}
 
       <div className="preview-tab__publish-actions">
-        {!expertReviewResult && (
-          <div className="preview-tab__expert-review-actions">
-            {isExpertReviewMode ? (
-              <>
-                <button
-                  type="button"
-                  className="button button--secondary"
-                  onClick={handleDiscardLocalExpertReview}
-                  disabled={applyPending}
-                >
-                  Discard local review
-                </button>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={handleApplyExpertReview}
-                  disabled={applyPending}
-                >
-                  {applyPending
-                    ? "Applying peer review…"
-                    : "Apply and freeze peer review"}
-                </button>
-              </>
-            ) : (
+        <div className="preview-tab__expert-review-actions">
+          {isExpertReviewMode ? (
+            <>
               <button
                 type="button"
                 className="button button--secondary"
-                onClick={() => {
-                  setExpertReviewError(null);
-                  setIsExpertReviewModalOpen(true);
-                }}
-                disabled={!canStartExpertReview || publishPending || applyPending}
-                title={
-                  canStartExpertReview
-                    ? "Start peer review"
-                    : "Peer review is available only when the automatic baseline is fully current"
-                }
+                onClick={handleDiscardLocalExpertReview}
+                disabled={applyPending}
               >
-                Start peer review
+                Discard local expert review
               </button>
-            )}
-          </div>
-        )}
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={handleApplyExpertReview}
+                disabled={applyPending}
+              >
+                {applyPending
+                  ? "Applying expert review…"
+                  : expertReviewResult
+                    ? "Apply updated expert review"
+                    : "Apply expert review"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={openExpertReviewModal}
+              disabled={!canStartExpertReview || publishPending || applyPending}
+              title={
+                canStartExpertReview
+                  ? expertReviewResult
+                    ? "Open expert review again"
+                    : "Start expert review"
+                  : "Expert review is available only when the automatic baseline is fully current"
+              }
+            >
+              {expertReviewResult ? "Open expert review again" : "Start expert review"}
+            </button>
+          )}
+        </div>
 
         <form onSubmit={handlePublish}>
           <input type="hidden" name="surveyId" value={surveyId} />
@@ -675,12 +676,15 @@ export function PreviewTab({
         <div className="generate-overlay" role="dialog" aria-modal="true">
           <div className="generate-overlay__card preview-tab__modal-card">
             <div className="preview-tab__modal-header">
-              <p className="generate-overlay__title">Start peer review</p>
+              <p className="generate-overlay__title">
+                {expertReviewResult
+                  ? "Open expert review again"
+                  : "Start expert review"}
+              </p>
               <p className="preview-tab__modal-intro muted">
-                You are entering the expert review stage after automated validation.
-                Changes made here will not be re-evaluated automatically, so the
-                final wording should only be adjusted with linguistic or expert
-                input.
+                {expertReviewResult
+                  ? "You are re-opening the expert review stage on top of the current reviewed copy. Changes made here will not be re-evaluated automatically, so the final wording should only be adjusted with linguistic or expert input."
+                  : "You are entering the expert review stage after automated validation. Changes made here will not be re-evaluated automatically, so the final wording should only be adjusted with linguistic or expert input."}
               </p>
             </div>
             <label className="field">
@@ -730,13 +734,14 @@ export function PreviewTab({
                 className="button button--primary"
                 onClick={handleStartExpertReview}
               >
-                Enter peer review
+                Enter expert review
               </button>
               <button
                 type="button"
                 className="button button--secondary"
                 onClick={() => {
                   setExpertReviewError(null);
+                  setReviewConfirmation("");
                   setIsExpertReviewModalOpen(false);
                 }}
               >
@@ -866,7 +871,6 @@ export function PreviewTab({
         )}
       </div>
 
-      {publishSection}
     </div>
   );
 }

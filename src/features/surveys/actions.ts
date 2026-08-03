@@ -482,13 +482,6 @@ export async function applyExpertReviewAction(
 
   const survey = await getOwnedSurveyById(surveyId);
   redirectIfSurveyNotEditable(surveyId, survey.status);
-
-  if (survey.definition_json.survey_meta.expert_review_result) {
-    throw new Error(
-      "Expert review has already been applied. Make a normal edit to clear it before applying a new one.",
-    );
-  }
-
   assertValidApplyExpertReviewInput(survey, input);
 
   const integrity = getSurveyIntegrityState({
@@ -497,13 +490,28 @@ export async function applyExpertReviewAction(
     supportedLanguages: survey.supported_languages,
   });
 
+  const hasExistingExpertReview =
+    survey.definition_json.survey_meta.expert_review_result != null;
+
   if (!integrity.automatic_content_passed) {
     throw new Error(
       "Survey must pass content validation before applying expert review.",
     );
   }
 
-  if (!integrity.automatic_content_current) {
+  if (hasExistingExpertReview) {
+    if (!integrity.expert_review_baseline_linked) {
+      throw new Error(
+        "Expert review baseline is no longer linked to the validated automatic baseline.",
+      );
+    }
+
+    if (!integrity.expert_review_final_current) {
+      throw new Error(
+        "Expert-reviewed content is outdated. Re-apply expert review or make a normal edit and validate again.",
+      );
+    }
+  } else if (!integrity.automatic_content_current) {
     throw new Error(
       "Content validation is outdated. Re-run validation before applying expert review.",
     );
@@ -516,15 +524,15 @@ export async function applyExpertReviewAction(
       );
     }
 
-    if (!integrity.automatic_multilingual_current) {
-      throw new Error(
-        "Multilingual validation is outdated. Re-run translation validation before applying expert review.",
-      );
-    }
-
     if (!integrity.automatic_multilingual_languages_complete) {
       throw new Error(
         "Multilingual validation is missing one or more supported languages.",
+      );
+    }
+
+    if (!hasExistingExpertReview && !integrity.automatic_multilingual_current) {
+      throw new Error(
+        "Multilingual validation is outdated. Re-run translation validation before applying expert review.",
       );
     }
   }

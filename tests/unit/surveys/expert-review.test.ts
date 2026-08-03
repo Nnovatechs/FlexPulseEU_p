@@ -155,4 +155,65 @@ describe("expert review helpers", () => {
     expect(integrity.expert_review_baseline_linked).toBe(true);
     expect(integrity.can_publish_expert_reviewed).toBe(true);
   });
+
+  it("preserves the automatic baseline when expert review is applied again", () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+    });
+
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-07-30T10:00:00.000Z",
+      content_hash: computeContentHash(fixture.questions, fixture.translations),
+      passed: true,
+      issues: [],
+    };
+
+    const firstReview = applyExpertReviewChanges({
+      definition: fixture.definition,
+      supportedLanguages: [fixture.language],
+      normalizedChanges: [
+        {
+          key: "English::question::question_title::Q_TEST_01",
+          language: fixture.language,
+          target: "question",
+          question_key: "Q_TEST_01",
+          field: "question_title",
+          reviewed_value: "How confident are you in automated load shifting?",
+        },
+      ],
+      reviewerType: "domain_expert",
+      reviewBasis: "First expert review round.",
+      appliedByUserId: "user-1",
+      appliedAt: "2026-07-30T10:05:00.000Z",
+    });
+
+    const secondReview = applyExpertReviewChanges({
+      definition: firstReview.definition,
+      supportedLanguages: [fixture.language],
+      normalizedChanges: [
+        {
+          key: "English::question::question_title::Q_TEST_01",
+          language: fixture.language,
+          target: "question",
+          question_key: "Q_TEST_01",
+          field: "question_title",
+          reviewed_value: "How comfortable are you with automated load shifting overall?",
+        },
+      ],
+      reviewerType: "research_team",
+      reviewBasis: "Second expert review round.",
+      appliedByUserId: "user-1",
+      appliedAt: "2026-07-30T10:10:00.000Z",
+    });
+
+    expect(secondReview.result.baseline_content_hash).toBe(
+      firstReview.result.baseline_content_hash,
+    );
+    expect(secondReview.result.baseline_copy_hash).toBe(
+      firstReview.result.baseline_copy_hash,
+    );
+    expect(secondReview.result.final_content_hash).not.toBe(
+      firstReview.result.final_content_hash,
+    );
+  });
 });

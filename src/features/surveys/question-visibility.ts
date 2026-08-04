@@ -61,6 +61,8 @@ export function isQuestionVisible(
   switch (rule.operator) {
     case "contains_any":
       return answerContainsAny(answers[rule.source_question_key], rule.values);
+    default:
+      return false;
   }
 }
 

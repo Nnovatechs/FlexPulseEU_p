@@ -10,7 +10,10 @@ import { compileMappingContract } from "./generator-mapping";
 import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { SubmittedSurveyAnswer } from "./response-validation";
 import { resolveQuestionApplicability } from "./question-visibility";
-import { DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY } from "./declared-flexibility-capability-module";
+import {
+  DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
+  DFC_COMPONENT_COUNT,
+} from "./declared-flexibility-capability-module";
 
 export const RESPONSE_MAPPER_VERSION = "v1";
 export const THRESHOLD_PROFILE_VERSION = "v1";
@@ -366,15 +369,16 @@ function buildDeclaredFlexibilityCapabilityEntry(
   }
 
   const setScores = Array.from(valuesBySet.entries()).map(([setKey, values]) => {
-    if (values.length !== 4) {
+    if (values.length !== DFC_COMPONENT_COUNT) {
       return null;
     }
 
     return [
       setKey,
       {
-        value: values.reduce((sum, value) => sum + value, 0) / 4,
-        evidence_count: 4,
+        value:
+          values.reduce((sum, value) => sum + value, 0) / DFC_COMPONENT_COUNT,
+        evidence_count: DFC_COMPONENT_COUNT,
         evidence_level: "facet_subscore" as const,
       },
     ] as const;

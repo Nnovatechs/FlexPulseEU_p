@@ -84,6 +84,16 @@ describe("question visibility", () => {
     expect([...noAssets.requiredQuestionKeys]).toEqual(["Q_ASSETS", "Q_LEGACY"]);
   });
 
+  it("hides questions explicitly when a rule operator is unknown", () => {
+    const questions = buildQuestions();
+    questions[0].visibility_rule = {
+      ...questions[0].visibility_rule!,
+      operator: "unknown_operator" as "contains_any",
+    };
+
+    expect(isQuestionVisible(questions[0], { Q_ASSETS: ["ev"] })).toBe(false);
+  });
+
   it("prunes newly hidden known answers and preserves unrelated state", () => {
     expect(
       pruneHiddenQuestionAnswers(buildQuestions(), {

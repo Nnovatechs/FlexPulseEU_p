@@ -12,6 +12,7 @@ import {
 } from "@/features/surveys/use-cases";
 import {
   buildBaselineMetrics,
+  buildCapabilityFacetMetrics,
   buildHrefWithProfileConditions,
   buildRadarGridPolygon,
   buildRadarPolygon,
@@ -36,6 +37,7 @@ import {
   getTagTone,
   getMetric,
   getMetricValue,
+  getCapabilityFacetFields,
   getPrimaryProfileFields,
   getRadarAxisLabel,
   getScoreBarWidth,
@@ -52,6 +54,7 @@ import {
   metricKeyFor,
   optionsFromRows,
   polarPoint,
+  shouldSuppressCapabilityFacet,
   TAG_VALUES,
   type ProfileCondition,
 } from "@/features/surveys/analytics/profile-explorer-utils";
@@ -262,11 +265,13 @@ function FilterRailForm({
   audienceOptions,
   languageOptions,
   assetOptions,
+  capabilityApplicabilityOptions,
   selectedCountry,
   selectedAudience,
   selectedLanguage,
   selectedTag,
   selectedAsset,
+  selectedCapabilityApplicability,
   selectedProfileBand,
 }: {
   searchParams: Record<string, string | string[] | undefined>;
@@ -276,11 +281,13 @@ function FilterRailForm({
   audienceOptions: FilterOption[];
   languageOptions: FilterOption[];
   assetOptions: FilterOption[];
+  capabilityApplicabilityOptions: FilterOption[];
   selectedCountry: string;
   selectedAudience: string;
   selectedLanguage: string;
   selectedTag: string;
   selectedAsset: string;
+  selectedCapabilityApplicability: string;
   selectedProfileBand: string;
 }) {
   return (
@@ -328,6 +335,16 @@ function FilterRailForm({
             value={selectedAsset}
             searchParams={searchParams}
             options={assetOptions}
+          />
+        ) : null}
+        {capabilityApplicabilityOptions.length > 0 ? (
+          <FilterOptionGroup
+            name="dfcApplicability"
+            label="DFC applicability"
+            allLabel="All applicability states"
+            value={selectedCapabilityApplicability}
+            searchParams={searchParams}
+            options={capabilityApplicabilityOptions}
           />
         ) : null}
         <FilterOptionGroup
@@ -980,6 +997,58 @@ function ProfileOverviewCard({
   );
 }
 
+function CapabilityFacetsCard({
+  selectedRow,
+  baselineRow,
+  fields,
+}: {
+  selectedRow: SurveyAnalyticsQueryRow | null;
+  baselineRow: SurveyAnalyticsQueryRow | null;
+  fields: SurveyAnalyticsFieldDefinition[];
+}) {
+  const row = selectedRow ?? baselineRow;
+  if (!row || fields.length === 0) {
+    return null;
+  }
+
+  return (
+    <article className="surface-card surface-card--wide">
+      <h2>Declared capability by applicable set</h2>
+      <p>
+        Set scores include only respondents for whom that asset set applied. Not-applicable
+        responses are excluded rather than classified as low.
+      </p>
+      {row.evidence.suppress_detail ? (
+        <p className="evidence-warning">
+          This selection matches fewer than 5 respondents. Capability facet details are hidden
+          for privacy.
+        </p>
+      ) : (
+        <div className="stack-list">
+          {fields.map((field) => {
+            const metric = row.metrics[metricKeyFor("avg", field)];
+            const suppressFacet = shouldSuppressCapabilityFacet(metric);
+            const notApplicable = Math.max(0, row.response_count - (metric?.sample_size ?? 0));
+            return (
+              <div key={field.key} className="analytics-row">
+                <strong>{humanizeFilterLabel(field.facet ?? field.label)}</strong>
+                {suppressFacet ? (
+                  <span>Suppressed for privacy (fewer than 5 applicable responses)</span>
+                ) : (
+                  <span>
+                    score {formatMetricValue(metric!)} · applicable n=
+                    {metric!.sample_size} · not applicable n={notApplicable}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function DifferentiatorsCard({
   baselineRow,
   segmentRows,
@@ -1057,7 +1126,7 @@ function ConceptComparisonTable({
   segmentField: SurveyAnalyticsFieldDefinition | null;
   profileValueFields: SurveyAnalyticsFieldDefinition[];
 }) {
-  const visibleFields = profileValueFields.slice(0, 5);
+  const visibleFields = profileValueFields.slice(0, MAX_PROFILE_CONCEPTS);
 
   return (
     <article className="surface-card surface-card--wide">
@@ -1174,7 +1243,7 @@ function AssetDistributionCard({
   assetField: SurveyAnalyticsFieldDefinition | null;
 }) {
   const assets = assetField
-    ? FLEXPULSE_DER_ASSET_VALUES.slice(0, 8)
+    ? FLEXPULSE_DER_ASSET_VALUES
         .map((asset) => ({
           asset,
           metric: getMetric(baselineRow, `asset_${asset}`),
@@ -1509,6 +1578,7 @@ export default async function SurveyAnalyticsPage({
     (field) => field.value_type === "number" && /^profile\.[^.]+\.value$/i.test(field.key),
   );
   const mainProfileFields = getPrimaryProfileFields(profileValueFields);
+  const capabilityFacetFields = getCapabilityFacetFields(fieldsBySource.profile);
   const tagFields = fieldsBySource.profile.filter((field) => field.value_type === "tag");
   const tagProfileField = tagFields[0] ?? null;
   const assetField =
@@ -1521,12 +1591,17 @@ export default async function SurveyAnalyticsPage({
     schema.fields.find((field) => field.key === "response.audience_label") ?? null;
   const primarySegmentField = countryField ?? languageField ?? audienceField ?? null;
   const segmentMetrics = buildSegmentMetrics(profileValueFields);
-  const baselineMetrics = buildBaselineMetrics(profileValueFields, tagFields, assetField);
+  const baselineMetrics = [
+    ...buildBaselineMetrics(profileValueFields, tagFields, assetField),
+    ...buildCapabilityFacetMetrics(fieldsBySource.profile),
+  ];
   const selectedCountry = getSearchParam(resolvedSearchParams, "country") ?? "";
   const selectedAudience = getSearchParam(resolvedSearchParams, "audience") ?? "";
   const selectedLanguage = getSearchParam(resolvedSearchParams, "language") ?? "";
   const selectedTag = getSearchParam(resolvedSearchParams, "tag") ?? "";
   const selectedAsset = getSearchParam(resolvedSearchParams, "asset") ?? "";
+  const selectedCapabilityApplicability =
+    getSearchParam(resolvedSearchParams, "dfcApplicability") ?? "";
   const compareRequested = getSearchParam(resolvedSearchParams, "compare") === "1";
   const leftComparison: ComparisonSelection = {
     profileBand: getSearchParam(resolvedSearchParams, "compare_a_profile_band") ?? "",
@@ -1556,6 +1631,8 @@ export default async function SurveyAnalyticsPage({
     selectedLanguage,
     selectedTag,
     selectedAsset,
+    capabilityFacetFields,
+    selectedCapabilityApplicability,
     profileConditions: activeProfileConditions,
   });
   const leftComparisonFilters = buildSelectedFilters({
@@ -1743,11 +1820,24 @@ export default async function SurveyAnalyticsPage({
     ? optionsFromRows(languageBreakdown?.result.groups ?? [], languageField.key)
     : [];
   const assetOptions = assetField
-    ? FLEXPULSE_DER_ASSET_VALUES.slice(0, 8).map((asset) => ({
+    ? FLEXPULSE_DER_ASSET_VALUES.map((asset) => ({
         value: asset,
         label: asset.replaceAll("_", " "),
       }))
     : [];
+  const capabilityApplicabilityOptions = capabilityFacetFields.flatMap((field) => {
+    const label = humanizeFilterLabel(field.facet ?? field.label);
+    return [
+      {
+        value: `${field.key}:not_null`,
+        label: `${label} applicable`,
+      },
+      {
+        value: `${field.key}:is_null`,
+        label: `${label} not applicable`,
+      },
+    ];
+  });
   const respondentsNow = hasActiveFilters
     ? (selectedRow?.response_count ?? 0)
     : schema.ready_response_count;
@@ -1868,6 +1958,11 @@ export default async function SurveyAnalyticsPage({
               profileValueFields={profileValueFields}
             />
           </section>
+          <CapabilityFacetsCard
+            selectedRow={selectedRow}
+            baselineRow={baselineRow}
+            fields={capabilityFacetFields}
+          />
           <ConceptComparisonTable
             baselineRow={baselineRow}
             segmentRows={segmentRows}
@@ -1956,11 +2051,13 @@ export default async function SurveyAnalyticsPage({
           audienceOptions={audienceOptions}
           languageOptions={languageOptions}
           assetOptions={assetOptions}
+          capabilityApplicabilityOptions={capabilityApplicabilityOptions}
           selectedCountry={selectedCountry}
           selectedAudience={selectedAudience}
           selectedLanguage={selectedLanguage}
           selectedTag={selectedTag}
           selectedAsset={selectedAsset}
+          selectedCapabilityApplicability={selectedCapabilityApplicability}
           selectedProfileBand={selectedProfileBand}
         />
       </aside>

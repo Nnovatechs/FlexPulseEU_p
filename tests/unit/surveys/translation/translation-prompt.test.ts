@@ -21,11 +21,11 @@ describe("buildSurveyTranslationPrompt", () => {
       "Rewrite survey text into the target language. Understand what each source item asks and write it naturally, as a clear human survey question. Return JSON only.",
     );
     expect(prompt.user).not.toContain("ontology_target");
-    expect(prompt.user).not.toContain("scale");
+    expect(prompt.user).toContain("rating-scale endpoint labels");
     expect(prompt.user).not.toContain("type");
     expect(prompt.user).toContain("source_description");
     expect(prompt.user).toContain(
-      "Rewrite the survey title, description, questions and option labels in the target language.",
+      "Rewrite the survey title, description, questions, option labels and rating-scale endpoint labels in the target language.",
     );
     expect(prompt.user).toContain(
       "If the source sounds robotic, technical or unclear, write a natural equivalent",

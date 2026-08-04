@@ -62,6 +62,26 @@ function buildSurveyFixture(): PersistedSurvey {
         question_keys: ["Q_DER_01"],
         required_question_keys: ["Q_DER_01"],
       },
+      {
+        concept_key: "declared_flexibility_capability",
+        evidence_source: "survey_questions",
+        measurement_type: "multi_item_likert_mean",
+        output_type: "number",
+        aggregation_rule: "mean",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 4,
+        question_keys: ["Q_DFC_01", "Q_DFC_02", "Q_DFC_03", "Q_DFC_04"],
+        required_question_keys: ["Q_DFC_01", "Q_DFC_02", "Q_DFC_03", "Q_DFC_04"],
+        question_intents: ["Q_DFC_01", "Q_DFC_02", "Q_DFC_03", "Q_DFC_04"].map(
+          (questionKey, index) => ({
+            slot_key: `SLOT_DFC_${index + 1}`,
+            question_key: questionKey,
+            facet: "ev_charging",
+            intent: `Measure EV capability component ${index + 1}.`,
+            polarity: "positive" as const,
+          }),
+        ),
+      },
     ],
   };
 
@@ -261,6 +281,12 @@ describe("survey analytics", () => {
         expect.objectContaining({
           key: "profile.owned_der_assets.value",
           value_type: "string[]",
+          source: "profile",
+        }),
+        expect.objectContaining({
+          key: "profile.declared_flexibility_capability.facets.ev_charging.value",
+          value_type: "number",
+          evidence_level: "facet_subscore",
           source: "profile",
         }),
         expect.objectContaining({
@@ -478,5 +504,135 @@ describe("survey analytics", () => {
         }),
       },
     ]);
+  });
+
+  it("uses applicable facet sample size and excludes null DFC from low shares", () => {
+    const survey = buildSurveyFixture();
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 3 });
+    const mapperOutputs = [
+      buildMapperOutput({
+        trust: 4,
+        trustTag: "high",
+        assets: ["ev"],
+        countryCode: "ES",
+        surveyLanguage: "Spanish",
+        tempOutdoorC: 18,
+        humidityPct: 45,
+        aggCode: "ES:city:madrid",
+        aggLabel: "Madrid",
+        granularity: "city",
+      }),
+      buildMapperOutput({
+        trust: 3,
+        trustTag: "medium",
+        assets: [],
+        countryCode: "ES",
+        surveyLanguage: "Spanish",
+        tempOutdoorC: 18,
+        humidityPct: 45,
+        aggCode: "ES:city:madrid",
+        aggLabel: "Madrid",
+        granularity: "city",
+      }),
+      buildMapperOutput({
+        trust: 2,
+        trustTag: "low",
+        assets: ["ev"],
+        countryCode: "ES",
+        surveyLanguage: "Spanish",
+        tempOutdoorC: 18,
+        humidityPct: 45,
+        aggCode: "ES:city:madrid",
+        aggLabel: "Madrid",
+        granularity: "city",
+      }),
+    ];
+    mapperOutputs[0].profile.declared_flexibility_capability = {
+      value: 4,
+      tag: "high",
+      facets: {
+        ev_charging: {
+          value: 4,
+          evidence_count: 4,
+          evidence_level: "facet_subscore",
+        },
+      },
+    };
+    mapperOutputs[1].profile.declared_flexibility_capability = { value: null };
+    mapperOutputs[2].profile.declared_flexibility_capability = {
+      value: 2,
+      tag: "low",
+      facets: {
+        ev_charging: {
+          value: 2,
+          evidence_count: 4,
+          evidence_level: "facet_subscore",
+        },
+      },
+    };
+    const rows = mapperOutputs.map((mapperOutput, index) =>
+      buildRecord({
+        responseId: `dfc-${index}`,
+        audienceToken: "default",
+        mapperOutput,
+        locationLevels: [],
+      }),
+    );
+
+    const result = runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query: {
+        metrics: [
+          {
+            key: "avg_ev",
+            kind: "average",
+            field: "profile.declared_flexibility_capability.facets.ev_charging.value",
+          },
+          {
+            key: "share_low",
+            kind: "share_equals",
+            field: "profile.declared_flexibility_capability.tag",
+            value: "low",
+          },
+        ],
+      },
+    });
+
+    expect(result.groups[0].metrics).toEqual({
+      avg_ev: { kind: "average", value: 3, sample_size: 2 },
+      share_low: {
+        kind: "share_equals",
+        value: 0.5,
+        sample_size: 2,
+        matched_count: 1,
+      },
+    });
+
+    const facetField =
+      "profile.declared_flexibility_capability.facets.ev_charging.value";
+    expect(
+      schema.fields.find((field) => field.key === facetField)?.filter_operators,
+    ).toEqual(expect.arrayContaining(["is_null", "not_null"]));
+
+    const applicable = runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query: {
+        filters: [{ field: facetField, op: "not_null", value: null }],
+        metrics: [{ key: "responses", kind: "count" }],
+      },
+    });
+    const notApplicable = runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query: {
+        filters: [{ field: facetField, op: "is_null", value: null }],
+        metrics: [{ key: "responses", kind: "count" }],
+      },
+    });
+
+    expect(applicable.matched_response_count).toBe(2);
+    expect(notApplicable.matched_response_count).toBe(1);
   });
 });

@@ -9,6 +9,7 @@ import type { MeasurementPlanBlueprint, MeasurementType } from "./measurement-pl
 import { getInvalidSurveyLanguages } from "./languages";
 import { getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
 import { PREFERRED_TARIFF_LABEL_BY_ONTOLOGY_VALUE } from "./generator-transform";
+import { validateQuestionVisibilityRules } from "./question-visibility";
 
 export type SurveyValidationIssue = {
   code: string;
@@ -38,6 +39,7 @@ function getCompatibleQuestionTypes(
 ): SurveyQuestionDefinition["type"][] {
   switch (measurementType) {
     case "multi_item_likert_median":
+    case "multi_item_likert_mean":
       return ["rating_scale"];
     case "single_choice_enum":
       return ["single_choice"];
@@ -310,7 +312,10 @@ function validateMeasurementPlanAlignment(
       }
     }
 
-    if (concept.measurement_type === "multi_item_likert_median") {
+    if (
+      concept.measurement_type === "multi_item_likert_median" ||
+      concept.measurement_type === "multi_item_likert_mean"
+    ) {
       if (concept.question_keys.length < 2) {
         addIssue(
           issues,
@@ -513,6 +518,22 @@ export function validateSurveyDefinition(
     validateQuestionDefinition(question, issues, index);
   });
 
+  for (const issue of validateQuestionVisibilityRules(definition.questions)) {
+    const questionIndex = definition.questions.findIndex(
+      (question) => question.question_key === issue.question_key,
+    );
+    const path = `questions[${questionIndex}].visibility_rule`;
+    const triggerSuffix =
+      issue.value == null ? "" : ` Trigger value "${issue.value}" is not an option key.`;
+
+    addIssue(
+      issues,
+      issue.code,
+      path,
+      `Visibility rule for "${issue.question_key}" has invalid source "${issue.source_question_key}".${triggerSuffix}`,
+    );
+  }
+
   const languagesToValidate = requireCompleteTranslations
     ? supportedLanguages
     : [defaultLanguage];
@@ -566,6 +587,40 @@ export function validateSurveyDefinition(
               `Option "${option.option_key}" is missing a label for language "${language}".`,
             );
           }
+        }
+      }
+
+      if (question.type === "rating_scale" && question.scale) {
+        const requiresDfcAnchors =
+          definition.survey_meta.capability_module_version === "v1" &&
+          question.question_key.startsWith("Q_DFC_");
+        const validatesLocalizedAnchors =
+          requiresDfcAnchors || questionTranslation?.scale != null;
+
+        if (!validatesLocalizedAnchors) {
+          continue;
+        }
+
+        const minLabel =
+          questionTranslation?.scale?.min_label ?? question.scale.min_label;
+        const maxLabel =
+          questionTranslation?.scale?.max_label ?? question.scale.max_label;
+
+        if (!minLabel?.trim()) {
+          addIssue(
+            issues,
+            "missing_scale_min_label",
+            `translations.${language}.questions.${question.question_key}.scale.min_label`,
+            `Question "${question.question_key}" is missing a minimum scale label for language "${language}".`,
+          );
+        }
+        if (!maxLabel?.trim()) {
+          addIssue(
+            issues,
+            "missing_scale_max_label",
+            `translations.${language}.questions.${question.question_key}.scale.max_label`,
+            `Question "${question.question_key}" is missing a maximum scale label for language "${language}".`,
+          );
         }
       }
     }

@@ -61,8 +61,8 @@ describe("measurement plan", () => {
         concepts: [
           {
             concept_key: "flexibility_willingness",
-            measurement_type: "multi_item_likert_median",
-            aggregation_rule: "median",
+            measurement_type: "multi_item_likert_mean",
+            aggregation_rule: "mean",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 4,
             slot_intents: slotIntents(4),
@@ -119,8 +119,8 @@ describe("measurement plan", () => {
       concepts: [
         {
           concept_key: "trust_in_automation",
-          measurement_type: "multi_item_likert_median",
-          aggregation_rule: "median",
+          measurement_type: "multi_item_likert_mean",
+          aggregation_rule: "mean",
           threshold_profile: "likert_1_5_low_mid_high",
           slot_count: 2,
           slot_intents: slotIntents(2),
@@ -159,8 +159,8 @@ describe("measurement plan", () => {
         concepts: [
           {
             concept_key: "trust_in_automation",
-            measurement_type: "multi_item_likert_median",
-            aggregation_rule: "median",
+            measurement_type: "multi_item_likert_mean",
+            aggregation_rule: "mean",
             threshold_profile: "likert_1_5_low_mid_high",
             slot_count: 2,
             slot_intents: slotIntents(2),
@@ -207,7 +207,8 @@ describe("measurement plan", () => {
     expect(plan.concepts).toEqual([
       expect.objectContaining({
         concept_key: "trust_in_automation",
-        measurement_type: "multi_item_likert_median",
+        measurement_type: "multi_item_likert_mean",
+        aggregation_rule: "mean",
         question_keys: [
           "Q_TRUST_AUTOMATION_TRUST_LEVEL_01",
           "Q_TRUST_AUTOMATION_TRUST_LEVEL_02",
@@ -226,27 +227,39 @@ describe("measurement plan", () => {
   });
 
   it("preserves question intents when rebuilding a plan from unchanged mappings", () => {
-    const existingPlan = materializeMeasurementPlan(
-      applyMeasurementPlannerOutput(
-        createMeasurementPlanBlueprint(["trust_in_automation"]),
+    const existingPlan = {
+      schema_version: 1 as const,
+      schema_namespace: "flexpulse_behavioural_schema" as const,
+      concepts: [
         {
-          concepts: [
+          concept_key: "trust_in_automation",
+          evidence_source: "survey_questions" as const,
+          measurement_type: "multi_item_likert_median" as const,
+          output_type: "number" as const,
+          aggregation_rule: "median" as const,
+          threshold_profile: "likert_1_5_low_mid_high" as const,
+          minimum_answer_count: 2,
+          question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+          required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+          question_intents: [
             {
-              concept_key: "trust_in_automation",
-              measurement_type: "multi_item_likert_median",
-              aggregation_rule: "median",
-              threshold_profile: "likert_1_5_low_mid_high",
-              slot_count: 2,
-              slot_intents: slotIntents(2),
+              slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+              facet: "facet_1",
+              intent: "Measure facet 1.",
+              polarity: "positive" as const,
+              question_key: "Q_TRUST_01",
+            },
+            {
+              slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+              facet: "facet_2",
+              intent: "Measure facet 2.",
+              polarity: "positive" as const,
+              question_key: "Q_TRUST_02",
             },
           ],
         },
-      ),
-      {
-        SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_01",
-        SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_02",
-      },
-    );
+      ],
+    };
 
     const plan = createMeasurementPlanFromMappings(
       ["trust_in_automation"],
@@ -269,27 +282,39 @@ describe("measurement plan", () => {
   });
 
   it("preserves planner measurement metadata when question keys are unchanged", () => {
-    const existingPlan = materializeMeasurementPlan(
-      applyMeasurementPlannerOutput(
-        createMeasurementPlanBlueprint(["flexibility_willingness"]),
+    const existingPlan = {
+      schema_version: 1 as const,
+      schema_namespace: "flexpulse_behavioural_schema" as const,
+      concepts: [
         {
-          concepts: [
+          concept_key: "flexibility_willingness",
+          evidence_source: "survey_questions" as const,
+          measurement_type: "multi_item_likert_median" as const,
+          output_type: "number" as const,
+          aggregation_rule: "mean" as const,
+          threshold_profile: "likert_1_5_low_mid_high" as const,
+          minimum_answer_count: 2,
+          question_keys: ["Q_FLEX_01", "Q_FLEX_02"],
+          required_question_keys: ["Q_FLEX_01", "Q_FLEX_02"],
+          question_intents: [
             {
-              concept_key: "flexibility_willingness",
-              measurement_type: "multi_item_likert_median",
-              aggregation_rule: "mean",
-              threshold_profile: "likert_1_5_low_mid_high",
-              slot_count: 2,
-              slot_intents: slotIntents(2),
+              slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_01",
+              facet: "facet_1",
+              intent: "Measure facet 1.",
+              polarity: "positive" as const,
+              question_key: "Q_FLEX_01",
+            },
+            {
+              slot_key: "SLOT_FLEXIBILITY_WILLINGNESS_02",
+              facet: "facet_2",
+              intent: "Measure facet 2.",
+              polarity: "positive" as const,
+              question_key: "Q_FLEX_02",
             },
           ],
         },
-      ),
-      {
-        SLOT_FLEXIBILITY_WILLINGNESS_01: "Q_FLEX_01",
-        SLOT_FLEXIBILITY_WILLINGNESS_02: "Q_FLEX_02",
-      },
-    );
+      ],
+    };
 
     const plan = createMeasurementPlanFromMappings(
       ["flexibility_willingness"],
@@ -311,27 +336,39 @@ describe("measurement plan", () => {
   });
 
   it("keeps matching intents when only one rebuilt question key still aligns", () => {
-    const existingPlan = materializeMeasurementPlan(
-      applyMeasurementPlannerOutput(
-        createMeasurementPlanBlueprint(["trust_in_automation"]),
+    const existingPlan = {
+      schema_version: 1 as const,
+      schema_namespace: "flexpulse_behavioural_schema" as const,
+      concepts: [
         {
-          concepts: [
+          concept_key: "trust_in_automation",
+          evidence_source: "survey_questions" as const,
+          measurement_type: "multi_item_likert_median" as const,
+          output_type: "number" as const,
+          aggregation_rule: "median" as const,
+          threshold_profile: "likert_1_5_low_mid_high" as const,
+          minimum_answer_count: 2,
+          question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+          required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+          question_intents: [
             {
-              concept_key: "trust_in_automation",
-              measurement_type: "multi_item_likert_median",
-              aggregation_rule: "median",
-              threshold_profile: "likert_1_5_low_mid_high",
-              slot_count: 2,
-              slot_intents: slotIntents(2),
+              slot_key: "SLOT_TRUST_IN_AUTOMATION_01",
+              facet: "facet_1",
+              intent: "Measure facet 1.",
+              polarity: "positive" as const,
+              question_key: "Q_TRUST_01",
+            },
+            {
+              slot_key: "SLOT_TRUST_IN_AUTOMATION_02",
+              facet: "facet_2",
+              intent: "Measure facet 2.",
+              polarity: "positive" as const,
+              question_key: "Q_TRUST_02",
             },
           ],
         },
-      ),
-      {
-        SLOT_TRUST_IN_AUTOMATION_01: "Q_TRUST_01",
-        SLOT_TRUST_IN_AUTOMATION_02: "Q_TRUST_02",
-      },
-    );
+      ],
+    };
 
     const plan = createMeasurementPlanFromMappings(
       ["trust_in_automation"],

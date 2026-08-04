@@ -12,6 +12,10 @@ type TranslationEntry = {
   title: string;
   description?: string;
   options?: Record<string, string>;
+  scale?: {
+    min_label: string;
+    max_label: string;
+  };
 };
 
 type QuestionCardEditableProps = {
@@ -145,13 +149,13 @@ export function QuestionCardEditable({
                 </span>
                 <span className="qov-card__scale-indicator-value">
                   {question.scale.min}
-                  {question.scale.min_label
-                    ? ` — ${question.scale.min_label}`
+                  {translation?.scale?.min_label ?? question.scale.min_label
+                    ? ` — ${translation?.scale?.min_label ?? question.scale.min_label}`
                     : ""}
                   {"  ·  "}
                   {question.scale.max}
-                  {question.scale.max_label
-                    ? ` — ${question.scale.max_label}`
+                  {translation?.scale?.max_label ?? question.scale.max_label
+                    ? ` — ${translation?.scale?.max_label ?? question.scale.max_label}`
                     : ""}
                 </span>
               </div>
@@ -233,9 +237,13 @@ export function QuestionCardEditable({
         {question.scale && (
           <p className="qov-card__meta muted">
             Scale {question.scale.min}
-            {question.scale.min_label ? ` (${question.scale.min_label})` : ""}{" "}
+            {translation?.scale?.min_label ?? question.scale.min_label
+              ? ` (${translation?.scale?.min_label ?? question.scale.min_label})`
+              : ""}{" "}
             → {question.scale.max}
-            {question.scale.max_label ? ` (${question.scale.max_label})` : ""}
+            {translation?.scale?.max_label ?? question.scale.max_label
+              ? ` (${translation?.scale?.max_label ?? question.scale.max_label})`
+              : ""}
           </p>
         )}
 

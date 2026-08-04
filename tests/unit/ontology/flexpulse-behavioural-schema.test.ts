@@ -9,10 +9,11 @@ import {
 } from "@/features/ontology/flexpulse-behavioural-schema";
 
 describe("flexpulse behavioural schema v1", () => {
-  it("defines the six primary profile axes requested by the research scope", () => {
+  it("defines the seven primary profile axes requested by the research scope", () => {
     expect(flexpulsePrimaryProfileAxes.map((concept) => concept.concept_key)).toEqual([
       "awareness_of_energy_systems",
       "flexibility_willingness",
+      "declared_flexibility_capability",
       "thermal_comfort_norms",
       "tariff_preference_orientation",
       "trust_in_automation",
@@ -31,12 +32,18 @@ describe("flexpulse behavioural schema v1", () => {
       "thermal_storage",
       "hot_water_tank",
       "programmable_appliance",
+      "washing_machine",
+      "air_conditioning",
     ]);
 
     const ownedAssets = getFlexpulseBehaviouralConcept("owned_der_assets");
     expect(ownedAssets?.validation_constraints?.allowed_values).toEqual([
       ...FLEXPULSE_DER_ASSET_VALUES,
     ]);
+    expect(ownedAssets).toMatchObject({
+      label: "Household energy assets and flexible appliances",
+      dimension: "der_engagement",
+    });
   });
 
   it("keeps trust constraints and event tolerance as behavioural modulators", () => {

@@ -9,6 +9,10 @@ export type SurveyLanguageLLMQuestionOutput = {
   title: string;
   description: string;
   options: Array<{ option_key: string; label: string }>;
+  scale?: {
+    min_label: string;
+    max_label: string;
+  } | null;
 };
 
 export type SurveyLanguageLLMOutput = {
@@ -76,6 +80,14 @@ export function parseSurveyLanguageLLMOutput(
               ),
             }
           : {}),
+        ...(question.scale
+          ? {
+              scale: {
+                min_label: question.scale.min_label,
+                max_label: question.scale.max_label,
+              },
+            }
+          : {}),
       },
     ]),
   );
@@ -109,6 +121,17 @@ export function parseSurveyLanguageLLMOutput(
             `${input.operationLabel} is missing option "${optionKey}" for question "${question.question_key}" in ${input.targetLanguage}.`,
           );
         }
+      }
+    }
+
+    if (question.type === "rating_scale") {
+      if (
+        !translatedQuestion.scale?.min_label?.trim() ||
+        !translatedQuestion.scale.max_label?.trim()
+      ) {
+        throw new Error(
+          `${input.operationLabel} is missing scale anchors for question "${question.question_key}" in ${input.targetLanguage}.`,
+        );
       }
     }
   }

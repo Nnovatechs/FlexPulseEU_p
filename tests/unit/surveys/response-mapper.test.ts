@@ -9,6 +9,11 @@ import {
   mapSurveyResponseToOutput,
   type ResponseEnrichmentRecord,
 } from "@/features/surveys/response-mapper";
+import {
+  createDeclaredFlexibilityCapabilityBlueprintArtifact,
+  createDeclaredFlexibilityCapabilityDefinitionArtifacts,
+  DFC_INVENTORY_QUESTION_KEY,
+} from "@/features/surveys/declared-flexibility-capability-module";
 
 function buildPublishedSurveyFixture(): PersistedSurvey {
   const definition = createInitialSurveyDefinition("English", ["English"]);
@@ -272,6 +277,31 @@ function buildEnrichment(): ResponseEnrichmentRecord {
     observed_at: "2026-04-06T12:00:00Z",
     quality_flag: "weather_ok",
   };
+}
+
+function buildDfcSurveyFixture() {
+  const survey = buildPublishedSurveyFixture();
+  const artifacts = createDeclaredFlexibilityCapabilityDefinitionArtifacts();
+  survey.definition_json.questions = artifacts.questions;
+  survey.definition_json.survey_meta.measurement_plan_json = artifacts.measurementPlan;
+  survey.mapping_contract_json = artifacts.mappingContract;
+  survey.mapping_compiled_json = compileMappingContract(artifacts.mappingContract);
+  return survey;
+}
+
+function answersForDfcSet(
+  setKey: string,
+  values: number[],
+): Record<string, number> {
+  const set = createDeclaredFlexibilityCapabilityBlueprintArtifact().sets.find(
+    (candidate) => candidate.set_key === setKey,
+  );
+  if (!set) {
+    throw new Error(`Unknown DFC set ${setKey}.`);
+  }
+  return Object.fromEntries(
+    set.questions.map((question, index) => [question.question_key, values[index]]),
+  );
 }
 
 describe("response mapper", () => {
@@ -706,6 +736,158 @@ describe("response mapper", () => {
 
     expect(output.profile.manual_override_need).toMatchObject({
       value: "disagrees",
+    });
+  });
+
+  it("maps only questions applicable to the inventory answer", () => {
+    const survey = buildPublishedSurveyFixture();
+    for (const question of survey.definition_json.questions) {
+      if (question.question_key === "Q_FLEX_01" || question.question_key === "Q_FLEX_02") {
+        question.required = true;
+        question.visibility_rule = {
+          source_question_key: "Q_DER_01",
+          operator: "contains_any",
+          values: ["ev"],
+        };
+      }
+    }
+
+    const hiddenOutput = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_DER_01: ["heat_pump"],
+        Q_FLEX_01: 5,
+        Q_FLEX_02: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+    expect(hiddenOutput.profile.flexibility_willingness).toEqual({
+      value: null,
+    });
+
+    const visibleOutput = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_DER_01: ["ev"],
+        Q_FLEX_01: 4,
+        Q_FLEX_02: 5,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+    expect(visibleOutput.profile.flexibility_willingness).toMatchObject({
+      value: 4.5,
+      tag: "high",
+    });
+  });
+
+  it.each(["none_of_these", "not_sure"])(
+    "keeps DFC non-applicable for inventory answer %s",
+    (inventoryAnswer) => {
+      const output = mapSurveyResponseToOutput({
+        survey: buildDfcSurveyFixture(),
+        answers: { [DFC_INVENTORY_QUESTION_KEY]: [inventoryAnswer] },
+        submittedLanguage: "English",
+        countryCodeRaw: null,
+        mappingHashAtSubmission: null,
+        measurementHashAtSubmission: null,
+        enrichment: null,
+      });
+
+      expect(output.profile.declared_flexibility_capability).toEqual({
+        value: null,
+      });
+      expect(output.profile.declared_flexibility_capability).not.toHaveProperty("tag");
+      expect(output.profile.declared_flexibility_capability).not.toHaveProperty("facets");
+    },
+  );
+
+  it("scores one complete applicable DFC set as high", () => {
+    const output = mapSurveyResponseToOutput({
+      survey: buildDfcSurveyFixture(),
+      answers: {
+        [DFC_INVENTORY_QUESTION_KEY]: ["ev"],
+        ...answersForDfcSet("ev_charging", [4, 5, 4, 5]),
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+
+    expect(output.profile.declared_flexibility_capability).toEqual({
+      value: 4.5,
+      tag: "high",
+      facets: {
+        ev_charging: {
+          value: 4.5,
+          evidence_count: 4,
+          evidence_level: "facet_subscore",
+        },
+      },
+    });
+  });
+
+  it("uses the unrounded mean of complete DFC set means", () => {
+    const output = mapSurveyResponseToOutput({
+      survey: buildDfcSurveyFixture(),
+      answers: {
+        [DFC_INVENTORY_QUESTION_KEY]: ["ev", "battery_storage"],
+        ...answersForDfcSet("ev_charging", [1, 2, 3, 4]),
+        ...answersForDfcSet("battery_operation", [4, 4, 5, 5]),
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+
+    expect(output.profile.declared_flexibility_capability).toEqual({
+      value: 3.5,
+      tag: "medium",
+      facets: {
+        ev_charging: {
+          value: 2.5,
+          evidence_count: 4,
+          evidence_level: "facet_subscore",
+        },
+        battery_operation: {
+          value: 4.5,
+          evidence_count: 4,
+          evidence_level: "facet_subscore",
+        },
+      },
+    });
+  });
+
+  it("returns null when any visible DFC item is missing", () => {
+    const incompleteAnswers = answersForDfcSet("ev_charging", [5, 5, 5, 5]);
+    delete incompleteAnswers[Object.keys(incompleteAnswers)[0]];
+
+    const output = mapSurveyResponseToOutput({
+      survey: buildDfcSurveyFixture(),
+      answers: {
+        [DFC_INVENTORY_QUESTION_KEY]: ["ev"],
+        ...incompleteAnswers,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: null,
+      mappingHashAtSubmission: null,
+      measurementHashAtSubmission: null,
+      enrichment: null,
+    });
+
+    expect(output.profile.declared_flexibility_capability).toEqual({
+      value: null,
     });
   });
 });

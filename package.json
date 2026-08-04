@@ -26,7 +26,9 @@
     "eval:mapper-profiling:report": "node tests/evals/surveys/mapper-profiling/generate-report.mjs",
     "eval:mapper-profiling": "npm run eval:mapper && npm run eval:profiling && npm run eval:synthetic-cohorts && npm run eval:mapper-profiling:report",
     "eval:mapper-profiling:ci": "npm run eval:mapper && npm run eval:profiling && npm run eval:synthetic-cohorts",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run eval:mapper-profiling:ci && npm run build"
+    "eval:dfc": "vitest run tests/evals/surveys/dfc",
+    "eval:dfc:ci": "vitest run tests/evals/surveys/dfc",
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run eval:mapper-profiling:ci && npm run eval:dfc:ci && npm run build"
   },
   "keywords": [],
   "author": "",

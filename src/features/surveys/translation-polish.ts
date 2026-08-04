@@ -7,6 +7,7 @@ import type {
   SurveyQuestionDefinition,
 } from "./generator-types";
 import { parseSurveyLanguageLLMOutput } from "./translation-output";
+import { timeSurveyStep } from "./local-timing";
 
 type PolishSurveyLanguageInput = {
   sourceLanguage: SurveyLanguageCode;
@@ -37,7 +38,7 @@ const surveyPolishOutputSchema = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["question_key", "title", "description", "options"],
+          required: ["question_key", "title", "description", "options", "scale"],
           properties: {
             question_key: { type: "string" },
             title: { type: "string", minLength: 1 },
@@ -53,6 +54,20 @@ const surveyPolishOutputSchema = {
                   label: { type: "string", minLength: 1 },
                 },
               },
+            },
+            scale: {
+              anyOf: [
+                { type: "null" },
+                {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["min_label", "max_label"],
+                  properties: {
+                    min_label: { type: "string", minLength: 1 },
+                    max_label: { type: "string", minLength: 1 },
+                  },
+                },
+              ],
             },
           },
         },
@@ -77,6 +92,21 @@ function buildQuestionPayload(input: PolishSurveyLanguageInput) {
         source_label: sourceQuestion?.options?.[option.option_key] ?? "",
         draft_label: draftQuestion?.options?.[option.option_key] ?? "",
       })),
+      scale:
+        question.type === "rating_scale"
+          ? {
+              source_min_label:
+                sourceQuestion?.scale?.min_label ??
+                question.scale?.min_label ??
+                "",
+              source_max_label:
+                sourceQuestion?.scale?.max_label ??
+                question.scale?.max_label ??
+                "",
+              draft_min_label: draftQuestion?.scale?.min_label ?? "",
+              draft_max_label: draftQuestion?.scale?.max_label ?? "",
+            }
+          : null,
     };
   });
 }
@@ -100,6 +130,7 @@ export function buildSurveyPolishPrompt(input: PolishSurveyLanguageInput): Surve
     "Avoid vague placeholders when the source refers to a concrete action, task, device, system or short period of automated management. Keep the object clear in natural target-language wording.",
     "Avoid repeating the same technical domain phrase across many items when ordinary target-language survey wording would vary it naturally.",
     "Option labels must read naturally as standalone response choices. Do not leave compressed, overly technical or ambiguous label fragments; use plain wording a general respondent would recognize.",
+    "Rating-scale min_label and max_label must also read naturally in the target language while preserving answer direction.",
     input.validationIssues?.length
       ? "Some items failed validation. Rewrite those failed items from the source meaning, not from the previous target wording or validator suggestions."
       : "",
@@ -138,18 +169,28 @@ export async function polishSurveyLanguage(
   const client = new OpenAI({ apiKey: env.apiKey });
   const prompt = buildSurveyPolishPrompt(input);
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0.2,
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: surveyPolishOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.translation.polish",
+    {
+      model: env.model,
+      target_language: input.targetLanguage,
+      question_count: input.questions.length,
+      validation_issue_count: input.validationIssues?.length ?? 0,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: surveyPolishOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

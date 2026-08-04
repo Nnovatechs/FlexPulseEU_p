@@ -212,6 +212,7 @@ function getCompatibleQuestionTypes(
 ): SurveyQuestionDefinition["type"][] {
   switch (measurementType) {
     case "multi_item_likert_median":
+    case "multi_item_likert_mean":
       return ["rating_scale"];
     case "single_choice_enum":
       return ["single_choice"];
@@ -346,8 +347,6 @@ export function transformGeneratedSurvey(
               min: normalizedQuestion.scale.min,
               max: normalizedQuestion.scale.max,
               step: normalizedQuestion.scale.step,
-              min_label: normalizedQuestion.scale.min_label,
-              max_label: normalizedQuestion.scale.max_label,
             }
           : undefined,
       numeric:
@@ -369,6 +368,13 @@ export function transformGeneratedSurvey(
           ? Object.fromEntries(
               normalizedOptions.map((option) => [option.option_key, option.label]),
             )
+          : undefined,
+      scale:
+        normalizedQuestion.type === "rating_scale" && normalizedQuestion.scale
+          ? {
+              min_label: normalizedQuestion.scale.min_label.trim(),
+              max_label: normalizedQuestion.scale.max_label.trim(),
+            }
           : undefined,
     };
 

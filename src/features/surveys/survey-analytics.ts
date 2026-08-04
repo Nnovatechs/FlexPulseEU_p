@@ -42,7 +42,9 @@ export type SurveyAnalyticsFilterOperator =
   | "gte"
   | "lte"
   | "between"
-  | "contains";
+  | "contains"
+  | "is_null"
+  | "not_null";
 
 export type SurveyAnalyticsMetricKind =
   | "count"
@@ -279,15 +281,16 @@ function supportsTagField(entry: MeasurementPlanEntry) {
 }
 
 function getFieldOperators(valueType: SurveyAnalyticsFieldType): SurveyAnalyticsFilterOperator[] {
+  const nullOperators: SurveyAnalyticsFilterOperator[] = ["is_null", "not_null"];
   switch (valueType) {
     case "number":
     case "date":
-      return ["eq", "in", "gte", "lte", "between"];
+      return ["eq", "in", "gte", "lte", "between", ...nullOperators];
     case "string[]":
     case "number[]":
-      return ["contains"];
+      return ["contains", ...nullOperators];
     default:
-      return ["eq", "in"];
+      return ["eq", "in", ...nullOperators];
   }
 }
 
@@ -698,6 +701,10 @@ function matchesFilter(
   const value = getFieldValue(record, filter.field);
 
   switch (filter.op) {
+    case "is_null":
+      return value == null;
+    case "not_null":
+      return value != null;
     case "eq":
       return !Array.isArray(value) && valueEquals(value ?? null, filter.value);
     case "in":

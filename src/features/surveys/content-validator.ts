@@ -16,6 +16,7 @@ import type {
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { timeSurveyStep } from "./local-timing";
 
 // ---------------------------------------------------------------------------
 // PII detection — structured patterns
@@ -99,6 +100,8 @@ export function checkStructuredPII(
       trans.title,
       trans.description ?? "",
       ...Object.values(trans.options ?? {}),
+      trans.scale?.min_label ?? q.scale?.min_label ?? "",
+      trans.scale?.max_label ?? q.scale?.max_label ?? "",
     ];
 
     let matched = false;
@@ -135,6 +138,8 @@ export function checkPromptInjectionHeuristics(
       trans.title,
       trans.description ?? "",
       ...Object.values(trans.options ?? {}),
+      trans.scale?.min_label ?? q.scale?.min_label ?? "",
+      trans.scale?.max_label ?? q.scale?.max_label ?? "",
     ];
 
     const detected = detectPromptInjectionSignals(textsToCheck);
@@ -323,18 +328,27 @@ async function checkPIIIntentWithLLM(
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: piiIntentOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.content_validation.pii_intent",
+    {
+      model: env.model,
+      question_count: questions.length,
+      survey_language: surveyLanguage,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: piiIntentOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 
@@ -464,18 +478,27 @@ async function checkSemanticAlignment(
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: semanticCheckOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.content_validation.semantic_alignment",
+    {
+      model: env.model,
+      question_count: questions.length,
+      survey_language: surveyLanguage,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: semanticCheckOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 
@@ -536,7 +559,13 @@ export function computeContentHash(
     const trans = translations.questions[q.question_key];
     const optionTexts =
       q.options?.map((o) => trans?.options?.[o.option_key] ?? "").join("|") ?? "";
-    return `${q.question_key}:${trans?.title ?? ""}:${trans?.description ?? ""}:${optionTexts}`;
+    const legacyContent = `${q.question_key}:${trans?.title ?? ""}:${trans?.description ?? ""}:${optionTexts}`;
+
+    if (q.type !== "rating_scale" || !trans?.scale) {
+      return legacyContent;
+    }
+
+    return `${legacyContent}:${trans.scale.min_label}|${trans.scale.max_label}`;
   });
   return createHash("sha256").update(parts.join("\n")).digest("hex").slice(0, 16);
 }

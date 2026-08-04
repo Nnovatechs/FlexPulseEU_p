@@ -10,6 +10,7 @@ import type {
   SurveyMappingDefinition,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { timeSurveyStep } from "./local-timing";
 
 type ValidateTranslatedSurveyLanguageInput = {
   sourceLanguage: SurveyLanguageCode;
@@ -103,9 +104,14 @@ export function computeMultilingualTranslationHash(
         question.options
           ?.map((option) => translation?.options?.[option.option_key] ?? "")
           .join("|") ?? "";
+      const legacyContent =
+        `${language}:${question.question_key}:${translation?.title ?? ""}:` +
+        `${translation?.description ?? ""}:${optionTexts}`;
 
       parts.push(
-        `${language}:${question.question_key}:${translation?.title ?? ""}:${translation?.description ?? ""}:${optionTexts}`,
+        question.type === "rating_scale" && translation?.scale
+          ? `${legacyContent}:${translation.scale.min_label}|${translation.scale.max_label}`
+          : legacyContent,
       );
     }
   }
@@ -136,6 +142,21 @@ export function buildTranslationValidationPrompt(
           option.option_key
         ] ?? "",
     })),
+    source_scale:
+      question.type === "rating_scale"
+        ? {
+            min_label:
+              input.sourceTranslations.questions[question.question_key]?.scale
+                ?.min_label ??
+              question.scale?.min_label ??
+              "",
+            max_label:
+              input.sourceTranslations.questions[question.question_key]?.scale
+                ?.max_label ??
+              question.scale?.max_label ??
+              "",
+          }
+        : null,
     target_title:
       input.targetTranslations.questions[question.question_key]?.title ?? "",
     target_description:
@@ -147,6 +168,17 @@ export function buildTranslationValidationPrompt(
           option.option_key
         ] ?? "",
     })),
+    target_scale:
+      question.type === "rating_scale"
+        ? {
+            min_label:
+              input.targetTranslations.questions[question.question_key]?.scale
+                ?.min_label ?? "",
+            max_label:
+              input.targetTranslations.questions[question.question_key]?.scale
+                ?.max_label ?? "",
+          }
+        : null,
   }));
 
   const untrustedNotice = buildUntrustedSurveyContentNotice();
@@ -193,6 +225,7 @@ export function buildTranslationValidationPrompt(
     `Target language: ${input.targetLanguage}`,
     "",
     "Evaluate the localized survey title, description and questions.",
+    "For rating questions, also verify that both endpoint labels are naturally translated and preserve the source answer direction.",
     "Return one question-level result for every question. Add survey-level issues only when necessary.",
     "Use a conservative threshold for blocking findings: block only on clear semantic drift, severe quality problems, cultural mismatch or localization bias likely to affect answers, or added PII.",
     "Pass natural paraphrases when the survey meaning and measurement intent are still preserved.",
@@ -219,18 +252,27 @@ export async function validateTranslatedSurveyLanguage(
   const env = getOpenAIEnv();
   const client = new OpenAI({ apiKey: env.apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: env.model,
-    temperature: 0,
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: translationValidationOutputSchema,
+  const completion = await timeSurveyStep(
+    "llm.translation.validate",
+    {
+      model: env.model,
+      target_language: input.targetLanguage,
+      question_count: input.questions.length,
     },
-  });
+    async () =>
+      client.chat.completions.create({
+        model: env.model,
+        temperature: 0,
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: translationValidationOutputSchema,
+        },
+      }),
+  );
 
   const message = completion.choices[0]?.message;
 

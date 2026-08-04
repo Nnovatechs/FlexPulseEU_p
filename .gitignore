@@ -29,7 +29,7 @@ pnpm-debug.log*
 .vscode/
 
 # Internal development notes (never committed)
-docs/internal/
+docs/internal/*
 
 # Local debug artifacts
 .tmp/

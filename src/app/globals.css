@@ -2760,6 +2760,10 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   pointer-events: none;
 }
 
+.qov-card--preview-editable {
+  pointer-events: auto;
+}
+
 .qov-card--preview .qov-card__edit-btn {
   display: none;
 }
@@ -2926,7 +2930,9 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   line-height: 1.5;
 }
 
-.qov-card--preview-editable .qov-card__title-input {
+.qov-card--preview-editable .qov-card__title-input,
+.preview-tab__survey-edit input,
+.preview-tab__survey-edit textarea {
   pointer-events: auto;
   cursor: text;
 }

@@ -8,6 +8,7 @@ import type {
   SurveyQuestionDefinition,
   SurveyResponseContextConfig,
 } from "@/features/surveys/generator-types";
+import type { PublicExternalRecruitment } from "@/features/surveys/integrations/types";
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
 import {
@@ -141,6 +142,7 @@ export type PublicSurveyFormProps = {
   responseContext: SurveyResponseContextConfig | undefined;
   turnstileSiteKey?: string;
   submitAction: (formData: FormData) => Promise<void>;
+  externalRecruitment?: Extract<PublicExternalRecruitment, { kind: "prolific" }>;
 };
 
 // ─── Validation ────────────────────────────────────────────────────────────
@@ -663,6 +665,7 @@ export function PublicSurveyForm({
   responseContext,
   turnstileSiteKey,
   submitAction,
+  externalRecruitment,
 }: PublicSurveyFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const questionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -943,6 +946,13 @@ export function PublicSurveyForm({
           ) : null}
           <input type="hidden" name="linkToken" value={linkToken} />
           <input type="hidden" name="submittedLanguage" value={language} />
+          {externalRecruitment ? (
+            <>
+              <input type="hidden" name="PROLIFIC_PID" value={externalRecruitment.prolificPid} />
+              <input type="hidden" name="STUDY_ID" value={externalRecruitment.studyId} />
+              <input type="hidden" name="SESSION_ID" value={externalRecruitment.sessionId} />
+            </>
+          ) : null}
           <input
             type="hidden"
             name="legalConsentAccepted"

@@ -86,6 +86,14 @@ export default async function SurveyPrivacyPage({
             Some surveys may request country and postal-code context for
             aggregated regional analysis.
           </p>
+          <p>
+            Some surveys may also be distributed through external recruitment
+            panels. When that happens, the survey link may receive pseudonymous
+            participant, study, or session identifiers from that panel.
+            FlexPulseEU transforms participant and session identifiers into
+            study-scoped cryptographic tokens and does not retain the original
+            participant or session identifiers.
+          </p>
         </section>
 
         <section>

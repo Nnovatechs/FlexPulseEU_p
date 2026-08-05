@@ -59,6 +59,14 @@ export default function PrivacyPage() {
             aggregated research and analysis.
           </p>
           <p>
+            Some surveys may be distributed through external recruitment panels.
+            When that happens, the survey link may receive pseudonymous
+            participant, study, or session identifiers from that panel.
+            FlexPulseEU transforms participant and session identifiers into
+            study-scoped cryptographic tokens and does not retain the original
+            participant or session identifiers.
+          </p>
+          <p>
             Public submissions are protected with bot-prevention checks to reduce
             automated abuse.
           </p>

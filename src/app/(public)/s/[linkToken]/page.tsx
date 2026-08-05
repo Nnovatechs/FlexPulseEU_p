@@ -2,6 +2,11 @@ import { notFound } from "next/navigation";
 import { PublicSurveyVisibility } from "@/components/surveys/public-survey-visibility";
 import { PublicSurveyForm } from "@/components/surveys/public-survey-form";
 import { submitPublicSurveyResponseAction } from "@/features/surveys/public-actions";
+import { getActivePublicProlificIntegration } from "@/features/surveys/integrations/repository";
+import {
+  getProlificLaunchParamsFromSearchParams,
+  resolveProlificRecruitment,
+} from "@/features/surveys/integrations/prolific";
 import { getPublicSurveyCopy } from "@/features/surveys/public-copy";
 import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
 import { getPublicSurveyRuntimeByLinkToken } from "@/features/surveys/use-cases";
@@ -10,7 +15,12 @@ import { appRoutes } from "@/lib/config/routes";
 
 type PublicSurveyLinkPageProps = {
   params: Promise<{ linkToken: string }>;
-  searchParams?: Promise<{ lang?: string }>;
+  searchParams?: Promise<{
+    lang?: string;
+    PROLIFIC_PID?: string;
+    STUDY_ID?: string;
+    SESSION_ID?: string;
+  }>;
 };
 
 export default async function PublicSurveyLinkPage({
@@ -26,6 +36,11 @@ export default async function PublicSurveyLinkPage({
   }
 
   const { survey } = runtime;
+  const prolificIntegration = await getActivePublicProlificIntegration(runtime.link.id);
+  const externalRecruitment = resolveProlificRecruitment({
+    ...getProlificLaunchParamsFromSearchParams(resolvedSearchParams),
+    integration: prolificIntegration,
+  });
 
   const hasExplicitLangParam = Boolean(
     resolvedSearchParams.lang &&
@@ -46,7 +61,19 @@ export default async function PublicSurveyLinkPage({
 
   return (
     <main>
-      {survey.definition_json.questions.length > 0 ? (
+      {externalRecruitment.kind === "error" ? (
+        <div className="sf-shell">
+          <div className="sf-container">
+            <section className="surface-card">
+              <div className="empty-state empty-state--inline">
+                <h3>Prolific link issue</h3>
+                <p>{externalRecruitment.message}</p>
+              </div>
+            </section>
+            <PublicSurveyVisibility compact />
+          </div>
+        </div>
+      ) : survey.definition_json.questions.length > 0 ? (
         <PublicSurveyForm
           linkToken={linkToken}
           surveyPrivacyUrl={appRoutes.publicSurveyPrivacy(linkToken)}
@@ -60,6 +87,9 @@ export default async function PublicSurveyLinkPage({
           responseContext={responseContext}
           turnstileSiteKey={getTurnstileSiteKey()}
           submitAction={submitPublicSurveyResponseAction}
+          externalRecruitment={
+            externalRecruitment.kind === "prolific" ? externalRecruitment : undefined
+          }
         />
       ) : (
         <div className="sf-shell">

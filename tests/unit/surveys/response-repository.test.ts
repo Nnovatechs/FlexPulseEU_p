@@ -115,7 +115,63 @@ describe("survey response repository", () => {
       p_legal_privacy_notice_version: "d2-2026-06-21",
       p_legal_cookie_notice_version: "d2-2026-06-21",
       p_legal_consent_source: "public_survey_form",
+      p_external_integration_id: null,
+      p_external_participant_token: null,
+      p_external_submission_token: null,
+      p_external_token_version: null,
+      p_external_notice_version: null,
     });
+  });
+
+  it("passes external recruitment tokens through the transactional RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: "response-1",
+      error: null,
+    });
+    createSupabaseAdminClient.mockReturnValue({ rpc });
+
+    const { createSurveyResponseAndEnqueueJob } = await import(
+      "@/features/surveys/response-repository"
+    );
+
+    await createSurveyResponseAndEnqueueJob({
+      survey: createSurveyFixture(),
+      surveyLink: createSurveyLinkFixture(),
+      submittedLanguage: "English",
+      answers: { Q1: "yes" },
+      countryCodeRaw: null,
+      postalCodeRaw: null,
+      legalConsent: createLegalConsentFixture(),
+      externalRecruitment: {
+        integration: {
+          id: "integration-1",
+          survey_link_id: "link-1",
+          provider: "prolific",
+          external_study_id: "study-1",
+          completion_url: "https://app.prolific.com/submissions/complete?cc=ABC123",
+          provider_config_json: {},
+          privacy_notice_version: "external-recruitment-v1",
+          is_active: true,
+          created_at: "2026-05-21T10:00:00.000Z",
+          updated_at: "2026-05-21T10:00:00.000Z",
+        },
+        participantToken: "participant-token",
+        submissionToken: "submission-token",
+        tokenVersion: "v1",
+        noticeVersion: "external-recruitment-v1",
+      },
+    });
+
+    expect(rpc).toHaveBeenCalledWith(
+      "create_survey_response_with_job",
+      expect.objectContaining({
+        p_external_integration_id: "integration-1",
+        p_external_participant_token: "participant-token",
+        p_external_submission_token: "submission-token",
+        p_external_token_version: "v1",
+        p_external_notice_version: "external-recruitment-v1",
+      }),
+    );
   });
 
   it("surfaces RPC failures", async () => {

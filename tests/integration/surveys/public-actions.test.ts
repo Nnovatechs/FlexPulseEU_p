@@ -7,6 +7,7 @@ const {
   getPublishedSurveyByIdPublic,
   getPublicSurveyLegalSnapshot,
   createSurveyResponseAndEnqueueJob,
+  getPublicSurveyFeedbackConfig,
   getActivePublicProlificIntegration,
   buildProlificRecruitmentTokens,
 } =
@@ -16,6 +17,7 @@ const {
     getPublishedSurveyByIdPublic: vi.fn(),
     getPublicSurveyLegalSnapshot: vi.fn(),
     createSurveyResponseAndEnqueueJob: vi.fn(),
+    getPublicSurveyFeedbackConfig: vi.fn(),
     getActivePublicProlificIntegration: vi.fn(),
     buildProlificRecruitmentTokens: vi.fn(),
   }));
@@ -31,6 +33,10 @@ vi.mock("@/features/surveys/public-survey-load", () => ({
 
 vi.mock("@/features/surveys/response-repository", () => ({
   createSurveyResponseAndEnqueueJob,
+}));
+
+vi.mock("@/features/surveys/feedback-repository", () => ({
+  getPublicSurveyFeedbackConfig,
 }));
 
 vi.mock("@/features/surveys/integrations/repository", () => ({
@@ -103,7 +109,9 @@ describe("public survey submission action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getPublicSurveyLegalSnapshot.mockResolvedValue(null);
+    getPublicSurveyFeedbackConfig.mockResolvedValue(null);
     getActivePublicProlificIntegration.mockResolvedValue(null);
+    createSurveyResponseAndEnqueueJob.mockResolvedValue({ responseId: "response-1" });
     buildProlificRecruitmentTokens.mockReturnValue({
       participantToken: "participant-token",
       submissionToken: "submission-token",
@@ -158,6 +166,34 @@ describe("public survey submission action", () => {
       }),
     );
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("redirects to survey feedback when the module is enabled", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+    getPublicSurveyFeedbackConfig.mockResolvedValue({
+      survey_id: survey.id,
+      enabled: true,
+      question_set_version: "pilot_feedback_v1",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
+
+    await submitPublicSurveyResponseAction(formData);
+
+    expect(redirect).toHaveBeenCalledWith(
+      "/s/public-token/feedback?responseId=response-1&lang=English",
+    );
   });
 
   it("stores Prolific-linked responses and redirects to the completion URL", async () => {

@@ -15,6 +15,7 @@ export const appRoutes = {
   surveyDetail: (surveyId: string) => `/surveys/${surveyId}`,
   surveyEdit: (surveyId: string) => `/surveys/${surveyId}/edit`,
   publicSurveyLink: (linkToken: string) => `/s/${linkToken}`,
+  publicSurveyFeedback: (linkToken: string) => `/s/${linkToken}/feedback`,
   publicSurveyPrivacy: (linkToken: string) => `/s/${linkToken}/privacy`,
   publicSurveyThankYou: (linkToken: string) => `/s/${linkToken}/thank-you`,
   surveyAnalytics: (surveyId: string) => `/surveys/${surveyId}/analytics`,

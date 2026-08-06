@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
 import { verifyTurnstileToken } from "@/lib/server/turnstile";
 import { getPublicSurveyLegalSnapshot } from "@/features/privacy/repository";
+import { isSurveyFeedbackEligible } from "@/features/surveys/feedback";
+import { getPublicSurveyFeedbackConfig } from "@/features/surveys/feedback-repository";
 import { getActivePublicProlificIntegration } from "@/features/surveys/integrations/repository";
 import {
   getProlificLaunchParamsFromFormData,
@@ -55,7 +57,7 @@ export async function submitPublicSurveyResponseAction(
     throw new Error(externalRecruitment.message);
   }
 
-  await createSurveyResponseAndEnqueueJob({
+  const { responseId } = await createSurveyResponseAndEnqueueJob({
     survey,
     surveyLink: link,
     submittedLanguage: validated.submittedLanguage,
@@ -75,6 +77,17 @@ export async function submitPublicSurveyResponseAction(
           }
         : null,
   });
+
+  const surveyFeedbackConfig = await getPublicSurveyFeedbackConfig(survey.id);
+  if (
+    surveyFeedbackConfig?.enabled &&
+    isSurveyFeedbackEligible(survey.default_language)
+  ) {
+    const target = new URLSearchParams();
+    target.set("responseId", responseId);
+    target.set("lang", validated.submittedLanguage);
+    redirect(`${appRoutes.publicSurveyFeedback(linkToken)}?${target.toString()}`);
+  }
 
   if (externalRecruitment.kind === "prolific" && prolificIntegration) {
     redirect(prolificIntegration.completion_url);

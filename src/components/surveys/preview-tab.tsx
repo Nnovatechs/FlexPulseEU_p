@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { SurveyFeedbackPreview } from "@/components/surveys/survey-feedback-preview";
 import { getFlexpulseBehaviouralConceptByTarget } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   DPA_ACCEPTANCE_REQUIRED_ERROR,
@@ -12,6 +13,7 @@ import {
   applyExpertReviewAction,
   publishSurveyAction,
 } from "@/features/surveys/actions";
+import { setSurveyFeedbackEnabledAction } from "@/features/surveys/feedback-actions";
 import type { SurveyIntegrityState } from "@/features/surveys/expert-review";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
@@ -274,6 +276,8 @@ function buildExpertReviewBatch(input: {
 
 type PreviewTabProps = {
   surveyId: string;
+  surveyFeedbackEligible: boolean;
+  surveyFeedbackEnabled: boolean;
   surveyTitle: string;
   surveyDescription: string;
   questions: SurveyQuestionDefinition[];
@@ -292,6 +296,8 @@ type PreviewTabProps = {
 
 export function PreviewTab({
   surveyId,
+  surveyFeedbackEligible,
+  surveyFeedbackEnabled,
   surveyTitle,
   surveyDescription,
   questions,
@@ -308,13 +314,19 @@ export function PreviewTab({
   questionIntentLookup,
 }: PreviewTabProps) {
   const router = useRouter();
+  const [activePreviewSection, setActivePreviewSection] = useState<"survey" | "feedback">(
+    "survey",
+  );
+  const [feedbackEnabledLocal, setFeedbackEnabledLocal] = useState(surveyFeedbackEnabled);
   const [activeLanguage, setActiveLanguage] = useState<SurveyLanguageCode>(
     defaultLanguage,
   );
   const [publishPending, startPublish] = useTransition();
   const [applyPending, startApply] = useTransition();
+  const [feedbackPending, startFeedbackTransition] = useTransition();
   const [publishError, setPublishError] = useState<string | null>(null);
   const [expertReviewError, setExpertReviewError] = useState<string | null>(null);
+  const [surveyFeedbackError, setSurveyFeedbackError] = useState<string | null>(null);
   const [isExpertReviewMode, setIsExpertReviewMode] = useState(false);
   const [isExpertReviewModalOpen, setIsExpertReviewModalOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
@@ -354,6 +366,7 @@ export function PreviewTab({
       ? integrity.expert_review_baseline_linked &&
         integrity.expert_review_final_current
       : integrity.automatic_baseline_ready);
+  const feedbackEnabled = surveyFeedbackEnabled || feedbackEnabledLocal;
   const multilingualBlockingIssueCount = (
     multilingualValidationResult?.issues ?? []
   ).filter((issue) => issue.severity !== "advisory").length;
@@ -393,6 +406,32 @@ export function PreviewTab({
         rethrowNextNavigationError(err);
         setPublishError(
           err instanceof Error ? err.message : "Publish failed. Please try again.",
+        );
+      }
+    });
+  }
+
+  function handleActivateSurveyFeedback() {
+    setSurveyFeedbackError(null);
+    setActivePreviewSection("feedback");
+  }
+
+  function handleSetSurveyFeedbackEnabled(nextEnabled: boolean) {
+    setSurveyFeedbackError(null);
+    startFeedbackTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("surveyId", surveyId);
+        formData.set("enabled", nextEnabled ? "true" : "false");
+        await setSurveyFeedbackEnabledAction(formData);
+        setFeedbackEnabledLocal(nextEnabled);
+        setActivePreviewSection(nextEnabled ? "feedback" : "survey");
+        router.refresh();
+      } catch (error) {
+        setSurveyFeedbackError(
+          error instanceof Error
+            ? error.message
+            : `Failed to ${nextEnabled ? "enable" : "disable"} survey feedback.`,
         );
       }
     });
@@ -629,21 +668,40 @@ export function PreviewTab({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              className="button button--secondary"
-              onClick={openExpertReviewModal}
-              disabled={!canStartExpertReview || publishPending || applyPending}
-              title={
-                canStartExpertReview
-                  ? expertReviewResult
-                    ? "Open expert review again"
-                    : "Start expert review"
-                  : "Expert review is available only when the automatic baseline is fully current"
-              }
-            >
-              {expertReviewResult ? "Open expert review again" : "Start expert review"}
-            </button>
+            <>
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={openExpertReviewModal}
+                disabled={!canStartExpertReview || publishPending || applyPending}
+                title={
+                  canStartExpertReview
+                    ? expertReviewResult
+                      ? "Open expert review again"
+                      : "Start expert review"
+                    : "Expert review is available only when the automatic baseline is fully current"
+                }
+              >
+                {expertReviewResult ? "Open expert review again" : "Start expert review"}
+              </button>
+              {!feedbackEnabled ? (
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  onClick={handleActivateSurveyFeedback}
+                  disabled={
+                    feedbackPending || publishPending || applyPending || !surveyFeedbackEligible
+                  }
+                  title={
+                    surveyFeedbackEligible
+                      ? "Open survey feedback setup."
+                      : "Survey feedback is available only when English is the default language."
+                  }
+                >
+                  Allow survey feedback
+                </button>
+              ) : null}
+            </>
           )}
         </div>
 
@@ -666,6 +724,17 @@ export function PreviewTab({
           </button>
         </div>
       </div>
+
+      {!isExpertReviewMode ? (
+        <div className="preview-tab__feedback-note">
+          <p className="muted">
+            Survey feedback adds a fixed English-only post-survey debrief for pilot
+            runs. If you want to compare pilot wording and later launch without this
+            module, duplicate the survey before publishing and apply changes back to
+            the main draft afterwards.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 
@@ -833,124 +902,160 @@ export function PreviewTab({
         </div>
       )}
 
-      {/* Language sub-tabs */}
-      {supportedLanguages.length > 1 && (
-        <nav
-          className="preview-tab__lang-nav"
-          role="tablist"
-          aria-label="Preview by language"
-        >
-          {supportedLanguages.map((language) => (
-            <button
-              key={language}
-              type="button"
-              role="tab"
-              aria-selected={activeLanguage === language}
-              className={`preview-tab__lang-tab${
-                activeLanguage === language ? " preview-tab__lang-tab--active" : ""
-              }`}
-              onClick={() => setActiveLanguage(language)}
-            >
-              {language}
-              {language === defaultLanguage && (
-                <span className="preview-tab__lang-canonical muted">
-                  {" "}canonical
-                </span>
-              )}
-            </button>
-          ))}
+      {feedbackEnabled ? (
+        <nav className="preview-tab__section-nav" aria-label="Preview section">
+          <button
+            type="button"
+            className={`preview-tab__section-tab${
+              activePreviewSection === "survey" ? " preview-tab__section-tab--active" : ""
+            }`}
+            onClick={() => setActivePreviewSection("survey")}
+          >
+            Survey
+          </button>
+          <button
+            type="button"
+            className={`preview-tab__section-tab${
+              activePreviewSection === "feedback" ? " preview-tab__section-tab--active" : ""
+            }`}
+            onClick={() => setActivePreviewSection("feedback")}
+            title="Open survey feedback preview"
+          >
+            Survey feedback
+          </button>
         </nav>
-      )}
+      ) : null}
 
-      {/* Survey header */}
-      <div className="preview-tab__survey-header">
-        {isExpertReviewMode ? (
-          <div className="preview-tab__survey-edit">
-            <label className="field">
-              <span>Survey title</span>
-              <input
-                value={surveyTitleForLanguage}
-                onChange={(event) =>
-                  updateSurveyHeaderField(
-                    activeLanguage,
-                    "survey_title",
-                    event.target.value,
-                  )
-                }
-              />
-            </label>
-            <label className="field">
-              <span>Survey description</span>
-              <textarea
-                value={surveyDescriptionForLanguage}
-                rows={3}
-                onChange={(event) =>
-                  updateSurveyHeaderField(
-                    activeLanguage,
-                    "survey_description",
-                    event.target.value,
-                  )
-                }
-              />
-            </label>
-          </div>
-        ) : (
-          <>
-            <h3 className="preview-tab__survey-title">{surveyTitleForLanguage}</h3>
-            {surveyDescriptionForLanguage && (
-              <p className="preview-tab__survey-description muted">
-                {surveyDescriptionForLanguage}
-              </p>
-            )}
-          </>
-        )}
-        {surveyLevelFlags.length > 0 && (
-          <div className="preview-tab__survey-flags">
-            {surveyLevelFlags.map((flag, index) => (
-              <div key={`${activeLanguage}-survey-${index}`} className="preview-tab__flag">
-                <span className="preview-tab__flag-badge">
-                  {getMultilingualFlagLabel(flag)}
-                </span>
-                <span className="preview-tab__flag-message">
-                  {flag.message}
-                  {flag.recommendation ? ` Recommendation: ${flag.recommendation}` : ""}
-                </span>
+      {activePreviewSection === "survey" ? (
+        <>
+          {/* Language sub-tabs */}
+          {supportedLanguages.length > 1 && (
+            <nav
+              className="preview-tab__lang-nav"
+              role="tablist"
+              aria-label="Preview by language"
+            >
+              {supportedLanguages.map((language) => (
+                <button
+                  key={language}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeLanguage === language}
+                  className={`preview-tab__lang-tab${
+                    activeLanguage === language ? " preview-tab__lang-tab--active" : ""
+                  }`}
+                  onClick={() => setActiveLanguage(language)}
+                >
+                  {language}
+                  {language === defaultLanguage && (
+                    <span className="preview-tab__lang-canonical muted">
+                      {" "}canonical
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          {/* Survey header */}
+          <div className="preview-tab__survey-header">
+            {isExpertReviewMode ? (
+              <div className="preview-tab__survey-edit">
+                <label className="field">
+                  <span>Survey title</span>
+                  <input
+                    value={surveyTitleForLanguage}
+                    onChange={(event) =>
+                      updateSurveyHeaderField(
+                        activeLanguage,
+                        "survey_title",
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Survey description</span>
+                  <textarea
+                    value={surveyDescriptionForLanguage}
+                    rows={3}
+                    onChange={(event) =>
+                      updateSurveyHeaderField(
+                        activeLanguage,
+                        "survey_description",
+                        event.target.value,
+                      )
+                    }
+                  />
+                </label>
               </div>
-            ))}
+            ) : (
+              <>
+                <h3 className="preview-tab__survey-title">{surveyTitleForLanguage}</h3>
+                {surveyDescriptionForLanguage && (
+                  <p className="preview-tab__survey-description muted">
+                    {surveyDescriptionForLanguage}
+                  </p>
+                )}
+              </>
+            )}
+            {surveyLevelFlags.length > 0 && (
+              <div className="preview-tab__survey-flags">
+                {surveyLevelFlags.map((flag, index) => (
+                  <div key={`${activeLanguage}-survey-${index}`} className="preview-tab__flag">
+                    <span className="preview-tab__flag-badge">
+                      {getMultilingualFlagLabel(flag)}
+                    </span>
+                    <span className="preview-tab__flag-message">
+                      {flag.message}
+                      {flag.recommendation ? ` Recommendation: ${flag.recommendation}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Read-only question list */}
-      <div className="preview-tab__questions">
-        {questions.length === 0 ? (
-          <p className="muted">No questions to preview.</p>
-        ) : (
-          questions.map((q, index) => (
-            <ReadOnlyQuestionCard
-              key={q.question_key}
-              index={index}
-              question={q}
-              mapping={mappingByKey[q.question_key]}
-              translation={activeTranslations?.questions?.[q.question_key]}
-              languageFlags={issuesByQuestionKey[q.question_key] ?? []}
-              questionIntent={questionIntentLookup[q.question_key] ?? []}
-              editableTitle={
-                isExpertReviewMode
-                  ? localExpertReviewDraft[activeLanguage]?.questions[q.question_key] ??
-                    activeTranslations?.questions?.[q.question_key]?.title ??
-                    q.question_key
-                  : activeTranslations?.questions?.[q.question_key]?.title ??
-                    q.question_key
-              }
-              expertMode={isExpertReviewMode}
-              onChangeTitle={(title) =>
-                updateQuestionTitle(activeLanguage, q.question_key, title)
-              }
-            />
-          ))
-        )}
-      </div>
+          {/* Read-only question list */}
+          <div className="preview-tab__questions">
+            {questions.length === 0 ? (
+              <p className="muted">No questions to preview.</p>
+            ) : (
+              questions.map((q, index) => (
+                <ReadOnlyQuestionCard
+                  key={q.question_key}
+                  index={index}
+                  question={q}
+                  mapping={mappingByKey[q.question_key]}
+                  translation={activeTranslations?.questions?.[q.question_key]}
+                  languageFlags={issuesByQuestionKey[q.question_key] ?? []}
+                  questionIntent={questionIntentLookup[q.question_key] ?? []}
+                  editableTitle={
+                    isExpertReviewMode
+                      ? localExpertReviewDraft[activeLanguage]?.questions[q.question_key] ??
+                        activeTranslations?.questions?.[q.question_key]?.title ??
+                        q.question_key
+                      : activeTranslations?.questions?.[q.question_key]?.title ??
+                        q.question_key
+                  }
+                  expertMode={isExpertReviewMode}
+                  onChangeTitle={(title) =>
+                    updateQuestionTitle(activeLanguage, q.question_key, title)
+                  }
+                />
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <SurveyFeedbackPreview
+          enabled={feedbackEnabled}
+          pending={feedbackPending}
+          error={surveyFeedbackError}
+          onToggle={handleSetSurveyFeedbackEnabled}
+          recommendedCopy="Recommended for pilot copies before the main launch. This adds a fixed post-survey debrief and should usually be tested on a duplicated survey first."
+        />
+      )}
 
     </div>
   );

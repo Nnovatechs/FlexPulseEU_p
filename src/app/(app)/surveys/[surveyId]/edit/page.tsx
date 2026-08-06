@@ -7,6 +7,8 @@ import { QuestionsOverview } from "@/components/surveys/questions-overview";
 import { ReviewTab } from "@/components/surveys/review-tab";
 import { SurveyEditorTabs } from "@/components/surveys/survey-editor-tabs";
 import { updateSurveySettingsAction } from "@/features/surveys/actions";
+import { isSurveyFeedbackEligible } from "@/features/surveys/feedback";
+import { getOwnedSurveyFeedbackConfig } from "@/features/surveys/feedback-repository";
 import {
   buildQuestionIntentLookup,
   getSurveyIntegrityState,
@@ -293,6 +295,8 @@ export default async function SurveyEditPage({
   const questionIntentLookup = buildQuestionIntentLookup(
     survey.definition_json.survey_meta.measurement_plan_json,
   );
+  const surveyFeedbackConfig = await getOwnedSurveyFeedbackConfig(survey.id);
+  const surveyFeedbackEligible = isSurveyFeedbackEligible(survey.default_language);
   const hasCurrentContentValidation =
     storedValidation?.passed === true && !isValidationStale;
   const hasCurrentMultilingualValidation =
@@ -333,6 +337,8 @@ export default async function SurveyEditPage({
   const previewTab = (
     <PreviewTab
       surveyId={survey.id}
+      surveyFeedbackEligible={surveyFeedbackEligible}
+      surveyFeedbackEnabled={surveyFeedbackConfig?.enabled === true}
       surveyTitle={activeTranslations?.survey_title ?? survey.name}
       surveyDescription={activeTranslations?.survey_description ?? ""}
       questions={survey.definition_json.questions}

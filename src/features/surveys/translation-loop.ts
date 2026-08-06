@@ -29,6 +29,40 @@ export type GenerateAndValidateTranslatedLanguageResult = {
   initialIssues: MultilingualValidationIssue[];
 };
 
+export function reconcileTranslationRetryBundle(input: {
+  previousBundle: SurveyLanguageTranslations;
+  polishedBundle: SurveyLanguageTranslations;
+  validationIssues: MultilingualValidationIssue[];
+  questions: SurveyQuestionDefinition[];
+}): SurveyLanguageTranslations {
+  const targetedQuestionKeys = new Set(
+    input.validationIssues
+      .map((issue) => issue.question_key)
+      .filter((questionKey): questionKey is string => Boolean(questionKey)),
+  );
+  const hasSurveyLevelIssue = input.validationIssues.some(
+    (issue) => !issue.question_key,
+  );
+
+  return {
+    survey_title: hasSurveyLevelIssue
+      ? input.polishedBundle.survey_title
+      : input.previousBundle.survey_title,
+    survey_description: hasSurveyLevelIssue
+      ? input.polishedBundle.survey_description ?? ""
+      : input.previousBundle.survey_description ?? "",
+    questions: Object.fromEntries(
+      input.questions.map((question) => [
+        question.question_key,
+        targetedQuestionKeys.has(question.question_key)
+          ? (input.polishedBundle.questions[question.question_key] ??
+            input.previousBundle.questions[question.question_key])
+          : input.previousBundle.questions[question.question_key],
+      ]),
+    ),
+  };
+}
+
 export async function generateAndValidateTranslatedLanguage(
   params: GenerateAndValidateTranslatedLanguageInput,
 ): Promise<GenerateAndValidateTranslatedLanguageResult> {
@@ -95,7 +129,7 @@ export async function generateAndValidateTranslatedLanguage(
         retry += 1
       ) {
         const retryNumber = retry + 1;
-        translatedBundle = await timeSurveyStep(
+        const retryPolishOutput = await timeSurveyStep(
           `polish_retry_${retryNumber}`,
           {
             target_language: params.targetLanguage,
@@ -112,6 +146,12 @@ export async function generateAndValidateTranslatedLanguage(
               validationIssues: issues,
             }),
         );
+        translatedBundle = reconcileTranslationRetryBundle({
+          previousBundle: translatedBundle,
+          polishedBundle: retryPolishOutput,
+          validationIssues: issues,
+          questions: params.questions,
+        });
 
         issues = await timeSurveyStep(
           `validate_retry_${retryNumber}`,

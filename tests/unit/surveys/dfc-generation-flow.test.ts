@@ -5,6 +5,10 @@ vi.mock("@/features/surveys/generator-service", () => ({
   generateSurveyWithLLM: vi.fn(),
 }));
 
+vi.mock("@/features/surveys/canonical-language-editor", () => ({
+  runCanonicalLanguageCopyEditor: vi.fn(),
+}));
+
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   DFC_INVENTORY_QUESTION_KEY,
@@ -16,6 +20,7 @@ import {
   generateMeasurementPlanWithLLM,
   generateSurveyWithLLM,
 } from "@/features/surveys/generator-service";
+import { runCanonicalLanguageCopyEditor } from "@/features/surveys/canonical-language-editor";
 import {
   createInitialSurveyDefinition,
   type PersistedSurvey,
@@ -25,6 +30,9 @@ import { parseSurveyLanguageLLMOutput } from "@/features/surveys/translation-out
 
 const mockedPlanner = vi.mocked(generateMeasurementPlanWithLLM);
 const mockedWriter = vi.mocked(generateSurveyWithLLM);
+const mockedRunCanonicalLanguageCopyEditor = vi.mocked(
+  runCanonicalLanguageCopyEditor,
+);
 
 function buildSurveyFixture(conceptKeys: string[]): PersistedSurvey {
   const targets = deriveSchemaTargetsFromBehaviouralConceptKeys(conceptKeys);
@@ -116,6 +124,20 @@ function mockWriterWithDeterministicCapabilityCopy(
 describe("DFC generation-language flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockedRunCanonicalLanguageCopyEditor.mockImplementation(
+      async ({ writerOutput, defaultLanguage }) => ({
+        output: writerOutput,
+        report: {
+          language: defaultLanguage,
+          status: "completed",
+          total_slots: writerOutput.questions.length,
+          kept_slots: writerOutput.questions.length,
+          applied_rewrites: 0,
+          fallback_slots: 0,
+          diagnostics: [],
+        },
+      }),
+    );
   });
 
   it("filters the planner, locks writer slots, and imposes deterministic DFC artifacts", async () => {
@@ -344,6 +366,113 @@ describe("DFC generation-language flow", () => {
     ).toEqual({
       min_label: "Nada cierto para mí",
       max_label: "Totalmente cierto para mí",
+    });
+  });
+
+  it("localizes locked DFC inventory labels in the canonical survey language", async () => {
+    const conceptKeys = [
+      "trust_in_automation",
+      "declared_flexibility_capability",
+      "owned_der_assets",
+    ];
+    const schemaTargets =
+      deriveSchemaTargetsFromBehaviouralConceptKeys(conceptKeys);
+    const deterministicArtifacts =
+      createDeclaredFlexibilityCapabilityDefinitionArtifacts();
+
+    mockedPlanner.mockResolvedValue({
+      concepts: [
+        {
+          concept_key: "trust_in_automation",
+          measurement_type: "single_item_direct",
+          aggregation_rule: "identity",
+          threshold_profile: "likert_1_5_low_mid_high",
+          slot_count: 1,
+          slot_intents: [
+            {
+              facet: "reliability",
+              intent: "Measure trust in a concrete automated action.",
+              polarity: "positive",
+            },
+          ],
+        },
+      ],
+    });
+    mockedWriter.mockImplementation(async (input) => ({
+      survey_title: "Encuesta de capacidad",
+      survey_description: "Descripción",
+      estimated_completion_minutes: 8,
+      questions: input.measurementPlanBlueprint.concepts.flatMap((concept) =>
+        concept.question_slots.map((slot) => {
+          if (slot.slot_key === "SLOT_TRUST_IN_AUTOMATION_01") {
+            return {
+              slot_key: slot.slot_key,
+              title: "Confío en que la automatización retrase un aparato de forma segura.",
+              description: "",
+              ontology_target:
+                "flexpulse_behavioural_schema.trust_in_automation",
+              type: "rating_scale" as const,
+              options: [],
+              scale: {
+                min: 1,
+                max: 5,
+                step: 1,
+                min_label: "Muy poco",
+                max_label: "Mucho",
+              },
+              numeric: null,
+            };
+          }
+
+          const inventory = slot.slot_key === DFC_INVENTORY_SLOT_KEY;
+          return {
+            slot_key: slot.slot_key,
+            title: `Texto ${slot.slot_key}`,
+            description: "",
+            ontology_target: "writer.control.is.ignored",
+            type: inventory ? ("multiple_choice" as const) : ("rating_scale" as const),
+            options: inventory
+              ? deterministicArtifacts.questions[0].options!.map((option) => ({
+                  label: `Writer label ${option.option_key}`,
+                  ontology_value: option.option_key,
+                  is_truthy: false,
+                }))
+              : [],
+            scale: inventory
+              ? null
+              : {
+                  min: 99,
+                  max: 100,
+                  step: 0.5,
+                  min_label: "Nada cierto para mí",
+                  max_label: "Totalmente cierto para mí",
+                },
+            numeric: null,
+          };
+        }),
+      ),
+    }));
+
+    const proposal = await generateSurveyDraftProposal({
+      survey: buildSurveyFixture(conceptKeys),
+      surveyName: "Encuesta de capacidad",
+      surveyDescription: "",
+      defaultLanguage: "Spanish",
+      supportedLanguages: ["Spanish", "English"],
+      behaviouralConceptKeys: conceptKeys,
+      schemaTargets,
+    });
+
+    expect(
+      proposal.definition.translations.Spanish.questions[
+        DFC_INVENTORY_QUESTION_KEY
+      ].options,
+    ).toMatchObject({
+      inverter: "Inversor solar o de batería (si sabe que dispone de uno)",
+      programmable_appliance:
+        "Electrodoméstico con temporizador o función de inicio diferido",
+      heating_system:
+        "Sistema de calefacción del hogar (que no sea una bomba de calor)",
     });
   });
 });

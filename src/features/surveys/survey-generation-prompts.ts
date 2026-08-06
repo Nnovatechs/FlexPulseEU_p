@@ -1,4 +1,7 @@
-import { GeneratorTargetConfig } from "./generator-config";
+import {
+  GeneratorTargetConfig,
+  getActiveGeneratorConceptBoundaryRules,
+} from "./generator-config";
 import {
   MeasurementPlanBaseBlueprint,
   MeasurementPlanBlueprint,
@@ -11,6 +14,7 @@ import {
   DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
   DFC_INVENTORY_CONCEPT_KEY,
 } from "./declared-flexibility-capability-module";
+import { getSurveyLanguageProfile } from "./survey-language-profile";
 
 type BuildSurveyGeneratorPromptInput = {
   surveyName: string;
@@ -47,6 +51,7 @@ export type MeasurementPlannerPrompt = {
 export function buildSurveyGeneratorPrompt(
   input: BuildSurveyGeneratorPromptInput,
 ): SurveyGeneratorPrompt {
+  const languageProfile = getSurveyLanguageProfile(input.defaultLanguage);
   const targetRules = input.configs
     .map((config, index) => {
       return [
@@ -58,7 +63,12 @@ export function buildSurveyGeneratorPrompt(
         `   - compatible question formats: ${config.allowed_question_types.join(", ") || "(planner decides no visible question)"}`,
         `   - expected mapped value type: ${config.expected_type}`,
         `   - priority: ${config.priority}`,
-        `   - notes: ${config.prompt_notes}`,
+        ...(config.semantic_guidance
+          ? [
+              `   - measurement goal: ${config.semantic_guidance.measurement_intent}`,
+              `   - excluded evidence: ${config.semantic_guidance.must_not_measure.join(" | ")}`,
+            ]
+          : []),
         `   - methodology notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
       ].join("\n");
     })
@@ -100,6 +110,15 @@ export function buildSurveyGeneratorPrompt(
   const system = [
     "You are a survey generation engine for FlexPulseEU.",
     "Realize an already-planned behavioural measurement instrument in the canonical language only.",
+    "Canonical-language writing contract:",
+    "Write directly in the selected canonical language as a native survey author; do not translate or mirror the wording of the English metadata.",
+    "Definitions, notes, examples and planner intents are semantic specifications, not source sentences.",
+    "Treat each planner intent as binding for meaning, facet and polarity, but not for vocabulary, syntax or phrase structure.",
+    "Reconstruct each item from the intended respondent judgement using idiomatic, respondent-facing language.",
+    "Replace internal technical expressions and English noun chains with natural wording understood on first reading.",
+    "Keep one consistent register, grammatical perspective and survey style across the survey.",
+    "Prefer naturally inclusive reformulation over slash forms or duplicated gender endings when the language allows it.",
+    "Examples in the prompt illustrate meaning only and must not be translated literally.",
     "Return JSON only.",
     "Do not invent schema targets or slot keys outside the allowed list.",
     "Do not ask for direct personal identifiers.",
@@ -130,13 +149,18 @@ export function buildSurveyGeneratorPrompt(
     "Follow each slot's facet, intent and polarity when writing the question.",
     "Every respondent-facing question generated from the blueprint is mandatory by system design.",
     "Do not return a required field for questions; the system applies obligatoriness automatically.",
-    "For system-locked DFC module slots, provide faithful canonical-language title and description copy for every exact slot_key. For each locked DFC rating slot, also provide natural canonical-language min_label and max_label anchors. The compiler, not you, owns question keys, question types, numeric scale min/max/step, option keys and values, order, facets, visibility, mappings, aggregation and scoring.",
+    "For system-locked DFC module slots, provide native respondent-facing wording that preserves the locked slot meaning for every exact slot_key. For each locked DFC rating slot, also provide natural canonical-language min_label and max_label anchors. The compiler, not you, owns question keys, question types, numeric scale min/max/step, option keys and values, order, facets, visibility, mappings, aggregation and scoring.",
     "For the locked owned_der_assets inventory slot, provide respondent-facing labels for all requested asset values while preserving each ontology_value exactly; these labels are linguistic copy and do not alter the locked option structure.",
+    "For preferred_tariff_model single-choice questions, keep the ontology_value within this canonical set only: same_price, time_of_use, shift_rewards, dynamic_price, not_sure. Use respondent-facing labels for the visible text and do not invent new tariff ontology_value variants.",
   ].join(" ");
 
   const user = [
     `Survey name: ${input.surveyName}`,
     `Canonical language: ${input.defaultLanguage}`,
+    `Canonical language locale: ${languageProfile.locale}`,
+    `Canonical language register: ${languageProfile.register}`,
+    `Canonical language survey style: ${languageProfile.surveyStyle}`,
+    `Canonical language inclusivity guidance: ${languageProfile.inclusivityGuidance}`,
     `Supported languages in the draft: ${input.supportedLanguages.join(", ")}`,
     `Existing survey description: ${input.surveyDescription || "(empty)"}`,
     `Selected behavioural schema targets: ${input.schemaTargets.join(", ")}`,
@@ -154,21 +178,27 @@ export function buildSurveyGeneratorPrompt(
     "- Every generated question must point to exactly one ontology_target.",
     "- Every generated question must keep the slot_key from the blueprint.",
     "- Every generated question must realize the slot's facet and intent.",
-    "- For positive-polarity slots, write an item where higher agreement indicates more of the target construct.",
-    "- For negative-polarity slots, write an item where higher agreement indicates the opposite or limiting side of the construct.",
+    "- For positive-polarity slots, write an item where a higher response value indicates more of the target construct.",
+    "- For negative-polarity slots, write an item where a higher response value indicates the opposite or limiting side of the construct.",
     "- For neutral-polarity slots, use factual or categorical wording without implying high/low construct direction.",
-    "- Before writing each item, state internally what the question is trying to find out in plain words. The final title must make that purpose obvious to a non-expert respondent.",
+    "- For each slot, first identify the single respondent judgement that would provide the planned evidence.",
+    "- Write one independently answerable claim about that judgement. A condition or example may clarify the claim, but it must not introduce a second construct.",
+    "- Use only conditions required by the slot intent. Do not make acceptance artificially easy through favourable but undefined conditions.",
+    "- Ensure that the response anchors directly answer the wording used.",
+    "- Compare sibling items under the same concept and ensure that each item captures distinct planned evidence rather than a paraphrase.",
     "- A strong item names a concrete action, object, situation, or trade-off. Avoid abstract nouns when a household example would be clearer.",
     "- Use one primary example domain per item. Do not write 'temperature change or appliance delay' style items unless the slot intent explicitly compares those domains.",
     "- Each item should feel like a realistic household decision, concern, motivation, or limit, not like a description of the energy system.",
     "- Use concrete household examples when they make the item clearer: laundry, dishwasher, EV charging, device charging, heating, cooling, routines, bills, rewards, or manual override.",
     "- Mention the grid or energy system when the construct needs the mechanism to be understandable, especially awareness items about peak demand, lower-demand times, network reliability, outages, prices, or system pressure. Explain it in plain household language.",
-    "- For awareness of energy systems, avoid circular items like 'I understand the basic idea'. Ask about a concrete mechanism: busy times, lower-demand times, shiftable appliances, network pressure, price signals, or what automation can/cannot schedule.",
-    "- For flexibility willingness, ask about a concrete willingness to delay, move, accept, or refuse a household action.",
+    "- For awareness_of_energy_systems rating-scale slots, use the direct self-report judgement implied by the slot intent and facet meaning. Use familiarity framing for patterns, conditions, consequences and automation scope. Use understanding framing when the respondent must distinguish or understand a conceptual difference. Use response anchors that match the question stem. The object of the judgement must be one knowledge-bearing relationship: how a mechanism works, what effect an action has, when a pricing condition applies, or what a system can do within defined limits. Do not ask about awareness through a bare task, tariff, device, technology or generic fact. Express one complete relationship in plain household language; concise wording must not remove the effect, condition or boundary being measured. Do not write a factual statement for agreement and do not use 'Before this survey, I already knew...'.",
+    "- For thermal_comfort_norms rating-scale slots, measure comfort-preservation norms rather than willingness to accept a flexibility event. Do not characterize a deviation as small, short, limited or easy to tolerate. For deviation-tolerance, recovery and boundary items, use neutral numerical conditions for magnitude and duration. Terms such as 'temporary', 'for a while', 'noticeable', 'soon' or 'quickly' are not sufficient on their own. Use the respondent's chosen indoor temperature as the reference point when the slot concerns deviation or recovery. The boundary item must represent a meaningfully stronger condition than the tolerance item rather than paraphrasing the stability requirement.",
+    "- For flexibility_willingness rating-scale slots, ask directly how willing the respondent would be to accept one specified flexibility action. Use anchors equivalent to 'Not at all willing' and 'Very willing'. Include one bounded and moderate trade-off when required by the intent, such as a defined delay, duration, temperature deviation or amount of replanning. Qualitative adjectives such as 'small', 'moderate', 'short' or 'limited' do not define a bounded trade-off on their own. When timing, duration or replanning is part of the intended trade-off, specify either a concrete duration or an observable scheduling consequence. For programme-participation items, state the maximum bounded request the programme may make; an open phrase such as 'at a different time' is not sufficient. For a single-event item, use one fixed scenario rather than an 'up to' range, unless the slot explicitly measures a maximum or threshold. Do not invent precision when the slot does not require a trade-off. Do not combine multiple costs, add undefined favourable conditions, introduce financial rewards, or ask about actual household capability. Keep programme participation distinct from acceptance of a single action: participation_intention concerns opting into an ongoing arrangement, while action facets concern accepting one concrete event.",
+    "- For tariff_preference_orientation rating-scale slots, ask directly how acceptable one specified tariff arrangement would be. Use anchors equivalent to 'Not at all acceptable' and 'Completely acceptable'. Each item must identify the tariff structure and one defining condition or burden required by the facet. Qualitative expressions such as 'more often', 'some benefit', 'possible savings' or 'a bit more planning' do not operationalise those attributes. If a reward is part of the tariff, eligibility for the reward must depend on one bounded and observable household action. If the action involves shifting use in time, specify the bounded timing change; 'when asked' alone is not sufficient. State the condition required to receive the reward and do not invent an economic magnitude that the scenario does not provide. Do not combine several independent tariff trade-offs in one item or turn the question into general savings motivation or flexibility willingness.",
     "- For savings motivation, ask about money, bills, rewards, or willingness to accept inconvenience for savings.",
     "- For bill stability, ask about predictable bills, month-to-month changes, or lower savings in exchange for certainty.",
     "- For automation trust, ask about delegating a concrete task to an automated system; do not mix trust with explanation need or manual override unless the slot intent explicitly asks for that boundary.",
-    "- For explainability, ask what the respondent needs to know: what changed, why it changed, effect on comfort/bill, or how to override it.",
+    "- For explainability, ask what information the respondent requires about an automated action: what changed, why it changed, and its consequences for comfort, costs, or device operation. Do not turn explainability into manual override or prior approval.",
     "- For comfort and override, prioritize the respondent's comfort/control judgement and avoid turning the item into support for a programme.",
     "- For event-frequency tolerance, every item should include a frequency anchor such as several times per week or a few times per month. Do not make a duration-only item for this concept.",
     "- For tariff single-choice options, the label must be a plain-language description, not an internal value like dynamic_price or shift_rewards. Good labels look like 'Same price most of the time', 'Cheaper electricity at certain times of day', 'Rewards for shifting use when asked', 'Prices change often, with more risk and possible savings', or 'Not sure / I would need more information'.",
@@ -177,8 +207,6 @@ export function buildSurveyGeneratorPrompt(
     "- The title must be the actual question or statement shown to the respondent.",
     "- The description must never carry the main semantic burden of the item.",
     "- When a concept blueprint contains multiple slots, generate separate questions for those slots. Never compress multiple statements into one question.",
-    "- When a concept blueprint contains multiple slots, make each question cover a distinct facet implied by the target-specific notes.",
-    "- Do not fill extra slots with mild rewordings of the same attitude.",
     "- Do not borrow content from neighboring constructs just to make items sound more varied.",
     "- Do not use matrix wording like 'Please rate your agreement with the following statements' unless the actual statements are returned as separate questions.",
     "- Use multiple_choice for conditions, barriers, motivators, accepted scopes, or device lists.",
@@ -189,7 +217,7 @@ export function buildSurveyGeneratorPrompt(
     "- survey_description should briefly explain the survey purpose in the canonical language.",
     "- Do not include a required field in question objects.",
     "- Locked DFC inventory ontology values are: pv_system, battery_storage, heating_system, ev, inverter, heat_pump, thermal_storage, hot_water_tank, programmable_appliance, washing_machine, air_conditioning, none_of_these, not_sure.",
-    "- For locked DFC rating slots, min/max/step are transport placeholders and are ignored during compilation; min_label/max_label are respondent-facing canonical-language anchors and must be meaningful translations of the answer direction.",
+    "- For locked DFC rating slots, min/max/step are transport placeholders and are ignored during compilation; min_label/max_label are respondent-facing canonical-language anchors and must be natural canonical-language endpoint labels that express the required answer direction.",
   ].join("\n");
 
   return {
@@ -201,20 +229,28 @@ export function buildSurveyGeneratorPrompt(
 export function buildMeasurementPlannerPrompt(
   input: BuildMeasurementPlannerPromptInput,
 ): MeasurementPlannerPrompt {
+  const activeBoundaryRules = getActiveGeneratorConceptBoundaryRules(
+    input.behaviouralConceptKeys,
+  );
   const conceptRules = input.configs
     .map((config, index) =>
       [
         `${index + 1}. ${config.concept.concept_key}`,
-        `   - schema target: ${config.ontology_target}`,
-        `   - label: ${config.concept.label}`,
-        `   - description: ${config.concept.description}`,
-        `   - concept role: ${config.concept.concept_role}`,
-        `   - dimension: ${config.concept.dimension}`,
+        `   - canonical definition: ${config.concept.description}`,
+        ...(config.semantic_guidance
+          ? [
+              `   - measurement intent: ${config.semantic_guidance.measurement_intent}`,
+              `   - high score means: ${config.semantic_guidance.high_score_meaning}`,
+              `   - candidate facets, non-exhaustive: ${config.semantic_guidance.recommended_facets
+                .map((facet) => `${facet.key} - ${facet.meaning}`)
+                .join("; ")}`,
+              `   - must not measure: ${config.semantic_guidance.must_not_measure.join(" | ")}`,
+            ]
+          : []),
         `   - compatible measurement approaches: ${config.allowed_measurement_types.join(", ")}`,
         `   - compatible question formats: ${config.allowed_question_types.join(", ") || "(no visible question)"}`,
-        `   - expected output type: ${config.expected_type}`,
-        `   - visible question capacity: up to ${config.slot_capacity_max} slot(s) if you decide the concept needs survey questions`,
-        `   - planner context notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
+        `   - slot capacity: up to ${config.slot_capacity_max} slot(s) if you decide the concept needs survey questions`,
+        `   - operational notes: ${buildConceptMethodologyNotes(config).join(" | ")}`,
       ].join("\n"),
     )
     .join("\n");
@@ -291,8 +327,21 @@ export function buildMeasurementPlannerPrompt(
     "Server-provided planning envelope:",
     blueprintRules,
     "",
-    "Concept-specific planning rules:",
+    "Concept measurement contracts:",
     conceptRules,
+    "",
+    "Facet selection policy:",
+    "- Candidate facets are a non-exhaustive content map, not a mandatory checklist.",
+    "- Select only the smallest coherent subset needed for the survey purpose.",
+    "- Do not use every candidate automatically.",
+    "- You may introduce another facet when justified by the survey context.",
+    "- Alternative facets must remain inside the concept definition and respect excluded content and active boundaries.",
+    "- Different facets must collect distinct evidence rather than paraphrase the same attitude.",
+    "",
+    "Required construct-separation rules:",
+    ...(activeBoundaryRules.length > 0
+      ? activeBoundaryRules.map((rule) => `- ${rule.instruction}`)
+      : ["- No additional construct-separation rules are active for this selected concept set."]),
     "",
     "Planner mission:",
     "- Design the best instrument you can under the methodology contract while keeping respondent burden proportionate.",
@@ -313,7 +362,7 @@ export function buildMeasurementPlannerPrompt(
     "Do not use schema targets such as flexpulse_behavioural_schema.* as concept_key values.",
     "For each concept decide the measurement_type, aggregation_rule, threshold_profile and slot_count yourself.",
     "For each planned survey question slot, provide one slot_intent. slot_intents.length must equal slot_count.",
-    "Use short stable facet labels in snake_case, such as reliability, predictability, delegation_readiness, oversight_need, mistake_tolerance, perceived_understanding, applied_recognition, automation_limits, explanation_before_adoption, explanation_after_action, explanation_depth, inconvenience_tolerance, routine_disruption, cost_vs_convenience_tradeoff or bill_volatility_aversion.",
+    "Use short stable facet labels in snake_case aligned with the semantic guidance or a justified alternative facet.",
     "Facet labels are interpretive measurement roles, not hard diagnostic categories. Concept scores remain canonical downstream.",
     "If a facet has only one planned slot, it will be treated as an interpretive signal. Only reuse the same facet across two or more slots when you intentionally want enough evidence for a facet subscore.",
     "Do not create many one-off facet labels just to sound specific; prefer the smallest reusable label that cleanly separates neighboring constructs.",

@@ -28,6 +28,11 @@ describe("buildSurveyPolishPrompt", () => {
     expect(prompt.user).toContain("Avoid vague placeholders");
     expect(prompt.user).toContain("Avoid repeating the same technical domain phrase");
     expect(prompt.user).toContain("Option labels must read naturally as standalone response choices.");
+    expect(prompt.user).toContain("Target locale: Spain Spanish (es-ES)");
+    expect(prompt.user).toContain("Target audience: general adult population");
+    expect(prompt.user).toContain("Target register: neutral, professional and accessible");
+    expect(prompt.user).toContain("Target survey style:");
+    expect(prompt.user).toContain("Target inclusivity guidance:");
     expect(prompt.user).not.toContain("Spanish-specific naturalness checks:");
     expect(prompt.user).toContain("question_key");
     expect(prompt.user).toContain("option_key");
@@ -60,8 +65,22 @@ describe("buildSurveyPolishPrompt", () => {
     });
 
     expect(prompt.user).toContain("Some items failed validation.");
+    expect(prompt.user).toContain(
+      "Rewrite only the flagged question_key values and keep every other question exactly unchanged.",
+    );
+    expect(prompt.user).toContain(
+      "Return the full survey bundle, including every question_key in the draft. Do not omit unchanged questions; copy them exactly unchanged.",
+    );
+    expect(prompt.user).toContain("Rewrite only these question_key values:");
+    expect(prompt.user).toContain(
+      "Return every question_key from the draft in the final JSON output.",
+    );
+    expect(prompt.user).toContain(
+      "Keep all other question titles, descriptions, options and scale labels exactly unchanged.",
+    );
     expect(prompt.user).toContain("Failed validation checks:");
     expect(prompt.user).toContain("failed_check");
-    expect(prompt.user).not.toContain("La expresion suena poco natural en espanol general.");
+    expect(prompt.user).toContain("La expresion suena poco natural en espanol general.");
+    expect(prompt.user).toContain('"recommendation": null');
   });
 });

@@ -46,7 +46,7 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
           <article key={survey.id} className="survey-list__item" role="listitem">
             <div className="survey-list__main">
               <div className="survey-list__title">
-                <h3>{survey.title}</h3>
+                <h3>{survey.internalName}</h3>
                 <p>
                   {survey.defaultLanguage} · {survey.supportedLanguages.length} language
                   {survey.supportedLanguages.length > 1 ? "s" : ""} · {survey.questionCount} question
@@ -92,7 +92,7 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                 {survey.status === "Draft" || survey.status === "Published" ? (
                   <SurveyLifecycleAction
                     surveyId={survey.id}
-                    surveyTitle={survey.title}
+                    surveyTitle={survey.internalName}
                     status={survey.status}
                   />
                 ) : null}

@@ -90,6 +90,7 @@ type ReviewTabProps = {
   supportedLanguages: SurveyLanguageCode[];
   multilingualValidationResult: MultilingualValidationResult | null;
   isMultilingualStale: boolean;
+  hasExpertReview: boolean;
 };
 
 export function ReviewTab({
@@ -104,6 +105,7 @@ export function ReviewTab({
   supportedLanguages,
   multilingualValidationResult,
   isMultilingualStale,
+  hasExpertReview,
 }: ReviewTabProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -329,12 +331,20 @@ export function ReviewTab({
           </p>
         )}
 
+        {hasExpertReview && (
+          <p className="review-notice review-notice--warning">
+            Expert review has been applied. Make a normal edit in Configuration or
+            Questions to clear the frozen review snapshot before running automatic
+            validation again.
+          </p>
+        )}
+
         <form onSubmit={handleValidate} className="review-step__action">
           <input type="hidden" name="surveyId" value={surveyId} />
           <button
             type="submit"
             className="button button--secondary"
-            disabled={validatePending}
+            disabled={validatePending || hasExpertReview}
           >
             {validatePending ? "Validating…" : statusState === "none" ? "Run validation" : "Re-run validation"}
           </button>
@@ -390,8 +400,7 @@ export function ReviewTab({
           </p>
         )}
 
-        {multilingualValidationResult &&
-        multilingualValidationResult.issues.length > 0 ? (
+        {multilingualValidationResult && hasSecondaryLanguages ? (
           <div className="review-language-groups">
             {supportedLanguages
               .filter((language) => language !== defaultLanguage)
@@ -458,19 +467,46 @@ export function ReviewTab({
                   </div>
                 );
               })}
+            {(multilingualStatusState === "passed" || multilingualStatusState === "failed") && (
+              <div className="review-language-group">
+                <div className="review-language-group__header">
+                  <span className="review-language-group__title">
+                    Parity, cultural and quality checks
+                  </span>
+                  <span
+                    className={`review-status review-status--${
+                      multilingualStatusState === "failed" ? "failed" : "passed"
+                    }`}
+                  >
+                    {multilingualStatusState === "failed" ? "Flags found" : "Passed"}
+                  </span>
+                </div>
+                <p
+                  className={`review-notice ${
+                    multilingualStatusState === "failed"
+                      ? "review-notice--error"
+                      : "review-notice--success"
+                  }`}
+                >
+                  {multilingualStatusState === "failed"
+                    ? "Flags found."
+                    : "All selected multicultural versions passed parity, cultural and quality checks."}
+                </p>
+              </div>
+            )}
           </div>
         ) : null}
-
-        {multilingualStatusState === "passed" && hasSecondaryLanguages && (
-          <p className="review-notice review-notice--success">
-            All selected multicultural versions passed parity, cultural and quality
-            checks.
-          </p>
-        )}
 
         {translateError && (
           <p className="review-notice review-notice--error" role="alert">
             {translateError}
+          </p>
+        )}
+
+        {hasExpertReview && hasSecondaryLanguages && (
+          <p className="review-notice review-notice--warning">
+            Expert review has been applied. Make a normal edit first if you want to
+            clear it and re-enter the automatic multicultural flow.
           </p>
         )}
 
@@ -480,12 +516,15 @@ export function ReviewTab({
             type="submit"
             className="button button--secondary"
             disabled={
+              hasExpertReview ||
               multilingualStatusState === "locked" ||
               multilingualStatusState === "not_required" ||
               translatePending
             }
             title={
-              multilingualStatusState === "locked"
+              hasExpertReview
+                ? "Clear expert review first with a normal edit"
+                : multilingualStatusState === "locked"
                 ? "Pass content validation first"
                 : multilingualStatusState === "not_required"
                   ? "No additional languages selected"

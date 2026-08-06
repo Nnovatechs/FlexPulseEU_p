@@ -7,11 +7,13 @@ import { QuestionsOverview } from "@/components/surveys/questions-overview";
 import { ReviewTab } from "@/components/surveys/review-tab";
 import { SurveyEditorTabs } from "@/components/surveys/survey-editor-tabs";
 import { updateSurveySettingsAction } from "@/features/surveys/actions";
-import { computeContentHash } from "@/features/surveys/content-validator";
+import {
+  buildQuestionIntentLookup,
+  getSurveyIntegrityState,
+} from "@/features/surveys/expert-review";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
 import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
-import { computeMultilingualTranslationHash } from "@/features/surveys/translation-validation";
 import { appRoutes } from "@/lib/config/routes";
 
 type SurveyEditPageProps = {
@@ -222,18 +224,23 @@ export default async function SurveyEditPage({
     survey.definition_json.survey_meta.validation_result ?? null;
   const storedMultilingualValidation =
     survey.definition_json.survey_meta.multilingual_validation_result ?? null;
-  const isValidationStale =
-    storedValidation !== null && activeTranslations !== null
-      ? computeContentHash(survey.definition_json.questions, activeTranslations) !==
-        storedValidation.content_hash
-      : false;
-  const isMultilingualValidationStale =
-    storedMultilingualValidation !== null
-      ? computeMultilingualTranslationHash(
-          survey.definition_json,
-          survey.supported_languages,
-        ) !== storedMultilingualValidation.translation_hash
-      : false;
+  const expertReviewResult =
+    survey.definition_json.survey_meta.expert_review_result ?? null;
+  const integrity = getSurveyIntegrityState({
+    definition: survey.definition_json,
+    defaultLanguage: survey.default_language,
+    supportedLanguages: survey.supported_languages,
+  });
+  const isValidationStale = expertReviewResult
+    ? !integrity.expert_review_baseline_linked
+    : !integrity.automatic_content_current && storedValidation !== null;
+  const isMultilingualValidationStale = expertReviewResult
+    ? !integrity.expert_review_baseline_linked
+    : !integrity.automatic_multilingual_current &&
+      storedMultilingualValidation !== null;
+  const questionIntentLookup = buildQuestionIntentLookup(
+    survey.definition_json.survey_meta.measurement_plan_json,
+  );
 
   const previewUnlocked = hasQuestions;
 
@@ -250,6 +257,7 @@ export default async function SurveyEditPage({
       supportedLanguages={survey.supported_languages}
       multilingualValidationResult={storedMultilingualValidation}
       isMultilingualStale={isMultilingualValidationStale}
+      hasExpertReview={expertReviewResult != null}
     />
   );
 
@@ -267,6 +275,9 @@ export default async function SurveyEditPage({
       multilingualValidationResult={storedMultilingualValidation}
       isValidationStale={isValidationStale}
       isMultilingualValidationStale={isMultilingualValidationStale}
+      expertReviewResult={expertReviewResult}
+      integrity={integrity}
+      questionIntentLookup={questionIntentLookup}
     />
   );
 
@@ -300,6 +311,12 @@ export default async function SurveyEditPage({
         </div>
       ) : null}
 
+      {generatedMessage && generationMessage ? (
+        <div className="notice notice--warning" role="status">
+          {generationMessage}
+        </div>
+      ) : null}
+
       {missingFieldsError ? (
         <div className="notice notice--error" role="alert">
           Survey name and primary language are required.
@@ -316,6 +333,13 @@ export default async function SurveyEditPage({
         <div className="notice notice--error" role="alert">
           Survey generation failed.{" "}
           {generationMessage || "Please review the current settings and try again."}
+        </div>
+      ) : null}
+
+      {expertReviewResult ? (
+        <div className="notice notice--warning" role="status">
+          Expert review has been applied. Normal edits in Configuration or Questions
+          will clear automated validation and the stored expert review snapshot.
         </div>
       ) : null}
 

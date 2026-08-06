@@ -8,6 +8,7 @@ import type {
 } from "./generator-types";
 import { parseSurveyLanguageLLMOutput } from "./translation-output";
 import { timeSurveyStep } from "./local-timing";
+import { getSurveyLanguageProfile } from "./survey-language-profile";
 
 type PolishSurveyLanguageInput = {
   sourceLanguage: SurveyLanguageCode;
@@ -111,13 +112,30 @@ function buildQuestionPayload(input: PolishSurveyLanguageInput) {
   });
 }
 
+function getTargetedQuestionKeys(validationIssues?: MultilingualValidationIssue[]) {
+  return Array.from(
+    new Set(
+      (validationIssues ?? [])
+        .map((issue) => issue.question_key)
+        .filter((questionKey): questionKey is string => Boolean(questionKey)),
+    ),
+  );
+}
+
 export function buildSurveyPolishPrompt(input: PolishSurveyLanguageInput): SurveyPolishPrompt {
+  const languageProfile = getSurveyLanguageProfile(input.targetLanguage);
+  const targetedQuestionKeys = getTargetedQuestionKeys(input.validationIssues);
   const system =
     "Rewrite the target-language survey text so it sounds natural and human. Use the source text only to preserve meaning. Return JSON only.";
 
   const user = [
     `Source language: ${input.sourceLanguage}`,
     `Target language: ${input.targetLanguage}`,
+    `Target locale: ${languageProfile.locale}`,
+    `Target audience: ${languageProfile.audience}`,
+    `Target register: ${languageProfile.register}`,
+    `Target survey style: ${languageProfile.surveyStyle}`,
+    `Target inclusivity guidance: ${languageProfile.inclusivityGuidance}`,
     "",
     "You will receive source survey text and a target-language draft.",
     "Rewrite the target-language draft so it sounds like it was written directly by a native speaker for a real survey.",
@@ -132,7 +150,13 @@ export function buildSurveyPolishPrompt(input: PolishSurveyLanguageInput): Surve
     "Option labels must read naturally as standalone response choices. Do not leave compressed, overly technical or ambiguous label fragments; use plain wording a general respondent would recognize.",
     "Rating-scale min_label and max_label must also read naturally in the target language while preserving answer direction.",
     input.validationIssues?.length
-      ? "Some items failed validation. Rewrite those failed items from the source meaning, not from the previous target wording or validator suggestions."
+      ? "Some items failed validation. Rewrite only the flagged question_key values and keep every other question exactly unchanged."
+      : "",
+    input.validationIssues?.length
+      ? "Use each validation issue as a diagnostic signal. Preserve meaning, answer direction, and central conditions. Do not blindly copy the validator recommendation."
+      : "",
+    input.validationIssues?.length
+      ? "Return the full survey bundle, including every question_key in the draft. Do not omit unchanged questions; copy them exactly unchanged."
       : "",
     "",
     `Source survey title: ${input.sourceTranslations.survey_title}`,
@@ -147,11 +171,21 @@ export function buildSurveyPolishPrompt(input: PolishSurveyLanguageInput): Surve
     input.validationIssues && input.validationIssues.length > 0
       ? [
           "",
+          `Rewrite only these question_key values: ${
+            targetedQuestionKeys.length > 0
+              ? targetedQuestionKeys.join(", ")
+              : "(survey-level issue only)"
+          }`,
+          "Return every question_key from the draft in the final JSON output.",
+          "Keep all other question titles, descriptions, options and scale labels exactly unchanged.",
           "Failed validation checks:",
           JSON.stringify(
             input.validationIssues.map((issue) => ({
               question_key: issue.question_key ?? null,
               failed_check: issue.type,
+              severity: issue.severity ?? null,
+              issue: issue.message,
+              recommendation: issue.recommendation ?? null,
             })),
             null,
             2,

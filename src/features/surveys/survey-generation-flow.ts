@@ -13,6 +13,7 @@ import {
   hasDeclaredFlexibilityCapability,
   mergeDeclaredFlexibilityCapabilityWriterBlueprint,
 } from "./declared-flexibility-capability-module";
+import { runCanonicalLanguageCopyEditor } from "./canonical-language-editor";
 import {
   resetSurveyGeneratorDebugLatest,
   writeSurveyGeneratorDebugJson,
@@ -43,6 +44,7 @@ import type {
   MeasurementPlanBlueprint,
 } from "./measurement-plan";
 import { timeSurveyStep } from "./local-timing";
+import { getCanonicalDerAssetOptionLabel } from "./asset-option-labels";
 
 type GenerateSurveyDraftProposalInput = {
   survey: PersistedSurvey;
@@ -61,6 +63,7 @@ export type GeneratedSurveyDraftProposal = {
     PersistedSurvey["definition_json"]["survey_meta"]["measurement_plan_json"]
   >;
   configs: GeneratorTargetConfig[];
+  warnings?: string[];
 };
 
 type SurveyGenerationContext = GenerateSurveyDraftProposalInput & {
@@ -262,9 +265,7 @@ export async function runWriterPhase(input: {
   acceptedBlueprint: MeasurementPlanBlueprint;
 }): Promise<SurveyGeneratorLLMOutput> {
   const { context, acceptedBlueprint } = input;
-  const writerBlueprint = context.capabilityModuleSelected
-    ? mergeDeclaredFlexibilityCapabilityWriterBlueprint(acceptedBlueprint)
-    : acceptedBlueprint;
+  const writerBlueprint = getWriterBlueprint(context, acceptedBlueprint);
 
   return timeSurveyStep(
     "writer_phase",
@@ -287,6 +288,32 @@ export async function runWriterPhase(input: {
         debugFilePrefix: "writer",
       }),
   );
+}
+
+function getWriterBlueprint(
+  context: SurveyGenerationContext,
+  acceptedBlueprint: MeasurementPlanBlueprint,
+) {
+  return context.capabilityModuleSelected
+    ? mergeDeclaredFlexibilityCapabilityWriterBlueprint(acceptedBlueprint)
+    : acceptedBlueprint;
+}
+
+function buildCanonicalLanguageEditorWarning(input: {
+  language: string;
+  status: "completed" | "partial" | "fallback";
+  fallbackSlots: number;
+  totalSlots: number;
+}) {
+  if (input.status === "completed") {
+    return null;
+  }
+
+  if (input.status === "fallback") {
+    return `Canonical language editor fallback: the ${input.language} native-copy pass could not be applied, so the draft kept the raw writer copy. Review wording carefully before publishing.`;
+  }
+
+  return `Canonical language editor partial fallback: ${input.fallbackSlots} of ${input.totalSlots} ${input.totalSlots === 1 ? "slot kept" : "slots kept"} the raw writer copy in ${input.language}. Review wording carefully before publishing.`;
 }
 
 export function compileWriterOutput(input: {
@@ -433,7 +460,12 @@ function compileWriterOutputWithDeclaredFlexibilityCapability(input: {
                 )?.label;
                 return [
                   option.option_key,
-                  writerLabel?.trim() || humanizeOptionValue(option.option_key),
+                  getCanonicalDerAssetOptionLabel(
+                    option.option_key,
+                    context.defaultLanguage,
+                  ) ||
+                    writerLabel?.trim() ||
+                    humanizeOptionValue(option.option_key),
                 ];
               }),
             ),
@@ -511,6 +543,7 @@ export async function runSurveyGenerationFlow(
     },
     async () => {
       const context = buildGenerationContext(input);
+      const generationWarnings: string[] = [];
 
       await writeSurveyGeneratorDebugJson(
         "planner/base-blueprint.json",
@@ -518,7 +551,35 @@ export async function runSurveyGenerationFlow(
       );
 
       const acceptedBlueprint = await runPlannerOrchestrator(context);
+      const writerBlueprint = getWriterBlueprint(context, acceptedBlueprint);
       const writerOutput = await runWriterPhase({ context, acceptedBlueprint });
+      const finalWriterOutput =
+        context.defaultLanguage === "English"
+          ? writerOutput
+          : await timeSurveyStep(
+              "canonical_language_editor_phase",
+              {
+                question_count: writerOutput.questions.length,
+                default_language: context.defaultLanguage,
+              },
+              async () => {
+                const canonicalEditorResult = await runCanonicalLanguageCopyEditor({
+                  defaultLanguage: context.defaultLanguage,
+                  writerOutput,
+                  writerBlueprint,
+                });
+                const warning = buildCanonicalLanguageEditorWarning({
+                  language: context.defaultLanguage,
+                  status: canonicalEditorResult.report.status,
+                  fallbackSlots: canonicalEditorResult.report.fallback_slots,
+                  totalSlots: canonicalEditorResult.report.total_slots,
+                });
+                if (warning) {
+                  generationWarnings.push(warning);
+                }
+                return canonicalEditorResult.output;
+              },
+            );
       const compiledSurvey = await timeSurveyStep(
         "compile_writer_output",
         {
@@ -528,7 +589,7 @@ export async function runSurveyGenerationFlow(
           compileWriterOutput({
             context,
             acceptedBlueprint,
-            writerOutput,
+            writerOutput: finalWriterOutput,
           }),
       );
 
@@ -556,6 +617,7 @@ export async function runSurveyGenerationFlow(
         mappingContract: compiledSurvey.mappingContract,
         measurementPlan: compiledSurvey.measurementPlan,
         configs: context.configs,
+        warnings: generationWarnings.length > 0 ? generationWarnings : undefined,
       };
     },
   );

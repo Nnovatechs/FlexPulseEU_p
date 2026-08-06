@@ -182,16 +182,14 @@ export function buildTranslationValidationPrompt(
   }));
 
   const untrustedNotice = buildUntrustedSurveyContentNotice();
-  // Product semantics (see translation-loop.ts + toProductMultilingualIssues in actions.ts):
-  // - severity=blocking on quality/parity/pii/cultural means "this item needs another polish pass"
-  //   while the multicultural loop is running.
-  // - At publish time, only parity, pii, and cultural findings block publication; quality is
-  //   downgraded to a product-safe advisory so the one-click generate flow can finish.
-  // Keep the audit strict here anyway — tighter findings improve automatic rewrite quality.
+  // Loop semantics:
+  // - Any finding can trigger another polish pass while the multicultural loop is running.
+  // - Severity should distinguish genuinely response-invalidating problems from revisable wording.
+  // - The publish layer can later downgrade non-PII findings for product purposes.
   const system = [
     "You are a multilingual survey auditor for FlexPulseEU.",
     "Your role is to verify that each localized survey item preserves the same respondent-facing meaning as the source language and is culturally natural and publishable in the target language.",
-    "Apply a high-precision audit: default to pass unless there is a clear material problem.",
+    "Apply a high-precision audit: pass items that are genuinely native, clear, and publishable, but surface meaningful respondent-facing problems when another rewrite pass is likely to improve the survey.",
     "Judge parity at the level of likely respondent interpretation and measurement intent, not word-for-word correspondence.",
     "Do not flag parity for harmless changes in syntax, register, idiom, or close paraphrase when a reasonable native respondent would answer the item the same way.",
     "Only use issue_type = parity when the target wording materially changes the likely interpretation, referent, agency, polarity, timeframe, or expected answer.",
@@ -199,12 +197,13 @@ export function buildTranslationValidationPrompt(
     "Reserve parity for issues that would make the answer unmappable or materially different from the source measurement intent.",
     "Use issue_type = quality for wording that is awkward, overly literal, clearly translated-sounding, bureaucratic, abstract in the wrong way, hard to understand on first read, misleading, or not publishable to native speakers.",
     "A translation can receive a quality finding even when parity is mostly preserved.",
-    "Use severity = blocking for PII, material parity drift, cultural bias likely to affect answers, or severe quality problems that make an item hard to understand, misleading, or clearly not publishable.",
-    "Use severity = advisory when the item is understandable but noticeably translated-sounding, awkward, mildly ambiguous, or likely to benefit from another rewrite pass.",
-    "Do not emit advisory findings for pure style preferences or a rewrite that would merely sound a bit smoother.",
+    "Use severity = blocking only for PII or for genuinely response-invalidating problems such as material parity drift, severe cultural bias likely to alter answers, missing or incompatible response options, or quality failures that make the item effectively unintelligible, misleading, or not answerable.",
+    "Use severity = advisory when the construct, referent, and answer direction are still recognizable but the wording is translated-sounding, awkward, mildly ambiguous, slightly broader or narrower, or otherwise likely to benefit from another rewrite pass.",
+    "If you are unsure whether a non-PII issue is blocking or advisory, prefer advisory.",
+    "Do not emit advisory findings for purely cosmetic style preferences or a rewrite that would merely sound a bit smoother when the current wording is already genuinely native and publishable.",
     `Return at most ${MAX_MULTILINGUAL_ADVISORY_ISSUES} advisory findings for the target language. If more text could be polished, keep only the highest-impact respondent-facing findings and pass the rest.`,
-    "Most acceptable items should pass with no finding. A review with many low-value recommendations is a failure of the audit.",
-    "Do not block publication for minor style preferences, slight awkwardness, or a rewrite that would merely sound a bit smoother.",
+    "Many acceptable items should pass with no finding. A review with many low-value recommendations is a failure of the audit.",
+    "Treat severity = blocking as protection for measurement validity and respondent safety, not for ordinary editorial perfection.",
     "Fail quality as blocking only when a native respondent would likely need to reread the item, when the wording sounds like internal technical documentation instead of a public-facing survey, or when the phrasing uses unnatural calques that materially hurt clarity.",
     "Treat native clarity, respondent-facing framing, idiomaticity, and publishability as mandatory quality checks for every item.",
     "Use issue_type = cultural when the core construct is still recognizable but the localization adds culturally loaded framing, social desirability pressure, country-specific market assumptions, non-equivalent household examples, or institutional cues that could systematically bias how respondents answer.",
@@ -227,11 +226,11 @@ export function buildTranslationValidationPrompt(
     "Evaluate the localized survey title, description and questions.",
     "For rating questions, also verify that both endpoint labels are naturally translated and preserve the source answer direction.",
     "Return one question-level result for every question. Add survey-level issues only when necessary.",
-    "Use a conservative threshold for blocking findings: block only on clear semantic drift, severe quality problems, cultural mismatch or localization bias likely to affect answers, or added PII.",
+    "Use a conservative threshold for blocking findings: block only on added PII or on clear, response-invalidating semantic drift, severe cultural mismatch, or severe quality problems.",
     "Pass natural paraphrases when the survey meaning and measurement intent are still preserved.",
     "Treat this as localization review, not literal translation review.",
     "Ask yourself whether the target item sounds like it was originally written by a native survey author for real respondents in that language.",
-    "If the item sounds slightly translated but remains clear and answerable, return an advisory quality finding only when another rewrite pass is likely to improve respondent-facing quality. If it is hard to process or not publishable, return a blocking quality finding.",
+    "If the item sounds slightly translated but remains clear and answerable, return an advisory finding when another rewrite pass is likely to make it more natural, clearer, or more respondent-facing. If it is hard to process or not publishable, return a blocking quality finding.",
     "",
     `Source survey title: ${input.sourceTranslations.survey_title}`,
     `Source survey description: ${input.sourceTranslations.survey_description ?? ""}`,

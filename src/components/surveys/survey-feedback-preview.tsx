@@ -1,20 +1,10 @@
 import { getSurveyFeedbackQuestions } from "@/features/surveys/feedback";
 
 type SurveyFeedbackPreviewProps = {
-  enabled: boolean;
-  pending: boolean;
-  error: string | null;
-  onToggle: (nextEnabled: boolean) => void;
   recommendedCopy: string;
 };
 
-export function SurveyFeedbackPreview({
-  enabled,
-  pending,
-  error,
-  onToggle,
-  recommendedCopy,
-}: SurveyFeedbackPreviewProps) {
+export function SurveyFeedbackPreview({ recommendedCopy }: SurveyFeedbackPreviewProps) {
   const questions = getSurveyFeedbackQuestions();
 
   return (
@@ -27,18 +17,6 @@ export function SurveyFeedbackPreview({
             separately from scoring, mapping, and profiling.
           </p>
         </div>
-        <label className="survey-feedback-preview__toggle">
-          <span>{enabled ? "Enabled" : "Disabled"}</span>
-          <span className="survey-feedback-preview__switch">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => onToggle(event.target.checked)}
-              disabled={pending}
-            />
-            <span className="survey-feedback-preview__switch-track" />
-          </span>
-        </label>
       </div>
 
       <div className="survey-feedback-preview__notes">
@@ -46,12 +24,6 @@ export function SurveyFeedbackPreview({
         <p>Respondents will see this section only after the main survey is already stored.</p>
         <p>The text block warns respondents not to include personal information and asks for honest feedback.</p>
       </div>
-
-      {error ? (
-        <div className="notice notice--warning" role="alert">
-          {error}
-        </div>
-      ) : null}
 
       <div className="survey-feedback-preview__questions">
         {questions.map((question, index) => (

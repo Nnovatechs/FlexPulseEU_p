@@ -327,8 +327,10 @@ export function PreviewTab({
   const [publishError, setPublishError] = useState<string | null>(null);
   const [expertReviewError, setExpertReviewError] = useState<string | null>(null);
   const [surveyFeedbackError, setSurveyFeedbackError] = useState<string | null>(null);
+  const [feedbackModalChecked, setFeedbackModalChecked] = useState<boolean | null>(null);
   const [isExpertReviewMode, setIsExpertReviewMode] = useState(false);
   const [isExpertReviewModalOpen, setIsExpertReviewModalOpen] = useState(false);
+  const [isSurveyFeedbackModalOpen, setIsSurveyFeedbackModalOpen] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [reviewerType, setReviewerType] =
     useState<ExpertReviewerType>("language_expert");
@@ -367,6 +369,7 @@ export function PreviewTab({
         integrity.expert_review_final_current
       : integrity.automatic_baseline_ready);
   const feedbackEnabled = surveyFeedbackEnabled || feedbackEnabledLocal;
+  const feedbackModalValue = feedbackModalChecked ?? feedbackEnabled;
   const multilingualBlockingIssueCount = (
     multilingualValidationResult?.issues ?? []
   ).filter((issue) => issue.severity !== "advisory").length;
@@ -413,11 +416,13 @@ export function PreviewTab({
 
   function handleActivateSurveyFeedback() {
     setSurveyFeedbackError(null);
-    setActivePreviewSection("feedback");
+    setFeedbackModalChecked(null);
+    setIsSurveyFeedbackModalOpen(true);
   }
 
   function handleSetSurveyFeedbackEnabled(nextEnabled: boolean) {
     setSurveyFeedbackError(null);
+    setFeedbackModalChecked(nextEnabled);
     startFeedbackTransition(async () => {
       try {
         const formData = new FormData();
@@ -426,8 +431,11 @@ export function PreviewTab({
         await setSurveyFeedbackEnabledAction(formData);
         setFeedbackEnabledLocal(nextEnabled);
         setActivePreviewSection(nextEnabled ? "feedback" : "survey");
+        setFeedbackModalChecked(null);
+        setIsSurveyFeedbackModalOpen(false);
         router.refresh();
       } catch (error) {
+        setFeedbackModalChecked(null);
         setSurveyFeedbackError(
           error instanceof Error
             ? error.message
@@ -684,23 +692,32 @@ export function PreviewTab({
               >
                 {expertReviewResult ? "Open expert review again" : "Start expert review"}
               </button>
-              {!feedbackEnabled ? (
-                <button
-                  type="button"
-                  className="button button--secondary"
-                  onClick={handleActivateSurveyFeedback}
-                  disabled={
-                    feedbackPending || publishPending || applyPending || !surveyFeedbackEligible
-                  }
-                  title={
-                    surveyFeedbackEligible
-                      ? "Open survey feedback setup."
-                      : "Survey feedback is available only when English is the default language."
-                  }
-                >
+              <button
+                type="button"
+                className="preview-tab__toggle-button"
+                onClick={handleActivateSurveyFeedback}
+                disabled={feedbackPending || publishPending || applyPending || !surveyFeedbackEligible}
+                title={
+                  surveyFeedbackEligible
+                    ? "Open survey feedback settings."
+                    : "Survey feedback is available only when English is the default language."
+                }
+              >
+                <span className="preview-tab__toggle-button-label">
                   Allow survey feedback
-                </button>
-              ) : null}
+                </span>
+                <span
+                  className={`preview-tab__toggle-button-switch${
+                    feedbackEnabled ? " preview-tab__toggle-button-switch--on" : ""
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span className="preview-tab__toggle-button-knob" />
+                </span>
+                <span className="preview-tab__toggle-button-state">
+                  {feedbackEnabled ? "On" : "Off"}
+                </span>
+              </button>
             </>
           )}
         </div>
@@ -725,14 +742,9 @@ export function PreviewTab({
         </div>
       </div>
 
-      {!isExpertReviewMode ? (
-        <div className="preview-tab__feedback-note">
-          <p className="muted">
-            Survey feedback adds a fixed English-only post-survey debrief for pilot
-            runs. If you want to compare pilot wording and later launch without this
-            module, duplicate the survey before publishing and apply changes back to
-            the main draft afterwards.
-          </p>
+      {surveyFeedbackError ? (
+        <div className="notice notice--warning" role="alert">
+          {surveyFeedbackError}
         </div>
       ) : null}
     </div>
@@ -814,6 +826,85 @@ export function PreviewTab({
                   setReviewConfirmation("");
                   setIsExpertReviewModalOpen(false);
                 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isSurveyFeedbackModalOpen && (
+        <div className="generate-overlay" role="dialog" aria-modal="true">
+          <div className="generate-overlay__card preview-tab__modal-card">
+            <div className="preview-tab__modal-header">
+              <p className="generate-overlay__title">Survey feedback</p>
+              <p className="preview-tab__modal-intro muted">
+                Check the English-only, post-survey debrief used for pilot runs before
+                enabling it. Feedback responses are stored separately from scoring,
+                mapping, and profiling.
+              </p>
+              <p className="preview-tab__modal-intro muted">
+                If you want to compare pilot wording and later launch without this
+                module, duplicate the survey first and keep the main draft unchanged
+                until you review the pilot feedback.
+              </p>
+            </div>
+
+            <label className="preview-tab__modal-toggle">
+              <span className="preview-tab__modal-toggle-text">
+                <strong>Allow survey feedback</strong>
+                <span className="muted">
+                  {feedbackModalValue
+                    ? "The public survey will include the extra feedback step after the core questionnaire."
+                    : "The public survey will end directly after the core questionnaire until this is enabled."}
+                </span>
+                {feedbackPending ? (
+                  <span className="preview-tab__modal-toggle-status">
+                    <span className="generate-overlay__spinner" aria-hidden="true" />
+                    Updating survey feedback…
+                  </span>
+                ) : null}
+              </span>
+              <span className="preview-tab__toggle-button-switch-wrapper">
+                <input
+                  type="checkbox"
+                  checked={feedbackModalValue}
+                  disabled={feedbackPending || !surveyFeedbackEligible}
+                  onChange={(event) => handleSetSurveyFeedbackEnabled(event.target.checked)}
+                />
+                <span
+                  className={`preview-tab__toggle-button-switch${
+                    feedbackModalValue ? " preview-tab__toggle-button-switch--on" : ""
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span className="preview-tab__toggle-button-knob" />
+                </span>
+              </span>
+            </label>
+
+            {!surveyFeedbackEligible ? (
+              <div className="notice notice--warning" role="status">
+                Survey feedback is available only when English is the default language.
+              </div>
+            ) : null}
+
+            {surveyFeedbackError ? (
+              <div className="notice notice--warning" role="alert">
+                {surveyFeedbackError}
+              </div>
+            ) : null}
+
+            <div className="preview-tab__modal-actions">
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => {
+                  setSurveyFeedbackError(null);
+                  setIsSurveyFeedbackModalOpen(false);
+                }}
+                disabled={feedbackPending}
               >
                 Cancel
               </button>
@@ -1049,10 +1140,6 @@ export function PreviewTab({
         </>
       ) : (
         <SurveyFeedbackPreview
-          enabled={feedbackEnabled}
-          pending={feedbackPending}
-          error={surveyFeedbackError}
-          onToggle={handleSetSurveyFeedbackEnabled}
           recommendedCopy="Recommended for pilot copies before the main launch. This adds a fixed post-survey debrief and should usually be tested on a duplicated survey first."
         />
       )}

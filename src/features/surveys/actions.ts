@@ -265,6 +265,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
   const surveyDescription = String(formData.get("surveyDescription") ?? "").trim();
   const defaultLanguage = String(formData.get("defaultLanguage") ?? "").trim();
   const intent = String(formData.get("intent") ?? "save").trim();
+  let postRedirectMessage: string | null = null;
   const supportedLanguages = formData
     .getAll("supportedLanguages")
     .map((value) => String(value).trim())
@@ -352,6 +353,7 @@ export async function updateSurveySettingsAction(formData: FormData) {
           // Generated content -> validation is stale, clear it
           proposal.definition.survey_meta.validation_result = undefined;
           proposal.definition.survey_meta.multilingual_validation_result = undefined;
+          postRedirectMessage = proposal.warnings?.[0] ?? null;
 
           await timeSurveyStep(
             "update_survey_draft",
@@ -395,7 +397,10 @@ export async function updateSurveySettingsAction(formData: FormData) {
   revalidatePath(appRoutes.surveyAnalytics(surveyId));
 
   const redirectParam = intent === "generate" ? "generated=1" : "saved=1";
-  redirect(`${appRoutes.surveyEdit(surveyId)}?${redirectParam}`);
+  const messageParam = postRedirectMessage
+    ? `&message=${encodeURIComponent(postRedirectMessage)}`
+    : "";
+  redirect(`${appRoutes.surveyEdit(surveyId)}?${redirectParam}${messageParam}`);
 }
 
 // ---------------------------------------------------------------------------

@@ -346,18 +346,24 @@ export function PreviewTab({
   const multilingualBlockingIssueCount = (
     multilingualValidationResult?.issues ?? []
   ).filter((issue) => issue.severity !== "advisory").length;
+  const hideAutomatedMultilingualFlags =
+    expertReviewResult != null && integrity.expert_review_final_current;
   const surveyTitleForLanguage = isExpertReviewMode
     ? localExpertReviewDraft[activeLanguage]?.survey_title ?? ""
     : activeTranslations?.survey_title || surveyTitle;
   const surveyDescriptionForLanguage = isExpertReviewMode
     ? localExpertReviewDraft[activeLanguage]?.survey_description ?? ""
     : activeTranslations?.survey_description || surveyDescription;
-  const activeLanguageIssues = (multilingualValidationResult?.issues ?? []).filter(
-    (issue) => issue.language === activeLanguage && issue.question_key,
-  );
-  const surveyLevelFlags = (multilingualValidationResult?.issues ?? []).filter(
-    (issue) => issue.language === activeLanguage && !issue.question_key,
-  );
+  const activeLanguageIssues = hideAutomatedMultilingualFlags
+    ? []
+    : (multilingualValidationResult?.issues ?? []).filter(
+        (issue) => issue.language === activeLanguage && issue.question_key,
+      );
+  const surveyLevelFlags = hideAutomatedMultilingualFlags
+    ? []
+    : (multilingualValidationResult?.issues ?? []).filter(
+        (issue) => issue.language === activeLanguage && !issue.question_key,
+      );
   const issuesByQuestionKey = activeLanguageIssues.reduce<
     Record<string, MultilingualValidationIssue[]>
   >((groups, issue) => {

@@ -374,6 +374,18 @@ function createDiagnostic(
   return { code, message, ...(slot_key ? { slot_key } : {}) };
 }
 
+function reconcileEditedSurveyHeaderText(
+  value: string | null | undefined,
+  fallback: string,
+) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
 function buildFallbackReport(input: {
   language: string;
   totalSlots: number;
@@ -631,9 +643,14 @@ export function reconcileCanonicalLanguageEditorOutput(input: {
 
   const output: SurveyGeneratorLLMOutput = {
     ...input.writerOutput,
-    survey_title: input.editedOutput.survey_title || input.writerOutput.survey_title,
-    survey_description:
-      input.editedOutput.survey_description ?? input.writerOutput.survey_description,
+    survey_title: reconcileEditedSurveyHeaderText(
+      input.editedOutput.survey_title,
+      input.writerOutput.survey_title,
+    ),
+    survey_description: reconcileEditedSurveyHeaderText(
+      input.editedOutput.survey_description,
+      input.writerOutput.survey_description,
+    ),
     questions,
   };
 

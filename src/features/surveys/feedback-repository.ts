@@ -186,7 +186,7 @@ export async function getPublicSurveyFeedbackPageData(input: {
   };
 }
 
-export async function upsertPublicSurveyResponseFeedback(input: {
+export async function createPublicSurveyResponseFeedback(input: {
   responseId: string;
   easeRating: number;
   unclearQuestionsText: string;
@@ -208,9 +208,12 @@ export async function upsertPublicSurveyResponseFeedback(input: {
   };
   const { error } = await supabase
     .from("survey_response_feedback")
-    .upsert(payload, { onConflict: "response_id" });
+    .insert(payload);
 
   if (error) {
+    if (error.code === "23505") {
+      throw new Error("Survey feedback has already been submitted for this response.");
+    }
     throw new Error(`Failed to save survey feedback response: ${error.message}`);
   }
 }

@@ -4,16 +4,26 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { appRoutes } from "@/lib/config/routes";
 import {
+  createPublicSurveyResponseFeedback,
   getPublicSurveyFeedbackCompletionUrl,
   getPublicSurveyFeedbackPageData,
   setOwnedSurveyFeedbackEnabled,
-  upsertPublicSurveyResponseFeedback,
 } from "./feedback-repository";
 
-function readRequiredText(formData: FormData, key: string, label: string) {
+const FEEDBACK_TEXT_MAX_LENGTH = 2000;
+
+function readRequiredText(
+  formData: FormData,
+  key: string,
+  label: string,
+  maxLength = FEEDBACK_TEXT_MAX_LENGTH,
+) {
   const value = String(formData.get(key) ?? "").trim();
   if (!value) {
     throw new Error(`${label} is required.`);
+  }
+  if (value.length > maxLength) {
+    throw new Error(`${label} must be at most ${maxLength} characters.`);
   }
   return value;
 }
@@ -48,7 +58,7 @@ export async function submitPublicSurveyFeedbackAction(
     throw new Error("Survey feedback is unavailable for this response.");
   }
 
-  await upsertPublicSurveyResponseFeedback({
+  await createPublicSurveyResponseFeedback({
     responseId,
     easeRating,
     unclearQuestionsText: readRequiredText(

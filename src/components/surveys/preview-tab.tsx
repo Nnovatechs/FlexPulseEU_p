@@ -851,6 +851,11 @@ export function PreviewTab({
                 mapping, and profiling.
               </p>
               <p className="preview-tab__modal-intro muted">
+                When a public-link recruitment panel is connected, the external
+                completion redirect happens only after respondents finish this
+                feedback step.
+              </p>
+              <p className="preview-tab__modal-intro muted">
                 If you want to compare pilot wording and later launch without this
                 module, duplicate the survey first and keep the main draft unchanged
                 until you review the pilot feedback.

@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   redirect,
   getPublicSurveyFeedbackPageData,
-  upsertPublicSurveyResponseFeedback,
+  createPublicSurveyResponseFeedback,
   getPublicSurveyFeedbackCompletionUrl,
 } = vi.hoisted(() => ({
   redirect: vi.fn(),
   getPublicSurveyFeedbackPageData: vi.fn(),
-  upsertPublicSurveyResponseFeedback: vi.fn(),
+  createPublicSurveyResponseFeedback: vi.fn(),
   getPublicSurveyFeedbackCompletionUrl: vi.fn(),
 }));
 
@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/surveys/feedback-repository", () => ({
   getPublicSurveyFeedbackPageData,
-  upsertPublicSurveyResponseFeedback,
+  createPublicSurveyResponseFeedback,
   getPublicSurveyFeedbackCompletionUrl,
 }));
 
@@ -47,7 +47,7 @@ describe("survey feedback actions", () => {
 
     await submitPublicSurveyFeedbackAction(formData);
 
-    expect(upsertPublicSurveyResponseFeedback).toHaveBeenCalledWith({
+    expect(createPublicSurveyResponseFeedback).toHaveBeenCalledWith({
       responseId: "response-1",
       easeRating: 4,
       unclearQuestionsText: "None",
@@ -82,5 +82,25 @@ describe("survey feedback actions", () => {
     expect(redirect).toHaveBeenCalledWith(
       "https://app.prolific.com/submissions/complete?cc=ABC123",
     );
+  });
+
+  it("rejects overlong free-text feedback before writing", async () => {
+    const { submitPublicSurveyFeedbackAction } = await import(
+      "@/features/surveys/feedback-actions"
+    );
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("responseId", "response-1");
+    formData.set("easeRating", "4");
+    formData.set("unclearQuestionsText", "x".repeat(2001));
+    formData.set("energyFlexibilityProgrammeText", "A programme for shifting demand.");
+    formData.set("automatedControlText", "A home automation system.");
+    formData.set("leadingQuestionsText", "None");
+    formData.set("overlapOrTechnicalText", "None");
+
+    await expect(submitPublicSurveyFeedbackAction(formData)).rejects.toThrow(
+      "Unclear questions feedback must be at most 2000 characters.",
+    );
+    expect(createPublicSurveyResponseFeedback).not.toHaveBeenCalled();
   });
 });

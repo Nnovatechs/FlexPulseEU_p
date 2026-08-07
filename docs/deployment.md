@@ -87,6 +87,44 @@ overload:
 \df public.create_survey_response_with_job
 ```
 
+## External recruitment and survey feedback rollout ordering
+
+When deploying the Prolific integration and pilot survey-feedback flow, keep the
+database, environment, and application changes aligned:
+
+1. Apply `20260805143000_add_survey_link_integrations.sql`.
+2. Deploy the application version that calls the expanded
+   `create_survey_response_with_job` RPC signature with external-recruitment
+   parameters. The migration and app code must ship together; deploying either
+   side first breaks public submissions.
+3. Apply `20260806161000_add_survey_feedback.sql`.
+4. Deploy the application version that serves `/s/<link-token>/feedback` and
+   stores post-survey debrief responses.
+
+Before enabling Prolific on a real public link:
+
+1. Set `RECRUITMENT_ID_HMAC_SECRET` in the deployment platform. This secret is
+   required whenever Prolific tokenisation is used.
+2. Confirm `TURNSTILE_SECRET_KEY` and `NEXT_PUBLIC_TURNSTILE_SITE_KEY` are both
+   configured in production. Public survey submission is fail-closed in
+   production when the public Turnstile site key is expected.
+3. Verify Postgres exposes the latest external-recruitment-aware RPC overload:
+
+```sql
+\df public.create_survey_response_with_job
+```
+
+After deployment:
+
+1. Open one published survey anonymously and confirm `/s/<link-token>`,
+   `/s/<link-token>/privacy`, `/s/<link-token>/thank-you`, and, when enabled,
+   `/s/<link-token>/feedback` all load without authentication.
+2. Submit a synthetic public response without Prolific and confirm the normal
+   thank-you flow still succeeds.
+3. Submit a synthetic public response with Prolific launch parameters and
+   confirm completion redirect happens only after the optional feedback step
+   finishes.
+
 ## Owner privacy settings rollout ordering
 
 Apply `20260716120000_add_owner_legal_profiles.sql` before deploying the

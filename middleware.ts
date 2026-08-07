@@ -14,8 +14,8 @@ const internalJobRoutes = new Set<string>([
   "/api/internal/cleanup-response-data",
 ]);
 
-function isPublicSurveyRoute(pathname: string): boolean {
-  return /^\/s\/[^/]+(?:\/(?:thank-you|privacy))?\/?$/.test(pathname);
+export function isPublicSurveyRoute(pathname: string): boolean {
+  return /^\/s\/[^/]+(?:\/(?:thank-you|privacy|feedback))?\/?$/.test(pathname);
 }
 
 function isInternalJobRoute(pathname: string): boolean {

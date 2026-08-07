@@ -60,6 +60,67 @@ function buildSurveyFixture(conceptKeys: string[]): PersistedSurvey {
   };
 }
 
+function mockWriterWithDeterministicCapabilityCopy(
+  deterministicArtifacts: ReturnType<
+    typeof createDeclaredFlexibilityCapabilityDefinitionArtifacts
+  >,
+) {
+  mockedWriter.mockImplementation(async (input) => ({
+    survey_title: "Writer capability survey",
+    survey_description: "Writer description",
+    estimated_completion_minutes: 8,
+    questions: input.measurementPlanBlueprint.concepts.flatMap((concept) =>
+      concept.question_slots.map((slot) => {
+        if (slot.slot_key === "SLOT_TRUST_IN_AUTOMATION_01") {
+          return {
+            slot_key: slot.slot_key,
+            title: "I trust automation to delay one appliance safely.",
+            description: "",
+            ontology_target:
+              "flexpulse_behavioural_schema.trust_in_automation",
+            type: "rating_scale" as const,
+            options: [],
+            scale: {
+              min: 1,
+              max: 5,
+              step: 1,
+              min_label: "Low",
+              max_label: "High",
+            },
+            numeric: null,
+          };
+        }
+
+        const inventory = slot.slot_key === DFC_INVENTORY_SLOT_KEY;
+        return {
+          slot_key: slot.slot_key,
+          title: `Writer copy for ${slot.slot_key}`,
+          description: `Writer description for ${slot.slot_key}`,
+          ontology_target: "writer.control.is.ignored",
+          type: inventory ? ("multiple_choice" as const) : ("rating_scale" as const),
+          options: inventory
+            ? deterministicArtifacts.questions[0].options!.map((option) => ({
+                label: `Writer label ${option.option_key}`,
+                ontology_value: option.option_key,
+                is_truthy: false,
+              }))
+            : [],
+          scale: inventory
+            ? null
+            : {
+                min: 99,
+                max: 100,
+                step: 0.5,
+                min_label: "Not true for me",
+                max_label: "Completely true for me",
+              },
+          numeric: null,
+        };
+      }),
+    ),
+  }));
+}
+
 describe("DFC generation-language flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -118,60 +179,7 @@ describe("DFC generation-language flow", () => {
         },
       ],
     });
-    mockedWriter.mockImplementation(async (input) => ({
-      survey_title: "Writer capability survey",
-      survey_description: "Writer description",
-      estimated_completion_minutes: 8,
-      questions: input.measurementPlanBlueprint.concepts.flatMap((concept) =>
-        concept.question_slots.map((slot) => {
-          if (slot.slot_key === "SLOT_TRUST_IN_AUTOMATION_01") {
-            return {
-              slot_key: slot.slot_key,
-              title: "I trust automation to delay one appliance safely.",
-              description: "",
-              ontology_target:
-                "flexpulse_behavioural_schema.trust_in_automation",
-              type: "rating_scale" as const,
-              options: [],
-              scale: {
-                min: 1,
-                max: 5,
-                step: 1,
-                min_label: "Low",
-                max_label: "High",
-              },
-              numeric: null,
-            };
-          }
-
-          const inventory = slot.slot_key === DFC_INVENTORY_SLOT_KEY;
-          return {
-            slot_key: slot.slot_key,
-            title: `Writer copy for ${slot.slot_key}`,
-            description: `Writer description for ${slot.slot_key}`,
-            ontology_target: "writer.control.is.ignored",
-            type: inventory ? ("multiple_choice" as const) : ("rating_scale" as const),
-            options: inventory
-              ? deterministicArtifacts.questions[0].options!.map((option) => ({
-                  label: `Writer label ${option.option_key}`,
-                  ontology_value: option.option_key,
-                  is_truthy: false,
-                }))
-              : [],
-            scale: inventory
-              ? null
-              : {
-                  min: 99,
-                  max: 100,
-                  step: 0.5,
-                  min_label: "Not true for me",
-                  max_label: "Completely true for me",
-                },
-            numeric: null,
-          };
-        }),
-      ),
-    }));
+    mockWriterWithDeterministicCapabilityCopy(deterministicArtifacts);
 
     const proposal = await generateSurveyDraftProposal({
       survey: buildSurveyFixture(conceptKeys),
@@ -256,6 +264,61 @@ describe("DFC generation-language flow", () => {
       aggregation_rule: "mean",
       minimum_answer_count: 4,
     });
+  });
+
+  it("supports DFC-only generation without planner concepts", async () => {
+    const conceptKeys = [
+      "declared_flexibility_capability",
+      "owned_der_assets",
+    ];
+    const schemaTargets =
+      deriveSchemaTargetsFromBehaviouralConceptKeys(conceptKeys);
+    const deterministicArtifacts =
+      createDeclaredFlexibilityCapabilityDefinitionArtifacts();
+
+    mockWriterWithDeterministicCapabilityCopy(deterministicArtifacts);
+
+    const proposal = await generateSurveyDraftProposal({
+      survey: buildSurveyFixture(conceptKeys),
+      surveyName: "Capability survey",
+      surveyDescription: "",
+      defaultLanguage: "English",
+      supportedLanguages: ["English", "Spanish"],
+      behaviouralConceptKeys: conceptKeys,
+      schemaTargets,
+    });
+
+    expect(mockedPlanner).not.toHaveBeenCalled();
+    const writerBlueprint =
+      mockedWriter.mock.calls[0]![0].measurementPlanBlueprint;
+    expect(
+      writerBlueprint.concepts.map((concept) => concept.concept_key),
+    ).toEqual([
+      "owned_der_assets",
+      "declared_flexibility_capability",
+    ]);
+    expect(
+      writerBlueprint.concepts.flatMap((concept) =>
+        concept.question_slots.map((slot) => slot.slot_key),
+      ),
+    ).toHaveLength(21);
+
+    expect(proposal.definition.questions).toHaveLength(21);
+    expect(proposal.definition.questions[0]).toEqual({
+      ...deterministicArtifacts.questions[0],
+      order: 1,
+    });
+    expect(
+      proposal.definition.translations.English.questions[
+        DFC_INVENTORY_QUESTION_KEY
+      ].title,
+    ).toBe(`Writer copy for ${DFC_INVENTORY_SLOT_KEY}`);
+    expect(
+      proposal.measurementPlan.concepts.map((concept) => concept.concept_key),
+    ).toEqual([
+      "owned_der_assets",
+      "declared_flexibility_capability",
+    ]);
   });
 
   it("preserves deterministic DFC question and option keys in translated copy", () => {

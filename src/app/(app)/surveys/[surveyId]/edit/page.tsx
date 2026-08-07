@@ -393,6 +393,12 @@ export default async function SurveyEditPage({
         </div>
       ) : null}
 
+      {generatedMessage && generationMessage ? (
+        <div className="notice notice--warning" role="status">
+          {generationMessage}
+        </div>
+      ) : null}
+
       {missingFieldsError ? (
         <div className="notice notice--error" role="alert">
           Survey name and primary language are required.

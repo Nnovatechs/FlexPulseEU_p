@@ -29,6 +29,7 @@ const DFC_COMPONENTS = [
   "service_preservation",
   "household_coordination",
 ] as const;
+export const DFC_COMPONENT_COUNT = DFC_COMPONENTS.length;
 
 export type DeclaredFlexibilityCapabilityComponent =
   (typeof DFC_COMPONENTS)[number];
@@ -252,7 +253,7 @@ function createLockedWriterBlueprintEntries(): MeasurementPlanBlueprintEntry[] {
       measurement_type: "multi_item_likert_mean",
       aggregation_rule: "mean",
       threshold_profile: "likert_1_5_low_mid_high",
-      minimum_answer_count: DFC_COMPONENTS.length,
+      minimum_answer_count: DFC_COMPONENT_COUNT,
       question_slots: capabilitySlots,
     },
   ];
@@ -341,7 +342,7 @@ function createMeasurementEntries(
     output_type: "number",
     aggregation_rule: "mean",
     threshold_profile: "likert_1_5_low_mid_high",
-    minimum_answer_count: DFC_COMPONENTS.length,
+    minimum_answer_count: DFC_COMPONENT_COUNT,
     question_keys: questionKeys,
     required_question_keys: questionKeys,
     question_intents: questionBlueprints.map((question) => ({

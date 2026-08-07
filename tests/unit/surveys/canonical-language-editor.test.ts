@@ -452,6 +452,23 @@ describe("canonical language editor", () => {
     ]);
   });
 
+  it("keeps writer-level header copy when the editor returns blanks", () => {
+    const reconciled = reconcileCanonicalLanguageEditorOutput({
+      writerOutput,
+      editedOutput: {
+        ...buildEditorOutput(),
+        survey_title: "   ",
+        survey_description: "",
+      },
+      targetLanguage: "Spanish",
+    });
+
+    expect(reconciled.output.survey_title).toBe(writerOutput.survey_title);
+    expect(reconciled.output.survey_description).toBe(
+      writerOutput.survey_description,
+    );
+  });
+
   it("accepts locked DFC slots when the writer blueprint is expanded", () => {
     const writerBlueprint =
       mergeDeclaredFlexibilityCapabilityWriterBlueprint(plannerBlueprint);

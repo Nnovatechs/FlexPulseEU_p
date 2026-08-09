@@ -684,7 +684,9 @@ export function PublicSurveyForm({
   const [hasAcceptedLegal, setHasAcceptedLegal] = useState(false);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [turnstileScriptReady, setTurnstileScriptReady] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const isBusy = isSubmitting || isPending;
 
   const hasTurnstileSiteKey = Boolean(turnstileSiteKey);
   const bundle = allBundles[language] ?? allBundles[defaultLanguage];
@@ -816,6 +818,10 @@ export function PublicSurveyForm({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
+    if (isBusy) {
+      return;
+    }
+
     for (const block of blocks) {
       const error = validateBlock(block, selectedValues);
       if (error) {
@@ -852,6 +858,7 @@ export function PublicSurveyForm({
     }
 
     setBlockError(null);
+    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const visibleQuestionKeys = new Set(
       getVisibleQuestions(questions, selectedValues).map(
@@ -869,6 +876,7 @@ export function PublicSurveyForm({
         await submitAction(formData);
       } catch (error) {
         rethrowNextNavigationError(error);
+        setIsSubmitting(false);
         setBlockError(copy.submitError);
       }
     });
@@ -934,7 +942,7 @@ export function PublicSurveyForm({
 
         <BlockDots count={blocks.length} current={currentBlock} />
 
-        <form ref={formRef} onSubmit={handleSubmit} noValidate>
+        <form ref={formRef} onSubmit={handleSubmit} noValidate aria-busy={isBusy}>
           {turnstileSiteKey ? (
             <Script
               src="https://challenges.cloudflare.com/turnstile/v0/api.js"
@@ -1024,7 +1032,7 @@ export function PublicSurveyForm({
                   type="button"
                   className="sf-btn sf-btn--secondary"
                   onClick={handleBack}
-                  disabled={isPending}
+                  disabled={isBusy}
                 >
                   {copy.backLabel}
                 </button>
@@ -1034,7 +1042,7 @@ export function PublicSurveyForm({
                   type="button"
                   className="sf-btn sf-btn--primary"
                   onClick={handleNext}
-                  disabled={isPending}
+                  disabled={isBusy}
                 >
                   {copy.nextLabel}
                 </button>
@@ -1042,9 +1050,17 @@ export function PublicSurveyForm({
                 <button
                   type="submit"
                   className="sf-btn sf-btn--primary"
-                  disabled={isPending}
+                  disabled={isBusy}
+                  aria-busy={isBusy}
                 >
-                  {isPending ? "…" : copy.submitLabel}
+                  {isBusy ? (
+                    <>
+                      <span className="sf-btn__spinner" aria-hidden="true" />
+                      <span>{copy.submitLabel}...</span>
+                    </>
+                  ) : (
+                    copy.submitLabel
+                  )}
                 </button>
               )}
             </div>
@@ -1052,6 +1068,15 @@ export function PublicSurveyForm({
 
           {currentBlock > 0 ? <PublicSurveyVisibility compact /> : null}
         </form>
+
+        {isBusy ? (
+          <div className="sf-submit-overlay" role="status" aria-live="polite">
+            <div className="sf-submit-overlay__panel">
+              <span className="sf-submit-overlay__spinner" aria-hidden="true" />
+              <p>{copy.submitLabel}...</p>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

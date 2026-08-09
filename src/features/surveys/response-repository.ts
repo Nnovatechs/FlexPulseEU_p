@@ -5,6 +5,7 @@ import type {
   SubmittedSurveyAnswer,
   ValidatedPublicSurveySubmission,
 } from "./response-validation";
+import type { PersistedSurveyLinkIntegration } from "./integrations/types";
 
 type CreateSurveyResponseInput = {
   survey: PersistedSurvey;
@@ -14,6 +15,13 @@ type CreateSurveyResponseInput = {
   countryCodeRaw: string | null;
   postalCodeRaw: string | null;
   legalConsent: ValidatedPublicSurveySubmission["legalConsent"];
+  externalRecruitment?: {
+    integration: PersistedSurveyLinkIntegration;
+    participantToken: string;
+    submissionToken: string;
+    tokenVersion: string;
+    noticeVersion: string;
+  } | null;
 };
 
 export async function createSurveyResponseAndEnqueueJob(
@@ -44,6 +52,11 @@ export async function createSurveyResponseAndEnqueueJob(
       p_legal_privacy_notice_version: input.legalConsent.privacyNoticeVersion,
       p_legal_cookie_notice_version: input.legalConsent.cookieNoticeVersion,
       p_legal_consent_source: input.legalConsent.source,
+      p_external_integration_id: input.externalRecruitment?.integration.id ?? null,
+      p_external_participant_token: input.externalRecruitment?.participantToken ?? null,
+      p_external_submission_token: input.externalRecruitment?.submissionToken ?? null,
+      p_external_token_version: input.externalRecruitment?.tokenVersion ?? null,
+      p_external_notice_version: input.externalRecruitment?.noticeVersion ?? null,
     },
   );
 

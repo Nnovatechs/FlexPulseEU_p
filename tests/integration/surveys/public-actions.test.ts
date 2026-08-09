@@ -1,13 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildValidationSurveyFixture } from "../../fixtures/surveys/validation/factory";
 
-const { redirect, getPublicSurveyLinkByToken, getPublishedSurveyByIdPublic, getPublicSurveyLegalSnapshot, createSurveyResponseAndEnqueueJob } =
+const {
+  redirect,
+  getPublicSurveyLinkByToken,
+  getPublishedSurveyByIdPublic,
+  getPublicSurveyLegalSnapshot,
+  createSurveyResponseAndEnqueueJob,
+  getPublicSurveyFeedbackConfig,
+  getActivePublicProlificIntegration,
+  buildProlificRecruitmentTokens,
+} =
   vi.hoisted(() => ({
     redirect: vi.fn(),
     getPublicSurveyLinkByToken: vi.fn(),
     getPublishedSurveyByIdPublic: vi.fn(),
     getPublicSurveyLegalSnapshot: vi.fn(),
     createSurveyResponseAndEnqueueJob: vi.fn(),
+    getPublicSurveyFeedbackConfig: vi.fn(),
+    getActivePublicProlificIntegration: vi.fn(),
+    buildProlificRecruitmentTokens: vi.fn(),
   }));
 
 vi.mock("next/navigation", () => ({
@@ -21,6 +33,18 @@ vi.mock("@/features/surveys/public-survey-load", () => ({
 
 vi.mock("@/features/surveys/response-repository", () => ({
   createSurveyResponseAndEnqueueJob,
+}));
+
+vi.mock("@/features/surveys/feedback-repository", () => ({
+  getPublicSurveyFeedbackConfig,
+}));
+
+vi.mock("@/features/surveys/integrations/repository", () => ({
+  getActivePublicProlificIntegration,
+}));
+
+vi.mock("@/features/surveys/integrations/tokenization", () => ({
+  buildProlificRecruitmentTokens,
 }));
 
 vi.mock("@/features/privacy/repository", () => ({
@@ -85,6 +109,15 @@ describe("public survey submission action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getPublicSurveyLegalSnapshot.mockResolvedValue(null);
+    getPublicSurveyFeedbackConfig.mockResolvedValue(null);
+    getActivePublicProlificIntegration.mockResolvedValue(null);
+    createSurveyResponseAndEnqueueJob.mockResolvedValue({ responseId: "response-1" });
+    buildProlificRecruitmentTokens.mockReturnValue({
+      participantToken: "participant-token",
+      submissionToken: "submission-token",
+      tokenVersion: "v1",
+      noticeVersion: "external-recruitment-v1",
+    });
     delete process.env.TURNSTILE_SECRET_KEY;
     delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     delete process.env.TURNSTILE_REQUIRED;
@@ -133,6 +166,140 @@ describe("public survey submission action", () => {
       }),
     );
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("redirects to survey feedback when the module is enabled", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+    getPublicSurveyFeedbackConfig.mockResolvedValue({
+      survey_id: survey.id,
+      enabled: true,
+      question_set_version: "pilot_feedback_v1",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
+
+    await submitPublicSurveyResponseAction(formData);
+
+    expect(redirect).toHaveBeenCalledWith(
+      "/s/public-token/feedback?responseId=response-1&lang=English",
+    );
+  });
+
+  it("stores Prolific-linked responses and redirects to the completion URL", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+    getActivePublicProlificIntegration.mockResolvedValue({
+      id: "integration-1",
+      survey_link_id: "link-1",
+      provider: "prolific",
+      external_study_id: "study-123",
+      completion_url: "https://app.prolific.com/submissions/complete?cc=ABC123",
+      provider_config_json: {},
+      privacy_notice_version: "external-recruitment-v1",
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
+    formData.set("PROLIFIC_PID", "participant-1");
+    formData.set("STUDY_ID", "study-123");
+    formData.set("SESSION_ID", "session-1");
+
+    await submitPublicSurveyResponseAction(formData);
+
+    expect(createSurveyResponseAndEnqueueJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        externalRecruitment: expect.objectContaining({
+          integration: expect.objectContaining({ id: "integration-1" }),
+          participantToken: "participant-token",
+          submissionToken: "submission-token",
+          tokenVersion: "v1",
+          noticeVersion: "external-recruitment-v1",
+        }),
+      }),
+    );
+    expect(redirect).toHaveBeenCalledWith(
+      "https://app.prolific.com/submissions/complete?cc=ABC123",
+    );
+  });
+
+  it("rejects incomplete Prolific parameters", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
+    formData.set("PROLIFIC_PID", "participant-1");
+    formData.set("STUDY_ID", "study-123");
+
+    await expect(submitPublicSurveyResponseAction(formData)).rejects.toThrow(
+      "This Prolific study link is incomplete. Please return to Prolific and reopen the study.",
+    );
+
+    expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched Prolific study id", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey);
+    getActivePublicProlificIntegration.mockResolvedValue({
+      id: "integration-1",
+      survey_link_id: "link-1",
+      provider: "prolific",
+      external_study_id: "study-123",
+      completion_url: "https://app.prolific.com/submissions/complete?cc=ABC123",
+      provider_config_json: {},
+      privacy_notice_version: "external-recruitment-v1",
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "public-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
+    formData.set("PROLIFIC_PID", "participant-1");
+    formData.set("STUDY_ID", "study-wrong");
+    formData.set("SESSION_ID", "session-1");
+
+    await expect(submitPublicSurveyResponseAction(formData)).rejects.toThrow(
+      "This Prolific study link does not match the configured study. Please return to Prolific and reopen the study.",
+    );
+
+    expect(createSurveyResponseAndEnqueueJob).not.toHaveBeenCalled();
   });
 
   it("rejects submissions without privacy acceptance", async () => {

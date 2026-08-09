@@ -331,14 +331,6 @@ export function ReviewTab({
           </p>
         )}
 
-        {hasExpertReview && (
-          <p className="review-notice review-notice--warning">
-            Expert review has been applied. Make a normal edit in Configuration or
-            Questions to clear the frozen review snapshot before running automatic
-            validation again.
-          </p>
-        )}
-
         <form onSubmit={handleValidate} className="review-step__action">
           <input type="hidden" name="surveyId" value={surveyId} />
           <button
@@ -500,13 +492,6 @@ export function ReviewTab({
         {translateError && (
           <p className="review-notice review-notice--error" role="alert">
             {translateError}
-          </p>
-        )}
-
-        {hasExpertReview && hasSecondaryLanguages && (
-          <p className="review-notice review-notice--warning">
-            Expert review has been applied. Make a normal edit first if you want to
-            clear it and re-enter the automatic multicultural flow.
           </p>
         )}
 

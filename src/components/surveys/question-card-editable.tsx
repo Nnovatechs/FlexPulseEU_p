@@ -25,7 +25,16 @@ type QuestionCardEditableProps = {
   translation: TranslationEntry | undefined;
   surveyId: string;
   defaultLanguage: string;
+  hasContentValidation: boolean;
+  hasMultilingualValidation: boolean;
+  hasExpertReview: boolean;
 };
+
+function formatResetLabels(labels: string[]) {
+  if (labels.length <= 1) return labels[0] ?? "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
+}
 
 const TYPE_LABELS: Record<string, string> = {
   single_choice: "Single choice",
@@ -53,10 +62,18 @@ export function QuestionCardEditable({
   translation,
   surveyId,
   defaultLanguage,
+  hasContentValidation,
+  hasMultilingualValidation,
+  hasExpertReview,
 }: QuestionCardEditableProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const resetTargets = [
+    hasContentValidation ? "content validation" : null,
+    hasMultilingualValidation ? "multilingual validation" : null,
+    hasExpertReview ? "expert review" : null,
+  ].filter((value): value is string => value != null);
 
   function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -96,24 +113,13 @@ export function QuestionCardEditable({
 
             <label className="field">
               <span>Question text</span>
-              <input
+              <textarea
+                className="qov-card__title-input qov-card__question-edit-textarea"
                 name="title"
                 defaultValue={translation?.title ?? ""}
+                rows={2}
                 required
                 autoFocus
-                disabled={isPending}
-              />
-            </label>
-
-            <label className="field">
-              <span>
-                Description{" "}
-                <span className="muted">(optional)</span>
-              </span>
-              <textarea
-                name="description"
-                defaultValue={translation?.description ?? ""}
-                rows={2}
                 disabled={isPending}
               />
             </label>
@@ -187,6 +193,16 @@ export function QuestionCardEditable({
                 Cancel
               </button>
             </div>
+
+            {resetTargets.length > 0 && (
+              <div className="review-notice review-notice--warning qov-card__edit-warning">
+                Saving this edit will clear {formatResetLabels(resetTargets)}. You
+                will need to run the affected checks again before publishing.
+                {hasExpertReview
+                  ? " To adjust final wording without clearing the review snapshot, use Expert Review in Preview."
+                  : ""}
+              </div>
+            )}
           </div>
 
           {mapping && (

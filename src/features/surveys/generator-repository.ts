@@ -120,6 +120,11 @@ function mapSurveyLinkRow(row: SurveyLinkRow): PersistedSurveyLink {
   };
 }
 
+function buildDuplicateSurveyName(name: string) {
+  const trimmed = name.trim();
+  return trimmed ? `${trimmed} (copy)` : "Survey copy";
+}
+
 async function getOwnedSurveyRowOrThrow(surveyId: string): Promise<SurveyRow> {
   const session = await requireCurrentSession();
   const supabase = await createSupabaseServerClient();
@@ -203,6 +208,38 @@ export async function createSurveyDraft(
 
   if (error) {
     throw new Error(`Failed to create survey draft: ${error.message}`);
+  }
+
+  return mapSurveyRow(data as SurveyRow);
+}
+
+export async function duplicateOwnedSurvey(sourceSurveyId: string): Promise<PersistedSurvey> {
+  const sourceSurvey = await getOwnedSurveyById(sourceSurveyId);
+  const session = await requireCurrentSession();
+  const supabase = await createSupabaseServerClient();
+
+  const definition = syncDefinitionMetadata(
+    sourceSurvey.definition_json,
+    sourceSurvey.default_language,
+    sourceSurvey.supported_languages,
+  );
+
+  const { data, error } = await supabase
+    .from("surveys")
+    .insert({
+      name: buildDuplicateSurveyName(sourceSurvey.name),
+      status: "draft",
+      created_by: session.user.id,
+      default_language: sourceSurvey.default_language,
+      supported_languages: sourceSurvey.supported_languages,
+      definition_json: definition,
+      mapping_contract_json: sourceSurvey.mapping_contract_json,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to duplicate survey: ${error.message}`);
   }
 
   return mapSurveyRow(data as SurveyRow);

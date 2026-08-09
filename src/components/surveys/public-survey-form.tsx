@@ -8,8 +8,13 @@ import type {
   SurveyQuestionDefinition,
   SurveyResponseContextConfig,
 } from "@/features/surveys/generator-types";
+import type { PublicExternalRecruitment } from "@/features/surveys/integrations/types";
 import { surveyCountryOptions } from "@/features/surveys/country-options";
 import type { PublicSurveyCopy } from "@/features/surveys/public-copy";
+import {
+  getPostalPrefixFieldSpec,
+  getSupportedPostalPrefixCountryCodes,
+} from "@/features/surveys/postal-code";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 import {
@@ -17,6 +22,7 @@ import {
   pruneHiddenQuestionAnswers,
   toggleExclusiveMultipleChoiceOption,
 } from "@/features/surveys/question-visibility";
+import { PublicSurveyVisibility } from "@/components/surveys/public-survey-visibility";
 
 declare global {
   interface Window {
@@ -45,6 +51,10 @@ const LANGUAGE_META: Record<string, { flag: string; nativeName: string }> = {
 
 function getLangMeta(lang: string) {
   return LANGUAGE_META[lang] ?? { flag: "🌐", nativeName: lang };
+}
+
+function normalizePrefixInput(value: string) {
+  return value.replace(/[\s-]+/g, "").toUpperCase();
 }
 
 // ─── Block computation ────────────────────────────────────────────────────
@@ -132,6 +142,7 @@ export type PublicSurveyFormProps = {
   responseContext: SurveyResponseContextConfig | undefined;
   turnstileSiteKey?: string;
   submitAction: (formData: FormData) => Promise<void>;
+  externalRecruitment?: Extract<PublicExternalRecruitment, { kind: "prolific" }>;
 };
 
 // ─── Validation ────────────────────────────────────────────────────────────
@@ -183,6 +194,7 @@ function LanguagePickerScreen({
           );
         })}
       </div>
+      <PublicSurveyVisibility compact />
     </div>
   );
 }
@@ -478,6 +490,15 @@ function ContextSection({
   onCountryChange: (v: string) => void;
   onPostalChange: (v: string) => void;
 }) {
+  const prefixMode = responseContext.postal_collection_mode === "prefix";
+  const postalPrefixSpec = prefixMode ? getPostalPrefixFieldSpec(countryCode) : null;
+  const supportedPrefixCountries = new Set(getSupportedPostalPrefixCountryCodes());
+  const visibleCountryOptions = prefixMode
+    ? surveyCountryOptions.filter((option) => supportedPrefixCountries.has(option.code))
+    : surveyCountryOptions;
+  const postalLabel = prefixMode ? copy.postalPrefixLabel : copy.postalCodeLabel;
+  const postalPlaceholder = postalPrefixSpec?.example ?? copy.postalCodePlaceholder;
+
   return (
     <div className="sf-context-card">
       <div>
@@ -496,7 +517,7 @@ function ContextSection({
               onChange={(e) => onCountryChange(e.target.value)}
             >
               <option value="">{copy.countryCodePlaceholder}</option>
-              {surveyCountryOptions.map((c) => (
+              {visibleCountryOptions.map((c) => (
                 <option key={c.code} value={c.code}>
                   {c.label} ({c.code})
                 </option>
@@ -509,17 +530,122 @@ function ContextSection({
       {responseContext.collect_postal_code && (
         <div className="sf-postal-input">
           <label>
-            <span className="sf-field-label">{copy.postalCodeLabel}</span>
+            <span className="sf-field-label">{postalLabel}</span>
             <input
               name="postalCode"
               value={postalCode}
-              onChange={(e) => onPostalChange(e.target.value)}
-              placeholder={copy.postalCodePlaceholder}
-              maxLength={24}
+              onChange={(e) =>
+                onPostalChange(
+                  prefixMode ? normalizePrefixInput(e.target.value) : e.target.value,
+                )
+              }
+              placeholder={postalPlaceholder}
+              maxLength={postalPrefixSpec?.maxLength ?? 24}
+              pattern={postalPrefixSpec?.pattern}
+              disabled={prefixMode && !countryCode}
             />
           </label>
+          {postalPrefixSpec ? (
+            <p className="muted">
+              {copy.postalPrefixHelp}
+            </p>
+          ) : null}
         </div>
       )}
+    </div>
+  );
+}
+
+function ConsentScreen({
+  bundle,
+  copy,
+  surveyPrivacyUrl,
+  hasAcceptedLegal,
+  onAcceptedChange,
+  onContinue,
+  onBack,
+  showBack,
+  error,
+  language,
+}: {
+  bundle: SurveyLanguageTranslations;
+  copy: PublicSurveyCopy;
+  surveyPrivacyUrl: string;
+  hasAcceptedLegal: boolean;
+  onAcceptedChange: (value: boolean) => void;
+  onContinue: () => void;
+  onBack?: () => void;
+  showBack: boolean;
+  error: string | null;
+  language: string;
+}) {
+  return (
+    <div className="sf-shell">
+      <div className="sf-container">
+        <header className="sf-survey-header">
+          <p className="sf-survey-eyebrow">{copy.openSurveyEyebrow}</p>
+          <h1 className="sf-survey-title">{bundle?.survey_title ?? ""}</h1>
+          {bundle?.survey_description && (
+            <p className="sf-survey-desc">{bundle.survey_description}</p>
+          )}
+        </header>
+
+        <PublicSurveyVisibility language={language} />
+
+        <section className="sf-context-card">
+          <div>
+            <p className="sf-question__index">{copy.consentEyebrow}</p>
+            <h2 className="sf-question__title">{copy.consentTitle}</h2>
+            <p className="sf-question__desc">{copy.consentDescription}</p>
+          </div>
+
+          <label className="sf-legal-consent">
+            <input
+              type="checkbox"
+              checked={hasAcceptedLegal}
+              onChange={(event) => onAcceptedChange(event.target.checked)}
+            />
+            <span>
+              {copy.legalConsentLabel}{" "}
+              <Link href={surveyPrivacyUrl} target="_blank">
+                {copy.legalConsentPrivacyLink}
+              </Link>
+              {" · "}
+              <Link href={appRoutes.privacy} target="_blank">
+                {copy.legalConsentPlatformPrivacyLink}
+              </Link>
+              {" · "}
+              <Link href={appRoutes.cookies} target="_blank">
+                {copy.legalConsentCookiesLink}
+              </Link>
+            </span>
+          </label>
+
+          {error ? (
+            <div className="sf-error" role="alert">
+              {error}
+            </div>
+          ) : null}
+
+          <div className="sf-nav">
+            <span className="sf-nav__progress-text">Consent required</span>
+            <div className="sf-nav-btns">
+              {showBack && onBack ? (
+                <button
+                  type="button"
+                  className="sf-btn sf-btn--secondary"
+                  onClick={onBack}
+                >
+                  {copy.backLabel}
+                </button>
+              ) : null}
+              <button type="button" className="sf-btn sf-btn--primary" onClick={onContinue}>
+                {copy.nextLabel}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -539,6 +665,7 @@ export function PublicSurveyForm({
   responseContext,
   turnstileSiteKey,
   submitAction,
+  externalRecruitment,
 }: PublicSurveyFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const questionRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -547,8 +674,8 @@ export function PublicSurveyForm({
   const turnstileWidgetIdRef = useRef<string | undefined>(undefined);
 
   const [language, setLanguage] = useState(initialLanguage);
-  const [phase, setPhase] = useState<"language" | "survey">(
-    supportedLanguages.length > 1 && !hasExplicitLangParam ? "language" : "survey",
+  const [phase, setPhase] = useState<"language" | "consent" | "survey">(
+    supportedLanguages.length > 1 && !hasExplicitLangParam ? "language" : "consent",
   );
   const [currentBlock, setCurrentBlock] = useState(0);
   const [selectedValues, setSelectedValues] = useState<AnswerValues>({});
@@ -601,6 +728,18 @@ export function PublicSurveyForm({
 
   function handleLanguageSelect(lang: string) {
     setLanguage(lang);
+    setHasAcceptedLegal(false);
+    setBlockError(null);
+    setPhase("consent");
+  }
+
+  function handleConsentContinue() {
+    if (!hasAcceptedLegal) {
+      setBlockError(copy.legalConsentRequired);
+      return;
+    }
+
+    setBlockError(null);
     setPhase("survey");
   }
 
@@ -690,6 +829,23 @@ export function PublicSurveyForm({
       return;
     }
 
+    if (responseContext?.collect_postal_code && !postalCode.trim()) {
+      setBlockError(copy.postalCodeEmpty);
+      return;
+    }
+
+    if (responseContext?.postal_collection_mode === "prefix" && countryCode) {
+      const postalPrefixSpec = getPostalPrefixFieldSpec(countryCode);
+      const normalizedPostalCode = normalizePrefixInput(postalCode);
+      if (
+        !postalPrefixSpec ||
+        !new RegExp(postalPrefixSpec.pattern).test(normalizedPostalCode)
+      ) {
+        setBlockError(copy.postalPrefixInvalid);
+        return;
+      }
+    }
+
     if (!hasAcceptedLegal) {
       setBlockError(copy.legalConsentRequired);
       return;
@@ -731,6 +887,33 @@ export function PublicSurveyForm({
     );
   }
 
+  if (phase === "consent") {
+    return (
+      <ConsentScreen
+        bundle={bundle}
+        copy={copy}
+        surveyPrivacyUrl={surveyPrivacyUrl}
+        hasAcceptedLegal={hasAcceptedLegal}
+        onAcceptedChange={(value) => {
+          setHasAcceptedLegal(value);
+          setBlockError(null);
+        }}
+        onContinue={handleConsentContinue}
+        onBack={
+          supportedLanguages.length > 1 && !hasExplicitLangParam
+            ? () => {
+                setBlockError(null);
+                setPhase("language");
+              }
+            : undefined
+        }
+        showBack={supportedLanguages.length > 1 && !hasExplicitLangParam}
+        error={blockError}
+        language={language}
+      />
+    );
+  }
+
   // ── Survey phase ────────────────────────────────────────────────────────
   return (
     <div className="sf-shell">
@@ -747,6 +930,8 @@ export function PublicSurveyForm({
           )}
         </header>
 
+        {currentBlock === 0 ? <PublicSurveyVisibility language={language} /> : null}
+
         <BlockDots count={blocks.length} current={currentBlock} />
 
         <form ref={formRef} onSubmit={handleSubmit} noValidate>
@@ -761,6 +946,18 @@ export function PublicSurveyForm({
           ) : null}
           <input type="hidden" name="linkToken" value={linkToken} />
           <input type="hidden" name="submittedLanguage" value={language} />
+          {externalRecruitment ? (
+            <>
+              <input type="hidden" name="PROLIFIC_PID" value={externalRecruitment.prolificPid} />
+              <input type="hidden" name="STUDY_ID" value={externalRecruitment.studyId} />
+              <input type="hidden" name="SESSION_ID" value={externalRecruitment.sessionId} />
+            </>
+          ) : null}
+          <input
+            type="hidden"
+            name="legalConsentAccepted"
+            value={hasAcceptedLegal ? "true" : "false"}
+          />
 
           {blocks.map((block, blockIdx) => (
             <div
@@ -805,35 +1002,6 @@ export function PublicSurveyForm({
               onPostalChange={setPostalCode}
             />
           )}
-
-          {isLastBlock ? (
-            <label className="sf-legal-consent">
-              <input
-                type="checkbox"
-                name="legalConsentAccepted"
-                value="true"
-                checked={hasAcceptedLegal}
-                onChange={(event) => {
-                  setHasAcceptedLegal(event.target.checked);
-                  setBlockError(null);
-                }}
-              />
-              <span>
-                {copy.legalConsentLabel}{" "}
-                <Link href={surveyPrivacyUrl} target="_blank">
-                  {copy.legalConsentPrivacyLink}
-                </Link>
-                {" · "}
-                <Link href={appRoutes.privacy} target="_blank">
-                  {copy.legalConsentPlatformPrivacyLink}
-                </Link>
-                {" · "}
-                <Link href={appRoutes.cookies} target="_blank">
-                  {copy.legalConsentCookiesLink}
-                </Link>
-              </span>
-            </label>
-          ) : null}
 
           {blockError && (
             <div className="sf-error" role="alert">
@@ -881,6 +1049,8 @@ export function PublicSurveyForm({
               )}
             </div>
           </div>
+
+          {currentBlock > 0 ? <PublicSurveyVisibility compact /> : null}
         </form>
       </div>
     </div>

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
+import { PublicLinkProlificCard } from "@/components/surveys/public-link-prolific-card";
 import { QuestionList } from "@/components/surveys/question-list";
+import { SurveyDuplicateAction } from "@/components/surveys/survey-duplicate-action";
+import { getOwnedDefaultSurveyLink } from "@/features/surveys/generator-repository";
+import { getOwnedProlificIntegrationSummary } from "@/features/surveys/integrations/repository";
 import { getSurveyById } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -21,6 +25,11 @@ export default async function SurveyDetailPage({
   if (!survey) {
     notFound();
   }
+
+  const defaultLink =
+    survey.status === "Published" ? await getOwnedDefaultSurveyLink(survey.id) : null;
+  const prolificIntegration =
+    defaultLink ? await getOwnedProlificIntegrationSummary(defaultLink.id) : null;
 
   return (
     <div className="page-stack">
@@ -47,6 +56,7 @@ export default async function SurveyDetailPage({
             <Link href={appRoutes.surveyAnalytics(survey.id)} className="button button--ghost">
               Analytics
             </Link>
+            <SurveyDuplicateAction surveyId={survey.id} />
             {survey.status === "Draft" ? (
               <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
                 Edit survey
@@ -129,6 +139,15 @@ export default async function SurveyDetailPage({
             </div>
           </div>
         </article>
+
+        {defaultLink && survey.defaultPublicLinkUrl ? (
+          <PublicLinkProlificCard
+            surveyId={survey.id}
+            surveyLinkId={defaultLink.id}
+            publicLinkUrl={survey.defaultPublicLinkUrl}
+            integration={prolificIntegration}
+          />
+        ) : null}
       </section>
 
       <section className="surface-card">

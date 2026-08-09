@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PublicSurveyVisibility } from "@/components/surveys/public-survey-visibility";
 import { getPublicSurveyCopy } from "@/features/surveys/public-copy";
 import { getPublicSurveyRuntimeByLinkToken } from "@/features/surveys/use-cases";
 
@@ -38,6 +39,7 @@ export default async function PublicSurveyThankYouPage({
           <div className="sf-thankyou__card">
             <p>{copy.thankYouBody}</p>
           </div>
+          <PublicSurveyVisibility compact />
         </div>
       </div>
     </main>

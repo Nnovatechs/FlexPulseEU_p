@@ -11,6 +11,9 @@ type QuestionsOverviewProps = {
   translations: SurveyLanguageTranslations | null;
   surveyId: string;
   defaultLanguage: string;
+  hasContentValidation: boolean;
+  hasMultilingualValidation: boolean;
+  hasExpertReview: boolean;
 };
 
 export function QuestionsOverview({
@@ -19,6 +22,9 @@ export function QuestionsOverview({
   translations,
   surveyId,
   defaultLanguage,
+  hasContentValidation,
+  hasMultilingualValidation,
+  hasExpertReview,
 }: QuestionsOverviewProps) {
   if (questions.length === 0) {
     return (
@@ -48,6 +54,9 @@ export function QuestionsOverview({
           translation={translations?.questions[q.question_key]}
           surveyId={surveyId}
           defaultLanguage={defaultLanguage}
+          hasContentValidation={hasContentValidation}
+          hasMultilingualValidation={hasMultilingualValidation}
+          hasExpertReview={hasExpertReview}
         />
       ))}
     </div>

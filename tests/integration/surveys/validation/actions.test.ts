@@ -34,6 +34,7 @@ vi.mock("@/features/surveys/generator-repository", () => ({
   updateSurveyDraft,
   publishSurvey,
   createSurveyDraft: vi.fn(),
+  duplicateOwnedSurvey: vi.fn(),
 }));
 
 vi.mock("@/features/surveys/content-validator", async () => {
@@ -316,6 +317,7 @@ describe("survey validation actions", () => {
     getOwnedSurveyById.mockResolvedValue({
       id: "survey-6",
       name: "Baseline survey",
+      status: "draft",
       default_language: fixture.language,
       supported_languages: [fixture.language],
       definition_json: fixture.definition,
@@ -330,8 +332,7 @@ describe("survey validation actions", () => {
     formData.set("surveyDescription", "Short intro");
     formData.set("defaultLanguage", fixture.language);
     formData.set("intent", "save");
-    formData.set("collectLocation", "on");
-    formData.set("enrichWeatherContext", "on");
+    formData.set("surveyContextMode", "weather_enriched");
     formData.append("supportedLanguages", fixture.language);
 
     await updateSurveySettingsAction(formData);
@@ -345,6 +346,7 @@ describe("survey validation actions", () => {
             collect_country_code: true,
             collect_postal_code: true,
             enrich_weather_context: true,
+            postal_collection_mode: "full",
           },
         },
       },
@@ -373,6 +375,7 @@ describe("survey validation actions", () => {
     getOwnedSurveyById.mockResolvedValue({
       id: "survey-7",
       name: "Baseline survey",
+      status: "draft",
       default_language: fixture.language,
       supported_languages: [fixture.language],
       definition_json: fixture.definition,
@@ -387,7 +390,7 @@ describe("survey validation actions", () => {
     formData.set("surveyDescription", "Short intro");
     formData.set("defaultLanguage", fixture.language);
     formData.set("intent", "save");
-    formData.set("collectLocation", "on");
+    formData.set("surveyContextMode", "full_postal");
     formData.append("supportedLanguages", fixture.language);
 
     await updateSurveySettingsAction(formData);
@@ -400,5 +403,171 @@ describe("survey validation actions", () => {
       updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta.measurement_plan_json
         ?.concepts[0]?.aggregation_rule,
     ).toBe("mean");
+  });
+
+  it("preserves validation, multilingual validation and expert review when only name and survey context change", async () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+    });
+    fixture.definition.translations[fixture.language].survey_description = "Original intro";
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-08-01T09:00:00.000Z",
+      content_hash: computeContentHash(fixture.questions, fixture.translations),
+      passed: true,
+      issues: [],
+    };
+    fixture.definition.survey_meta.multilingual_validation_result = {
+      validated_at: "2026-08-01T09:01:00.000Z",
+      translation_hash: "translation-hash-1",
+      validated_languages: [fixture.language],
+      passed: true,
+      issues: [],
+      language_statuses: [
+        {
+          language: fixture.language,
+          passed: true,
+          issue_count: 0,
+        },
+      ],
+    };
+    fixture.definition.survey_meta.expert_review_result = {
+      schema_version: 1,
+      acknowledgement_version: "v1",
+      reviewer_type: "language_expert",
+      review_basis: "Checked wording.",
+      changes: [],
+      baseline_content_hash: "content-hash-1",
+      baseline_copy_hash: "copy-hash-1",
+      final_content_hash: "content-hash-1",
+      final_copy_hash: "copy-hash-1",
+      applied_at: "2026-08-01T09:02:00.000Z",
+      applied_by_user_id: "user-1",
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-8",
+      name: "Baseline survey",
+      status: "draft",
+      default_language: fixture.language,
+      supported_languages: [fixture.language],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { updateSurveySettingsAction } = await import("@/features/surveys/actions");
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-8");
+    formData.set("name", "Baseline survey renamed");
+    formData.set("surveyDescription", "Original intro");
+    formData.set("defaultLanguage", fixture.language);
+    formData.set("intent", "save");
+    formData.set("surveyContextMode", "country_only");
+    formData.append("supportedLanguages", fixture.language);
+
+    await updateSurveySettingsAction(formData);
+
+    expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
+    expect(updateSurveyDraft.mock.calls[0]?.[0]).toMatchObject({
+      surveyId: "survey-8",
+      name: "Baseline survey renamed",
+      definition_json: {
+        survey_meta: {
+          validation_result: fixture.definition.survey_meta.validation_result,
+          multilingual_validation_result:
+            fixture.definition.survey_meta.multilingual_validation_result,
+          expert_review_result: fixture.definition.survey_meta.expert_review_result,
+          response_context: {
+            collect_country_code: true,
+            collect_postal_code: false,
+            enrich_weather_context: false,
+            postal_collection_mode: "full",
+          },
+        },
+      },
+    });
+  });
+
+  it("clears stored snapshots when the visible survey description changes", async () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+    });
+    fixture.definition.translations[fixture.language].survey_description = "Original intro";
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-08-01T09:00:00.000Z",
+      content_hash: computeContentHash(fixture.questions, fixture.translations),
+      passed: true,
+      issues: [],
+    };
+    fixture.definition.survey_meta.multilingual_validation_result = {
+      validated_at: "2026-08-01T09:01:00.000Z",
+      translation_hash: "translation-hash-1",
+      validated_languages: [fixture.language],
+      passed: true,
+      issues: [],
+      language_statuses: [
+        {
+          language: fixture.language,
+          passed: true,
+          issue_count: 0,
+        },
+      ],
+    };
+    fixture.definition.survey_meta.expert_review_result = {
+      schema_version: 1,
+      acknowledgement_version: "v1",
+      reviewer_type: "language_expert",
+      review_basis: "Checked wording.",
+      changes: [],
+      baseline_content_hash: "content-hash-1",
+      baseline_copy_hash: "copy-hash-1",
+      final_content_hash: "content-hash-1",
+      final_copy_hash: "copy-hash-1",
+      applied_at: "2026-08-01T09:02:00.000Z",
+      applied_by_user_id: "user-1",
+    };
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-9",
+      name: "Baseline survey",
+      status: "draft",
+      default_language: fixture.language,
+      supported_languages: [fixture.language],
+      definition_json: fixture.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { updateSurveySettingsAction } = await import("@/features/surveys/actions");
+
+    const formData = new FormData();
+    formData.set("surveyId", "survey-9");
+    formData.set("name", "Baseline survey");
+    formData.set("surveyDescription", "Updated intro");
+    formData.set("defaultLanguage", fixture.language);
+    formData.set("intent", "save");
+    formData.set("surveyContextMode", "country_only");
+    formData.append("supportedLanguages", fixture.language);
+
+    await updateSurveySettingsAction(formData);
+
+    expect(updateSurveyDraft).toHaveBeenCalledTimes(1);
+    expect(updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta).toMatchObject({
+      response_context: {
+        collect_country_code: true,
+        collect_postal_code: false,
+        enrich_weather_context: false,
+        postal_collection_mode: "full",
+      },
+    });
+    expect(
+      updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta.validation_result,
+    ).toBeUndefined();
+    expect(
+      updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta
+        .multilingual_validation_result,
+    ).toBeUndefined();
+    expect(
+      updateSurveyDraft.mock.calls[0]?.[0].definition_json.survey_meta.expert_review_result,
+    ).toBeUndefined();
   });
 });

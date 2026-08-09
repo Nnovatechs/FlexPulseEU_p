@@ -503,6 +503,18 @@ export function validateSurveyDefinition(
     );
   }
 
+  if (
+    responseContext?.enrich_weather_context === true &&
+    responseContext.postal_collection_mode === "prefix"
+  ) {
+    addIssue(
+      issues,
+      "weather_enrichment_requires_full_postal_code",
+      "survey_meta.response_context.postal_collection_mode",
+      "Weather enrichment requires full postal code collection, not postal prefix collection.",
+    );
+  }
+
   const questionKeys = definition.questions.map((question) => question.question_key);
 
   if (!hasUniqueValues(questionKeys)) {

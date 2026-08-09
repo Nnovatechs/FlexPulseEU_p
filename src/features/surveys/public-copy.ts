@@ -1,6 +1,9 @@
 export type PublicSurveyCopy = {
   openSurveyEyebrow: string;
   openSurveyDescription: string;
+  consentEyebrow: string;
+  consentTitle: string;
+  consentDescription: string;
   responseContextEyebrow: string;
   responseContextTitle: string;
   responseContextDescription: string;
@@ -9,6 +12,10 @@ export type PublicSurveyCopy = {
   countryCodeEmpty: string;
   postalCodeLabel: string;
   postalCodePlaceholder: string;
+  postalCodeEmpty: string;
+  postalPrefixLabel: string;
+  postalPrefixHelp: string;
+  postalPrefixInvalid: string;
   submitLabel: string;
   submitError: string;
   legalConsentLabel: string;
@@ -32,6 +39,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
   English: {
     openSurveyEyebrow: "Survey",
     openSurveyDescription: "Complete the published survey and submit your responses securely.",
+    consentEyebrow: "Before you start",
+    consentTitle: "Privacy and consent",
+    consentDescription:
+      "Please review the privacy information and accept it before continuing to the survey questions.",
     responseContextEyebrow: "Almost done",
     responseContextTitle: "One last thing",
     responseContextDescription:
@@ -41,6 +52,11 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     countryCodeEmpty: "Please select your country.",
     postalCodeLabel: "Postal code",
     postalCodePlaceholder: "e.g. 08001",
+    postalCodeEmpty: "Please enter your postal code.",
+    postalPrefixLabel: "Postal area prefix",
+    postalPrefixHelp:
+      "Use only the broad postal area shown in the example, not the full postal code.",
+    postalPrefixInvalid: "Enter only the broad postal area shown in the example.",
     submitLabel: "Submit",
     submitError: "We couldn't submit your response. Please reload and try again.",
     legalConsentLabel:
@@ -64,6 +80,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     openSurveyEyebrow: "Encuesta",
     openSurveyDescription:
       "Completa la encuesta publicada y envía tus respuestas de forma segura.",
+    consentEyebrow: "Antes de empezar",
+    consentTitle: "Privacidad y consentimiento",
+    consentDescription:
+      "Revisa la información de privacidad y acéptala antes de continuar con las preguntas de la encuesta.",
     responseContextEyebrow: "Casi listo",
     responseContextTitle: "Una última cosa",
     responseContextDescription:
@@ -73,6 +93,11 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     countryCodeEmpty: "Por favor selecciona tu país.",
     postalCodeLabel: "Código postal",
     postalCodePlaceholder: "p. ej. 08001",
+    postalCodeEmpty: "Por favor introduce tu código postal.",
+    postalPrefixLabel: "Prefijo del área postal",
+    postalPrefixHelp:
+      "Introduce solo el área postal amplia que aparece en el ejemplo, no el código postal completo.",
+    postalPrefixInvalid: "Introduce solo el área postal amplia que aparece en el ejemplo.",
     submitLabel: "Enviar",
     submitError: "No hemos podido enviar tu respuesta. Recarga la página e inténtalo de nuevo.",
     legalConsentLabel:
@@ -96,6 +121,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     openSurveyEyebrow: "Enquête",
     openSurveyDescription:
       "Complétez l'enquête publiée et envoyez vos réponses en toute sécurité.",
+    consentEyebrow: "Avant de commencer",
+    consentTitle: "Confidentialité et consentement",
+    consentDescription:
+      "Veuillez consulter les informations de confidentialité et les accepter avant de continuer vers les questions de l'enquête.",
     responseContextEyebrow: "Presque terminé",
     responseContextTitle: "Une dernière chose",
     responseContextDescription:
@@ -105,6 +134,11 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     countryCodeEmpty: "Veuillez sélectionner votre pays.",
     postalCodeLabel: "Code postal",
     postalCodePlaceholder: "ex. 75001",
+    postalCodeEmpty: "Veuillez saisir votre code postal.",
+    postalPrefixLabel: "Préfixe de zone postale",
+    postalPrefixHelp:
+      "Saisissez uniquement la zone postale large indiquée dans l'exemple, pas le code postal complet.",
+    postalPrefixInvalid: "Saisissez uniquement la zone postale large indiquée dans l'exemple.",
     submitLabel: "Envoyer",
     submitError:
       "Nous n'avons pas pu envoyer votre réponse. Rechargez la page et réessayez.",
@@ -131,6 +165,10 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     openSurveyEyebrow: "Anketa",
     openSurveyDescription:
       "Ispunite objavljenu anketu i sigurno pošaljite svoje odgovore.",
+    consentEyebrow: "Prije početka",
+    consentTitle: "Privatnost i privola",
+    consentDescription:
+      "Pregledajte informacije o privatnosti i prihvatite ih prije nego nastavite na pitanja ankete.",
     responseContextEyebrow: "Gotovo je",
     responseContextTitle: "Još jedna stvar",
     responseContextDescription:
@@ -140,6 +178,11 @@ const publicCopyByLanguage: Record<string, PublicSurveyCopy> = {
     countryCodeEmpty: "Molimo odaberite državu.",
     postalCodeLabel: "Poštanski broj",
     postalCodePlaceholder: "npr. 10000",
+    postalCodeEmpty: "Molimo unesite poštanski broj.",
+    postalPrefixLabel: "Prefiks poštanskog područja",
+    postalPrefixHelp:
+      "Unesite samo šire poštansko područje prikazano u primjeru, a ne cijeli poštanski broj.",
+    postalPrefixInvalid: "Unesite samo šire poštansko područje prikazano u primjeru.",
     submitLabel: "Pošalji",
     submitError: "Nismo mogli poslati vaš odgovor. Osvježite stranicu i pokušajte ponovno.",
     legalConsentLabel:

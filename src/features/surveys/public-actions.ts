@@ -4,6 +4,14 @@ import { redirect } from "next/navigation";
 import { appRoutes } from "@/lib/config/routes";
 import { verifyTurnstileToken } from "@/lib/server/turnstile";
 import { getPublicSurveyLegalSnapshot } from "@/features/privacy/repository";
+import { isSurveyFeedbackEligible } from "@/features/surveys/feedback";
+import { getPublicSurveyFeedbackConfig } from "@/features/surveys/feedback-repository";
+import { getActivePublicProlificIntegration } from "@/features/surveys/integrations/repository";
+import {
+  getProlificLaunchParamsFromFormData,
+  resolveProlificRecruitment,
+} from "@/features/surveys/integrations/prolific";
+import { buildProlificRecruitmentTokens } from "@/features/surveys/integrations/tokenization";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
@@ -38,8 +46,18 @@ export async function submitPublicSurveyResponseAction(
     formData,
     legalSnapshot?.snapshot,
   );
+  const prolificIntegration = await getActivePublicProlificIntegration(link.id);
+  const prolificLaunch = getProlificLaunchParamsFromFormData(formData);
+  const externalRecruitment = resolveProlificRecruitment({
+    ...prolificLaunch,
+    integration: prolificIntegration,
+  });
 
-  await createSurveyResponseAndEnqueueJob({
+  if (externalRecruitment.kind === "error") {
+    throw new Error(externalRecruitment.message);
+  }
+
+  const { responseId } = await createSurveyResponseAndEnqueueJob({
     survey,
     surveyLink: link,
     submittedLanguage: validated.submittedLanguage,
@@ -47,7 +65,33 @@ export async function submitPublicSurveyResponseAction(
     countryCodeRaw: validated.countryCodeRaw,
     postalCodeRaw: validated.postalCodeRaw,
     legalConsent: validated.legalConsent,
+    externalRecruitment:
+      externalRecruitment.kind === "prolific" && prolificIntegration
+        ? {
+            integration: prolificIntegration,
+            ...buildProlificRecruitmentTokens({
+              integrationId: prolificIntegration.id,
+              prolificPid: externalRecruitment.prolificPid,
+              sessionId: externalRecruitment.sessionId,
+            }),
+          }
+        : null,
   });
+
+  const surveyFeedbackConfig = await getPublicSurveyFeedbackConfig(survey.id);
+  if (
+    surveyFeedbackConfig?.enabled &&
+    isSurveyFeedbackEligible(survey.default_language)
+  ) {
+    const target = new URLSearchParams();
+    target.set("responseId", responseId);
+    target.set("lang", validated.submittedLanguage);
+    redirect(`${appRoutes.publicSurveyFeedback(linkToken)}?${target.toString()}`);
+  }
+
+  if (externalRecruitment.kind === "prolific" && prolificIntegration) {
+    redirect(prolificIntegration.completion_url);
+  }
 
   const target = new URLSearchParams();
   if (validated.submittedLanguage) {

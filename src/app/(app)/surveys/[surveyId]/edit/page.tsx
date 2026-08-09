@@ -7,6 +7,8 @@ import { QuestionsOverview } from "@/components/surveys/questions-overview";
 import { ReviewTab } from "@/components/surveys/review-tab";
 import { SurveyEditorTabs } from "@/components/surveys/survey-editor-tabs";
 import { updateSurveySettingsAction } from "@/features/surveys/actions";
+import { isSurveyFeedbackEligible } from "@/features/surveys/feedback";
+import { getOwnedSurveyFeedbackConfig } from "@/features/surveys/feedback-repository";
 import {
   buildQuestionIntentLookup,
   getSurveyIntegrityState,
@@ -20,6 +22,7 @@ type SurveyEditPageProps = {
   params: Promise<{ surveyId: string }>;
   searchParams?: Promise<{
     created?: string;
+    duplicated?: string;
     saved?: string;
     generated?: string;
     error?: string;
@@ -57,6 +60,7 @@ export default async function SurveyEditPage({
     survey.definition_json.survey_meta.behavioural_concept_keys ?? [];
 
   const createdMessage = resolvedSearchParams.created === "1";
+  const duplicatedMessage = resolvedSearchParams.duplicated === "1";
   const savedMessage = resolvedSearchParams.saved === "1";
   const generatedMessage = resolvedSearchParams.generated === "1";
   const tabParam = resolvedSearchParams.tab;
@@ -71,8 +75,15 @@ export default async function SurveyEditPage({
   const responseContext = normalizeSurveyResponseContextConfig(
     survey.definition_json.survey_meta.response_context,
   );
-  const collectsLocationContext =
-    responseContext.collect_country_code || responseContext.collect_postal_code;
+  const surveyContextMode = responseContext.enrich_weather_context
+    ? "weather_enriched"
+    : responseContext.collect_postal_code
+      ? responseContext.postal_collection_mode === "prefix"
+        ? "postal_prefix"
+        : "full_postal"
+      : responseContext.collect_country_code
+        ? "country_only"
+        : "none";
 
   const configurationTab = (
     <form action={updateSurveySettingsAction}>
@@ -102,34 +113,87 @@ export default async function SurveyEditPage({
                 placeholder="Short introduction or context for respondents"
               />
             </label>
+            <div className="review-notice review-notice--warning">
+              Saving a new description or language configuration clears the
+              current validation and expert review snapshots because it changes
+              visible survey copy.
+            </div>
 
+          </div>
+        </details>
+
+        <details className="collapsible-section">
+          <summary className="collapsible-section__header">
+            <span className="collapsible-section__title">Survey context</span>
+            <span className="collapsible-section__chevron" aria-hidden>
+              ›
+            </span>
+          </summary>
+
+          <div className="collapsible-section__body">
             <div className="field">
-              <span>Response context</span>
+              <span>Context level</span>
               <p className="muted">
-                Configure whether published respondents should provide coarse
-                location context for later enrichment and profiling.
+                Choose how much respondent location context the public survey
+                should collect. Prefix mode is currently intended for Spain,
+                France and Ireland only.
               </p>
               <div className="choice-stack">
                 <label className="choice-chip">
                   <input
-                    type="checkbox"
-                    name="collectLocation"
-                    defaultChecked={collectsLocationContext}
+                    type="radio"
+                    name="surveyContextMode"
+                    value="none"
+                    defaultChecked={surveyContextMode === "none"}
                   />
-                  <span>Collect location context (country + postal code)</span>
+                  <span>No context</span>
                 </label>
                 <label className="choice-chip">
                   <input
-                    type="checkbox"
-                    name="enrichWeatherContext"
-                    defaultChecked={responseContext.enrich_weather_context}
+                    type="radio"
+                    name="surveyContextMode"
+                    value="country_only"
+                    defaultChecked={surveyContextMode === "country_only"}
                   />
-                  <span>Enrich weather context after submission</span>
+                  <span>Country only</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="radio"
+                    name="surveyContextMode"
+                    value="postal_prefix"
+                    defaultChecked={surveyContextMode === "postal_prefix"}
+                  />
+                  <span>Country + postal prefix</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="radio"
+                    name="surveyContextMode"
+                    value="full_postal"
+                    defaultChecked={surveyContextMode === "full_postal"}
+                  />
+                  <span>Country + full postal code</span>
+                </label>
+                <label className="choice-chip">
+                  <input
+                    type="radio"
+                    name="surveyContextMode"
+                    value="weather_enriched"
+                    defaultChecked={surveyContextMode === "weather_enriched"}
+                  />
+                  <span>Country + full postal code + weather enrichment</span>
                 </label>
               </div>
+              <div className="review-notice review-notice--warning">
+                Country only keeps the coarsest location layer. Postal prefix
+                adds an intermediate bucket without full geocoding or weather.
+                Full postal code enables the strongest spatial granularity, and
+                weather enrichment only works with full postal collection.
+              </div>
               <p className="muted">
-                Weather enrichment depends on location context and will force it
-                on even if only the weather option is selected.
+                Saving only the internal survey name or survey context keeps the
+                current validation and expert review snapshots.
               </p>
             </div>
           </div>
@@ -209,16 +273,6 @@ export default async function SurveyEditPage({
     </form>
   );
 
-  const questionsTab = (
-    <QuestionsOverview
-      questions={survey.definition_json.questions}
-      mappings={survey.mapping_contract_json.mappings}
-      translations={activeTranslations}
-      surveyId={survey.id}
-      defaultLanguage={survey.default_language}
-    />
-  );
-
   const hasQuestions = survey.definition_json.questions.length > 0;
   const storedValidation =
     survey.definition_json.survey_meta.validation_result ?? null;
@@ -240,6 +294,25 @@ export default async function SurveyEditPage({
       storedMultilingualValidation !== null;
   const questionIntentLookup = buildQuestionIntentLookup(
     survey.definition_json.survey_meta.measurement_plan_json,
+  );
+  const surveyFeedbackConfig = await getOwnedSurveyFeedbackConfig(survey.id);
+  const surveyFeedbackEligible = isSurveyFeedbackEligible(survey.default_language);
+  const hasCurrentContentValidation =
+    storedValidation?.passed === true && !isValidationStale;
+  const hasCurrentMultilingualValidation =
+    storedMultilingualValidation?.passed === true && !isMultilingualValidationStale;
+
+  const questionsTab = (
+    <QuestionsOverview
+      questions={survey.definition_json.questions}
+      mappings={survey.mapping_contract_json.mappings}
+      translations={activeTranslations}
+      surveyId={survey.id}
+      defaultLanguage={survey.default_language}
+      hasContentValidation={hasCurrentContentValidation}
+      hasMultilingualValidation={hasCurrentMultilingualValidation}
+      hasExpertReview={expertReviewResult != null}
+    />
   );
 
   const previewUnlocked = hasQuestions;
@@ -264,6 +337,8 @@ export default async function SurveyEditPage({
   const previewTab = (
     <PreviewTab
       surveyId={survey.id}
+      surveyFeedbackEligible={surveyFeedbackEligible}
+      surveyFeedbackEnabled={surveyFeedbackConfig?.enabled === true}
       surveyTitle={activeTranslations?.survey_title ?? survey.name}
       surveyDescription={activeTranslations?.survey_description ?? ""}
       questions={survey.definition_json.questions}
@@ -296,6 +371,13 @@ export default async function SurveyEditPage({
       {createdMessage ? (
         <div className="notice notice--info" role="status">
           Survey created. Configure settings and select concepts to generate questions.
+        </div>
+      ) : null}
+
+      {duplicatedMessage ? (
+        <div className="notice notice--info" role="status">
+          Survey duplicated. This new draft preserves the source content and can
+          now be edited independently.
         </div>
       ) : null}
 
@@ -333,13 +415,6 @@ export default async function SurveyEditPage({
         <div className="notice notice--error" role="alert">
           Survey generation failed.{" "}
           {generationMessage || "Please review the current settings and try again."}
-        </div>
-      ) : null}
-
-      {expertReviewResult ? (
-        <div className="notice notice--warning" role="status">
-          Expert review has been applied. Normal edits in Configuration or Questions
-          will clear automated validation and the stored expert review snapshot.
         </div>
       ) : null}
 

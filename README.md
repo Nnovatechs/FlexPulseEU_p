@@ -13,6 +13,21 @@ The hosted Stage 2 deployment is the reference execution environment for D2 revi
 - Deliverable scope: D2 Stage 2
 - Technical focus: behavioural measurement, semantic mapping, profiling, and controlled hosted validation
 
+## Visibility And Funding Acknowledgement
+
+<p>
+  <img src="public/brand/eu-cofunded-pos-official.png" alt="Co-funded by the European Union" height="58" />
+  <img src="public/brand/ocei-horizontal-pos.png" alt="O-CEI project logo" height="58" />
+</p>
+
+This work was framed in the context of the project OCEI, which receives funding
+from the European Union's Horizon Europe research and innovation programme
+under grant agreement `101189589`.
+
+Views and opinions expressed are, however, those of the author(s) only and do
+not necessarily reflect those of the European Union. Neither the European Union
+nor the granting authority can be held responsible for them.
+
 ## What This Repository Contains
 
 This repository includes the project-specific application code, contracts, tests, and validation harnesses for the Stage 2 behavioural processing pipeline:

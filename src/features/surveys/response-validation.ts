@@ -3,12 +3,18 @@ import type {
   SurveyLanguageCode,
   SurveyQuestionDefinition,
 } from "./generator-types";
+import { normalizeSurveyResponseContextConfig } from "./generator-types";
 import { getLegalConfig, LEGAL_CONSENT_SOURCE } from "@/lib/config/legal";
 import { getRawLocationRetentionLabel } from "@/lib/config/response-retention";
 import {
   buildLegacySurveyLegalSnapshot,
   type SurveyLegalSnapshot,
 } from "@/features/privacy/types";
+import {
+  classifyPostalCodeInput,
+  getPostalPrefixFieldSpec,
+} from "./postal-code";
+import { surveyCountryOptions } from "./country-options";
 import { getPublicSurveyCopy } from "./public-copy";
 import {
   isQuestionVisible,
@@ -187,16 +193,44 @@ export function validatePublicSurveySubmission(
     }
   }
 
-  const responseContext = survey.definition_json.survey_meta.response_context;
-  const countryCodeRaw = String(formData.get("countryCode") ?? "").trim() || null;
+  const responseContext = normalizeSurveyResponseContextConfig(
+    survey.definition_json.survey_meta.response_context,
+  );
+  const countryCodeRaw =
+    String(formData.get("countryCode") ?? "").trim().toUpperCase() || null;
   const postalCodeRaw = String(formData.get("postalCode") ?? "").trim() || null;
+  const allowedCountryCodes = new Set<string>(
+    surveyCountryOptions.map((option) => option.code),
+  );
 
   if (responseContext?.collect_country_code && !countryCodeRaw) {
     throw new Error("Country code is required for this survey.");
   }
 
+  if (countryCodeRaw && !allowedCountryCodes.has(countryCodeRaw)) {
+    throw new Error("Country code is invalid for this survey.");
+  }
+
   if (responseContext?.collect_postal_code && !postalCodeRaw) {
     throw new Error("Postal code is required for this survey.");
+  }
+
+  if (
+    responseContext.collect_postal_code &&
+    responseContext.postal_collection_mode === "prefix" &&
+    countryCodeRaw &&
+    postalCodeRaw
+  ) {
+    const prefixSpec = getPostalPrefixFieldSpec(countryCodeRaw);
+    const postalInput = classifyPostalCodeInput({
+      countryCode: countryCodeRaw,
+      postalCode: postalCodeRaw,
+      collectionMode: "prefix",
+    });
+
+    if (!prefixSpec || postalInput.inputStatus !== "prefix") {
+      throw new Error("Postal prefix is invalid for the selected country.");
+    }
   }
 
   if (String(formData.get("legalConsentAccepted") ?? "") !== "true") {

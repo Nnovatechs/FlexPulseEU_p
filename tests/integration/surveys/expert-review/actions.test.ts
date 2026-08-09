@@ -37,6 +37,7 @@ vi.mock("@/features/surveys/generator-repository", () => ({
   getOwnedSurveyById,
   updateSurveyDraft,
   publishSurvey,
+  duplicateOwnedSurvey: vi.fn(),
   createSurveyDraft: vi.fn(),
   deleteOwnedSurveyDraft: vi.fn(),
   archiveOwnedSurvey: vi.fn(),
@@ -194,6 +195,86 @@ describe("expert review actions", () => {
           language: fixture.targetLanguage,
           field: "question_title",
           question_key: "Q_TEST_01",
+        }),
+      ],
+    });
+  });
+
+  it("allows applying expert review again while preserving the automatic baseline", async () => {
+    const fixture = buildValidationSurveyFixture({
+      title: "How comfortable are you with automated load shifting?",
+    });
+    fixture.definition.survey_meta.validation_result = {
+      validated_at: "2026-07-30T10:00:00.000Z",
+      content_hash: computeContentHash(fixture.questions, fixture.translations),
+      passed: true,
+      issues: [],
+    };
+
+    const firstReview = applyExpertReviewChanges({
+      definition: fixture.definition,
+      supportedLanguages: [fixture.language],
+      normalizedChanges: [
+        {
+          key: "English::question::question_title::Q_TEST_01",
+          language: fixture.language,
+          target: "question",
+          question_key: "Q_TEST_01",
+          field: "question_title",
+          reviewed_value: "How confident are you in automated load shifting?",
+        },
+      ],
+      reviewerType: "domain_expert",
+      reviewBasis: "First expert review round.",
+      appliedByUserId: "user-1",
+      appliedAt: "2026-07-30T10:05:00.000Z",
+    });
+
+    getOwnedSurveyById.mockResolvedValue({
+      id: "survey-expert-repeat",
+      status: "draft",
+      created_by: "user-1",
+      default_language: fixture.language,
+      supported_languages: [fixture.language],
+      definition_json: firstReview.definition,
+      mapping_contract_json: { schema_version: 1, mappings: fixture.mappings },
+    });
+
+    const { applyExpertReviewAction } = await import(
+      "@/features/surveys/actions"
+    );
+
+    const result = await applyExpertReviewAction({
+      surveyId: "survey-expert-repeat",
+      reviewerType: "research_team",
+      reviewBasis: "Second expert review round.",
+      confirmation: "EXPERT REVIEW",
+      changes: [
+        {
+          language: fixture.language,
+          field: "question_title",
+          question_key: "Q_TEST_01",
+          reviewed_value: "How comfortable are you with automated load shifting overall?",
+        },
+      ],
+    });
+
+    expect(result).toEqual({ appliedChangeCount: 1 });
+    const updatePayload = updateSurveyDraft.mock.calls[0]?.[0];
+    expect(updatePayload.definition_json.survey_meta.validation_result).toMatchObject({
+      passed: true,
+    });
+    expect(updatePayload.definition_json.survey_meta.expert_review_result).toMatchObject({
+      baseline_content_hash: firstReview.result.baseline_content_hash,
+      baseline_copy_hash: firstReview.result.baseline_copy_hash,
+      reviewer_type: "research_team",
+      review_basis: "Second expert review round.",
+      changes: [
+        expect.objectContaining({
+          question_key: "Q_TEST_01",
+          previous_value: "How confident are you in automated load shifting?",
+          reviewed_value:
+            "How comfortable are you with automated load shifting overall?",
         }),
       ],
     });

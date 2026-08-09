@@ -42,6 +42,7 @@ vi.mock("@/features/surveys/content-validator", () => ({
 
 vi.mock("@/features/surveys/generator-repository", () => ({
   createSurveyDraft: vi.fn(),
+  duplicateOwnedSurvey: vi.fn(),
   getOwnedSurveyById,
   updateSurveyDraft: vi.fn(),
   publishSurvey,

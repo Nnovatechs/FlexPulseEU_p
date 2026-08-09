@@ -221,14 +221,13 @@ export function applyExpertReviewChanges(input: {
   const nextDefinition = structuredClone(input.definition);
   const defaultLanguage = nextDefinition.survey_meta.default_language;
   const baselineTranslations = nextDefinition.translations[defaultLanguage];
-  const baselineContentHash = computeContentHash(
-    nextDefinition.questions,
-    baselineTranslations,
-  );
-  const baselineCopyHash = computeSurveyCopyHash(
-    nextDefinition,
-    input.supportedLanguages,
-  );
+  const existingExpertReview = nextDefinition.survey_meta.expert_review_result;
+  const baselineContentHash =
+    existingExpertReview?.baseline_content_hash ??
+    computeContentHash(nextDefinition.questions, baselineTranslations);
+  const baselineCopyHash =
+    existingExpertReview?.baseline_copy_hash ??
+    computeSurveyCopyHash(nextDefinition, input.supportedLanguages);
   const appliedChanges: ExpertReviewChange[] = [];
 
   for (const change of input.normalizedChanges) {

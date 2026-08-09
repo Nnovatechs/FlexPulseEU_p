@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SurveyDuplicateAction } from "@/components/surveys/survey-duplicate-action";
 import { SurveyLifecycleAction } from "@/components/surveys/survey-lifecycle-action";
 import { Survey } from "@/features/surveys/types";
 import { appRoutes } from "@/lib/config/routes";
@@ -83,6 +84,7 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                     Edit
                   </Link>
                 ) : null}
+                <SurveyDuplicateAction surveyId={survey.id} />
                 <Link
                   href={appRoutes.surveyAnalytics(survey.id)}
                   className="button button--ghost"

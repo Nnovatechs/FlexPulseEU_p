@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { deriveNormalizedSurveyLocation } from "@/features/surveys/response-enrichment";
+import {
+  classifyPostalCodeInput,
+  deriveNormalizedSurveyLocation,
+} from "@/features/surveys/response-enrichment";
 
 describe("response enrichment helpers", () => {
   it("keeps a normalized hierarchy while exposing the best available level", () => {
@@ -97,6 +100,101 @@ describe("response enrichment helpers", () => {
     expect(location.normalizedLocationJson).toMatchObject({
       provider: "fallback",
       postalAreaMask: null,
+      bestAvailableKind: "country",
+    });
+  });
+
+  it("classifies Spanish and French postal codes as full, partial or invalid", () => {
+    expect(
+      classifyPostalCodeInput({ countryCode: "ES", postalCode: "28013" }),
+    ).toEqual({
+      normalizedPostalCode: "28013",
+      inputStatus: "full",
+    });
+    expect(
+      classifyPostalCodeInput({ countryCode: "FR", postalCode: "750" }),
+    ).toEqual({
+      normalizedPostalCode: "750",
+      inputStatus: "partial",
+    });
+    expect(
+      classifyPostalCodeInput({ countryCode: "ES", postalCode: "28A13" }),
+    ).toEqual({
+      normalizedPostalCode: "28A13",
+      inputStatus: "invalid_or_unresolved",
+    });
+  });
+
+  it("classifies Irish routing keys separately from full Eircodes", () => {
+    expect(
+      classifyPostalCodeInput({ countryCode: "IE", postalCode: "D02" }),
+    ).toEqual({
+      normalizedPostalCode: "D02",
+      inputStatus: "partial",
+    });
+    expect(
+      classifyPostalCodeInput({ countryCode: "IE", postalCode: "D02 X285" }),
+    ).toEqual({
+      normalizedPostalCode: "D02X285",
+      inputStatus: "full",
+    });
+  });
+
+  it("accepts explicit postal prefix mode for supported countries only", () => {
+    expect(
+      classifyPostalCodeInput({
+        countryCode: "ES",
+        postalCode: "28",
+        collectionMode: "prefix",
+      }),
+    ).toEqual({
+      normalizedPostalCode: "28",
+      inputStatus: "prefix",
+    });
+
+    expect(
+      classifyPostalCodeInput({
+        countryCode: "IE",
+        postalCode: "D02",
+        collectionMode: "prefix",
+      }),
+    ).toEqual({
+      normalizedPostalCode: "D02",
+      inputStatus: "prefix",
+    });
+
+    expect(
+      classifyPostalCodeInput({
+        countryCode: "ES",
+        postalCode: "28013",
+        collectionMode: "prefix",
+      }),
+    ).toEqual({
+      normalizedPostalCode: "28013",
+      inputStatus: "invalid_or_unresolved",
+    });
+  });
+
+  it("does not generate a pseudo postal area when the postal code is invalid", () => {
+    const location = deriveNormalizedSurveyLocation({
+      countryCode: "ES",
+      postalCode: "28A13",
+      geocodedLocation: null,
+      postalInputStatus: "invalid_or_unresolved",
+    });
+
+    expect(location).toMatchObject({
+      normalizedCountryCode: "ES",
+      locationAggCode: "ES:country:es",
+      locationAggLabel: "ES",
+      locationGranularity: "country",
+      centroidLat: null,
+      centroidLon: null,
+    });
+    expect(location.normalizedLocationJson).toMatchObject({
+      provider: "fallback",
+      postalAreaMask: null,
+      postalInputStatus: "invalid_or_unresolved",
       bestAvailableKind: "country",
     });
   });

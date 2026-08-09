@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   createSupabaseAdminClient,
+  classifyPostalCodeInput,
   geocodePostalCodeWithOpenMeteo,
   fetchHistoricalWeatherWithOpenMeteo,
   deriveNormalizedSurveyLocation,
@@ -9,6 +10,7 @@ const {
   mapSurveyResponseToOutput,
 } = vi.hoisted(() => ({
   createSupabaseAdminClient: vi.fn(),
+  classifyPostalCodeInput: vi.fn(),
   geocodePostalCodeWithOpenMeteo: vi.fn(),
   fetchHistoricalWeatherWithOpenMeteo: vi.fn(),
   deriveNormalizedSurveyLocation: vi.fn(),
@@ -21,6 +23,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 }));
 
 vi.mock("@/features/surveys/response-enrichment", () => ({
+  classifyPostalCodeInput,
   geocodePostalCodeWithOpenMeteo,
   fetchHistoricalWeatherWithOpenMeteo,
   deriveNormalizedSurveyLocation,
@@ -47,128 +50,14 @@ type MockJob = {
   scheduled_at: string;
 };
 
-function createRetrySupabaseMock() {
-  const responseUpdates: UpdatePatch[] = [];
-  const processingJobUpdates: UpdatePatch[] = [];
-  let jobSelectCount = 0;
-
-  const job = {
-    id: "job-1",
-    response_id: "response-1",
-    job_type: "response_enrichment" as const,
-    status: "pending" as const,
-    attempts: 0,
-    max_attempts: 3,
-    scheduled_at: new Date().toISOString(),
-  };
-
-  const client = {
-    from: vi.fn((table: string) => {
-      let operation: "count" | "select" | "update" | null = null;
-
-      const builder = {
-        select: vi.fn((_columns?: string, options?: { head?: boolean }) => {
-          operation = options?.head ? "count" : "select";
-          return builder;
-        }),
-        update: vi.fn((patch: UpdatePatch) => {
-          operation = "update";
-          if (table === "survey_responses") {
-            responseUpdates.push(patch);
-          }
-          if (table === "processing_jobs") {
-            processingJobUpdates.push(patch);
-          }
-          return builder;
-        }),
-        in: vi.fn(() => builder),
-        eq: vi.fn(() => builder),
-        lte: vi.fn(() => builder),
-        order: vi.fn(() => builder),
-        limit: vi.fn(() => {
-          const jobs =
-            table === "processing_jobs" && operation === "select" && jobSelectCount === 0
-              ? [job]
-              : [];
-          jobSelectCount += 1;
-
-          return Promise.resolve({
-            data: jobs,
-            error: null,
-          });
-        }),
-        maybeSingle: vi.fn(() =>
-          Promise.resolve({
-            data: {
-              ...job,
-              status: "running",
-              attempts: 1,
-            },
-            error: null,
-          }),
-        ),
-        single: vi.fn(() => {
-          if (table === "survey_responses") {
-            return Promise.resolve({
-              data: {
-                id: "response-1",
-                survey_id: "survey-1",
-                survey_link_id: "link-1",
-                responded_at: new Date().toISOString(),
-                country_code_raw: "ES",
-                postal_code_raw: "28001",
-                raw_location_retention_until: null,
-              },
-              error: null,
-            });
-          }
-
-          if (table === "surveys") {
-            return Promise.resolve({
-              data: {
-                id: "survey-1",
-                definition_json: {
-                  survey_meta: {
-                    response_context: {
-                      enrich_weather_context: true,
-                    },
-                  },
-                },
-              },
-              error: null,
-            });
-          }
-
-          return Promise.resolve({
-            data: { id: "link-1" },
-            error: null,
-          });
-        }),
-        then: (
-          resolve: (value: { count?: number; error: null }) => unknown,
-          reject?: (reason: unknown) => unknown,
-        ) =>
-          Promise.resolve({
-            ...(table === "processing_jobs" && operation === "count" ? { count: 1 } : {}),
-            error: null,
-          }).then(resolve, reject),
-      };
-
-      return builder;
-    }),
-  };
-
-  return {
-    client,
-    responseUpdates,
-    processingJobUpdates,
-  };
-}
-
-function createHappyPathSupabaseMock() {
+function createHappyPathSupabaseMock(options?: {
+  weatherRequested?: boolean;
+  postalCollectionMode?: "full" | "prefix";
+}) {
   const responseUpdates: UpdatePatch[] = [];
   const processingJobUpdates: UpdatePatch[] = [];
   const insertedJobs: Array<Record<string, unknown>> = [];
+  const upsertedEnrichments: Array<Record<string, unknown>> = [];
 
   const enrichmentJob: MockJob = {
     id: "job-enrich",
@@ -212,7 +101,8 @@ function createHappyPathSupabaseMock() {
     definition_json: {
       survey_meta: {
         response_context: {
-          enrich_weather_context: false,
+          enrich_weather_context: options?.weatherRequested ?? false,
+          postal_collection_mode: options?.postalCollectionMode ?? "full",
         },
       },
     },
@@ -242,8 +132,11 @@ function createHappyPathSupabaseMock() {
           }
           return builder;
         }),
-        upsert: vi.fn(() => {
+        upsert: vi.fn((payload: Record<string, unknown>) => {
           operation = "upsert";
+          if (table === "response_enrichment") {
+            upsertedEnrichments.push(payload);
+          }
           return Promise.resolve({ error: null });
         }),
         update: vi.fn((patch: UpdatePatch) => {
@@ -349,6 +242,7 @@ function createHappyPathSupabaseMock() {
     responseUpdates,
     processingJobUpdates,
     insertedJobs,
+    upsertedEnrichments,
   };
 }
 
@@ -356,6 +250,10 @@ describe("survey response processing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    classifyPostalCodeInput.mockReturnValue({
+      normalizedPostalCode: "28001",
+      inputStatus: "full",
+    });
     geocodePostalCodeWithOpenMeteo.mockRejectedValue(new Error("Open-Meteo unavailable"));
     deriveNormalizedSurveyLocation.mockReturnValue({
       normalizedCountryCode: "ES",
@@ -377,8 +275,8 @@ describe("survey response processing", () => {
     upsertResponseMappingResult.mockResolvedValue(undefined);
   });
 
-  it("returns a response to queued when a transient enrichment failure schedules a retry", async () => {
-    const supabase = createRetrySupabaseMock();
+  it("continues to mapping when geocoding fails technically", async () => {
+    const supabase = createHappyPathSupabaseMock();
     createSupabaseAdminClient.mockReturnValue(supabase.client);
 
     const { processPendingSurveyResponseJobs } = await import(
@@ -388,24 +286,25 @@ describe("survey response processing", () => {
     const result = await processPendingSurveyResponseJobs(10);
 
     expect(result).toEqual({
-      processedCount: 0,
-      pendingJobs: 1,
-      selectedJobs: 0,
+      processedCount: 2,
+      pendingJobs: 0,
+      selectedJobs: 2,
     });
     expect(supabase.responseUpdates).toEqual([
       { pipeline_status: "enriching" },
-      { pipeline_status: "queued" },
+      { pipeline_status: "enriched" },
+      { pipeline_status: "mapping" },
+      { pipeline_status: "ready" },
     ]);
-    expect(supabase.processingJobUpdates).toEqual([
+    expect(supabase.upsertedEnrichments).toEqual([
       expect.objectContaining({
-        status: "running",
-        attempts: 1,
-      }),
-      expect.objectContaining({
-        status: "retry_scheduled",
-        last_error: "Open-Meteo unavailable",
+        quality_flag: "geocoding_technical_failure",
+        temp_outdoor_c: null,
+        humidity_pct: null,
       }),
     ]);
+    expect(fetchHistoricalWeatherWithOpenMeteo).not.toHaveBeenCalled();
+    expect(mapSurveyResponseToOutput).toHaveBeenCalledOnce();
   });
 
   it("processes enrichment and mapping jobs until the response is ready", async () => {
@@ -450,5 +349,84 @@ describe("survey response processing", () => {
     ]);
     expect(mapSurveyResponseToOutput).toHaveBeenCalledOnce();
     expect(upsertResponseMappingResult).toHaveBeenCalledOnce();
+  });
+
+  it("stores null climate and keeps the response ready when weather fails technically", async () => {
+    geocodePostalCodeWithOpenMeteo.mockResolvedValue({
+      latitude: 40.4,
+      longitude: -3.7,
+      name: "Madrid",
+      postcodes: ["28001"],
+    });
+    fetchHistoricalWeatherWithOpenMeteo.mockRejectedValue(new Error("Weather unavailable"));
+
+    const supabase = createHappyPathSupabaseMock({ weatherRequested: true });
+    createSupabaseAdminClient.mockReturnValue(supabase.client);
+
+    const { processPendingSurveyResponseJobs } = await import(
+      "@/features/surveys/response-processing"
+    );
+
+    const result = await processPendingSurveyResponseJobs(10);
+
+    expect(result).toEqual({
+      processedCount: 2,
+      pendingJobs: 0,
+      selectedJobs: 2,
+    });
+    expect(supabase.upsertedEnrichments).toEqual([
+      expect.objectContaining({
+        quality_flag: "weather_technical_failure",
+        temp_outdoor_c: null,
+        humidity_pct: null,
+      }),
+    ]);
+    expect(mapSurveyResponseToOutput).toHaveBeenCalledOnce();
+    expect(upsertResponseMappingResult).toHaveBeenCalledOnce();
+  });
+
+  it("stores coarse prefix context without geocoding or weather when prefix mode is enabled", async () => {
+    classifyPostalCodeInput.mockReturnValue({
+      normalizedPostalCode: "28",
+      inputStatus: "prefix",
+    });
+    deriveNormalizedSurveyLocation.mockReturnValue({
+      normalizedCountryCode: "ES",
+      locationAggCode: "ES:postal_area:28",
+      locationAggLabel: "28*",
+      locationGranularity: "postal_area",
+      centroidLat: null,
+      centroidLon: null,
+      normalizedLocationJson: {
+        provider: "fallback",
+        postalAreaMask: "28*",
+        postalInputStatus: "prefix",
+      },
+    });
+
+    const supabase = createHappyPathSupabaseMock({ postalCollectionMode: "prefix" });
+    createSupabaseAdminClient.mockReturnValue(supabase.client);
+
+    const { processPendingSurveyResponseJobs } = await import(
+      "@/features/surveys/response-processing"
+    );
+
+    const result = await processPendingSurveyResponseJobs(10);
+
+    expect(result).toEqual({
+      processedCount: 2,
+      pendingJobs: 0,
+      selectedJobs: 2,
+    });
+    expect(geocodePostalCodeWithOpenMeteo).not.toHaveBeenCalled();
+    expect(fetchHistoricalWeatherWithOpenMeteo).not.toHaveBeenCalled();
+    expect(supabase.upsertedEnrichments).toEqual([
+      expect.objectContaining({
+        quality_flag: "postal_prefix_location_only",
+        provider: "none",
+        temp_outdoor_c: null,
+        humidity_pct: null,
+      }),
+    ]);
   });
 });

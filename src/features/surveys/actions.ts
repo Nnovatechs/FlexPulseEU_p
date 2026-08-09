@@ -32,6 +32,7 @@ import {
 } from "./translation-validation";
 import {
   createSurveyDraft,
+  duplicateOwnedSurvey,
   getOwnedSurveyById,
   updateSurveyDraft,
   publishSurvey,
@@ -72,6 +73,37 @@ function clearReviewValidationResults(definition: SurveyDefinition): SurveyDefin
   delete next.survey_meta.multilingual_validation_result;
   delete next.survey_meta.expert_review_result;
   return next;
+}
+
+function haveSameStrings(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
+}
+
+function shouldPreserveSettingsSnapshots(input: {
+  existing: Awaited<ReturnType<typeof getOwnedSurveyById>>;
+  nextDefaultLanguage: string;
+  nextSupportedLanguages: string[];
+  nextSurveyDescription: string;
+}) {
+  const existingDescription =
+    input.existing.definition_json.translations[input.existing.default_language]
+      ?.survey_description ?? "";
+
+  const defaultLanguageChanged = input.existing.default_language !== input.nextDefaultLanguage;
+  const supportedLanguagesChanged = !haveSameStrings(
+    input.existing.supported_languages,
+    input.nextSupportedLanguages,
+  );
+  const descriptionChanged = existingDescription.trim() !== input.nextSurveyDescription.trim();
+
+  return {
+    preserveSnapshots:
+      !defaultLanguageChanged && !supportedLanguagesChanged && !descriptionChanged,
+  };
 }
 
 function assertCurrentContentValidation(survey: Awaited<ReturnType<typeof getOwnedSurveyById>>) {
@@ -280,8 +312,20 @@ export async function updateSurveySettingsAction(formData: FormData) {
     behaviouralConceptKeys.length > 0
       ? deriveSchemaTargetsFromBehaviouralConceptKeys(behaviouralConceptKeys)
       : [];
-  const collectLocation = formData.get("collectLocation") === "on";
-  const enrichWeatherContext = formData.get("enrichWeatherContext") === "on";
+  const surveyContextMode = String(formData.get("surveyContextMode") ?? "none").trim();
+  const responseContext = normalizeSurveyResponseContextConfig({
+    collect_country_code:
+      surveyContextMode === "country_only" ||
+      surveyContextMode === "postal_prefix" ||
+      surveyContextMode === "full_postal" ||
+      surveyContextMode === "weather_enriched",
+    collect_postal_code:
+      surveyContextMode === "postal_prefix" ||
+      surveyContextMode === "full_postal" ||
+      surveyContextMode === "weather_enriched",
+    enrich_weather_context: surveyContextMode === "weather_enriched",
+    postal_collection_mode: surveyContextMode === "postal_prefix" ? "prefix" : "full",
+  });
 
   if (!surveyId || !name || !defaultLanguage) {
     redirect(buildEditErrorRedirect(surveyId, "missing-fields"));
@@ -292,14 +336,16 @@ export async function updateSurveySettingsAction(formData: FormData) {
   const nextSupportedLanguages = Array.from(
     new Set([defaultLanguage, ...supportedLanguages]),
   );
-  const responseContext = normalizeSurveyResponseContextConfig({
-    collect_country_code: collectLocation,
-    collect_postal_code: collectLocation,
-    enrich_weather_context: enrichWeatherContext,
+  const settingsSnapshotPolicy = shouldPreserveSettingsSnapshots({
+    existing,
+    nextDefaultLanguage: defaultLanguage,
+    nextSupportedLanguages,
+    nextSurveyDescription: surveyDescription,
   });
 
-  // Always clear validation when settings or questions change
-  const nextDefinition = clearReviewValidationResults(existing.definition_json);
+  const nextDefinition = settingsSnapshotPolicy.preserveSnapshots
+    ? structuredClone(existing.definition_json)
+    : clearReviewValidationResults(existing.definition_json);
   nextDefinition.survey_meta.response_context = responseContext;
   nextDefinition.translations[defaultLanguage] ??= {
     survey_title: "",
@@ -487,13 +533,6 @@ export async function applyExpertReviewAction(
 
   const survey = await getOwnedSurveyById(surveyId);
   redirectIfSurveyNotEditable(surveyId, survey.status);
-
-  if (survey.definition_json.survey_meta.expert_review_result) {
-    throw new Error(
-      "Expert review has already been applied. Make a normal edit to clear it before applying a new one.",
-    );
-  }
-
   assertValidApplyExpertReviewInput(survey, input);
 
   const integrity = getSurveyIntegrityState({
@@ -502,13 +541,28 @@ export async function applyExpertReviewAction(
     supportedLanguages: survey.supported_languages,
   });
 
+  const hasExistingExpertReview =
+    survey.definition_json.survey_meta.expert_review_result != null;
+
   if (!integrity.automatic_content_passed) {
     throw new Error(
       "Survey must pass content validation before applying expert review.",
     );
   }
 
-  if (!integrity.automatic_content_current) {
+  if (hasExistingExpertReview) {
+    if (!integrity.expert_review_baseline_linked) {
+      throw new Error(
+        "Expert review baseline is no longer linked to the validated automatic baseline.",
+      );
+    }
+
+    if (!integrity.expert_review_final_current) {
+      throw new Error(
+        "Expert-reviewed content is outdated. Re-apply expert review or make a normal edit and validate again.",
+      );
+    }
+  } else if (!integrity.automatic_content_current) {
     throw new Error(
       "Content validation is outdated. Re-run validation before applying expert review.",
     );
@@ -521,15 +575,15 @@ export async function applyExpertReviewAction(
       );
     }
 
-    if (!integrity.automatic_multilingual_current) {
-      throw new Error(
-        "Multilingual validation is outdated. Re-run translation validation before applying expert review.",
-      );
-    }
-
     if (!integrity.automatic_multilingual_languages_complete) {
       throw new Error(
         "Multilingual validation is missing one or more supported languages.",
+      );
+    }
+
+    if (!hasExistingExpertReview && !integrity.automatic_multilingual_current) {
+      throw new Error(
+        "Multilingual validation is outdated. Re-run translation validation before applying expert review.",
       );
     }
   }
@@ -902,4 +956,22 @@ export async function archiveSurveyAction(formData: FormData): Promise<void> {
   revalidatePath(appRoutes.surveyDetail(surveyId));
 
   redirect(appRoutes.dashboard);
+}
+
+export async function duplicateSurveyAction(formData: FormData): Promise<void> {
+  const surveyId = String(formData.get("surveyId") ?? "").trim();
+
+  if (!surveyId) {
+    throw new Error("Missing survey ID.");
+  }
+
+  const duplicatedSurvey = await duplicateOwnedSurvey(surveyId);
+
+  revalidatePath(appRoutes.dashboard);
+  revalidatePath(appRoutes.surveys);
+  revalidatePath(appRoutes.surveyDetail(surveyId));
+  revalidatePath(appRoutes.surveyDetail(duplicatedSurvey.id));
+  revalidatePath(appRoutes.surveyEdit(duplicatedSurvey.id));
+
+  redirect(`${appRoutes.surveyEdit(duplicatedSurvey.id)}?duplicated=1`);
 }

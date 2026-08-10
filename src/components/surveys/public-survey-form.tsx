@@ -53,6 +53,32 @@ function getLangMeta(lang: string) {
   return LANGUAGE_META[lang] ?? { flag: "🌐", nativeName: lang };
 }
 
+const RESPONSE_GUIDANCE_NOTICE: Record<string, string> = {
+  English:
+    "There are no right or wrong answers. High and low responses are equally useful. Please answer according to your own household and current situation.",
+  Spanish:
+    "No hay respuestas correctas o incorrectas. Las respuestas altas y bajas son igual de utiles. Por favor, responda segun su propio hogar y su situacion actual.",
+  French:
+    "Il n'y a pas de bonnes ou de mauvaises reponses. Les reponses elevees comme faibles sont tout aussi utiles. Veuillez repondre en fonction de votre propre foyer et de votre situation actuelle.",
+};
+
+function getResponseGuidanceNotice(language: string) {
+  return RESPONSE_GUIDANCE_NOTICE[language] ?? RESPONSE_GUIDANCE_NOTICE.English;
+}
+
+const TRUST_AUTOMATION_NOTICE: Record<string, string> = {
+  English:
+    "In the next questions, an automated home energy control means a system that can automatically change when or how much electricity selected household devices use-for example, by changing appliance timing, electric vehicle charging, or heating and cooling-in response to a schedule, electricity price, or signal from an electricity provider or energy-flexibility service. If you do not currently use such a system, please answer based on the system described here.",
+  Spanish:
+    "En las siguientes preguntas, un control energetico domestico automatizado significa un sistema que puede cambiar automaticamente cuando o cuanta electricidad utilizan determinados dispositivos del hogar, por ejemplo cambiando el horario de los electrodomesticos, la carga del vehiculo electrico o la calefaccion y la refrigeracion, en respuesta a un horario, al precio de la electricidad o a una senal de un proveedor de electricidad o de un servicio de flexibilidad energetica. Si actualmente no utiliza un sistema de este tipo, responda basandose en el sistema descrito aqui.",
+  French:
+    "Dans les questions suivantes, un controle energetique domestique automatise designe un systeme qui peut modifier automatiquement le moment ou la quantite d'electricite utilisee par certains appareils du foyer, par exemple en modifiant le moment d'utilisation des appareils, la recharge du vehicule electrique, ou le chauffage et le refroidissement, en reponse a un horaire, au prix de l'electricite ou a un signal provenant d'un fournisseur d'electricite ou d'un service de flexibilite energetique. Si vous n'utilisez pas actuellement un tel systeme, veuillez repondre en vous basant sur le systeme decrit ici.",
+};
+
+function getTrustAutomationNotice(language: string) {
+  return TRUST_AUTOMATION_NOTICE[language] ?? TRUST_AUTOMATION_NOTICE.English;
+}
+
 function normalizePrefixInput(value: string) {
   return value.replace(/[\s-]+/g, "").toUpperCase();
 }
@@ -140,6 +166,7 @@ export type PublicSurveyFormProps = {
   allBundles: Record<string, SurveyLanguageTranslations>;
   allCopy: Record<string, PublicSurveyCopy>;
   responseContext: SurveyResponseContextConfig | undefined;
+  trustAutomationQuestionKeys: string[];
   turnstileSiteKey?: string;
   submitAction: (formData: FormData) => Promise<void>;
   externalRecruitment?: Extract<PublicExternalRecruitment, { kind: "prolific" }>;
@@ -203,6 +230,22 @@ function ProgressBar({ progress }: { progress: number }) {
   return (
     <div className="sf-progress-bar" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
       <div className="sf-progress-fill" style={{ width: `${progress}%` }} />
+    </div>
+  );
+}
+
+function ResponseGuidanceNotice({ language }: { language: string }) {
+  return (
+    <div className="sf-survey-note" role="note">
+      <p>{getResponseGuidanceNotice(language)}</p>
+    </div>
+  );
+}
+
+function TrustAutomationNotice({ language }: { language: string }) {
+  return (
+    <div className="sf-construct-note" role="note">
+      <p>{getTrustAutomationNotice(language)}</p>
     </div>
   );
 }
@@ -588,6 +631,7 @@ function ConsentScreen({
           {bundle?.survey_description && (
             <p className="sf-survey-desc">{bundle.survey_description}</p>
           )}
+          <ResponseGuidanceNotice language={language} />
         </header>
 
         <PublicSurveyVisibility language={language} />
@@ -663,6 +707,7 @@ export function PublicSurveyForm({
   allBundles,
   allCopy,
   responseContext,
+  trustAutomationQuestionKeys,
   turnstileSiteKey,
   submitAction,
   externalRecruitment,
@@ -692,6 +737,10 @@ export function PublicSurveyForm({
   const bundle = allBundles[language] ?? allBundles[defaultLanguage];
   const copy = allCopy[language] ?? allCopy[defaultLanguage];
   const visibleQuestions = getVisibleQuestions(questions, selectedValues);
+  const trustAutomationQuestionKeySet = new Set(trustAutomationQuestionKeys);
+  const firstVisibleTrustAutomationQuestionKey =
+    visibleQuestions.find((question) => trustAutomationQuestionKeySet.has(question.question_key))
+      ?.question_key ?? null;
   const blocks = computeBlocks(visibleQuestions, questions);
   const totalQ = visibleQuestions.length;
   const isLastBlock = currentBlock === blocks.length - 1;
@@ -936,6 +985,7 @@ export function PublicSurveyForm({
           {bundle?.survey_description && (
             <p className="sf-survey-desc">{bundle.survey_description}</p>
           )}
+          <ResponseGuidanceNotice language={language} />
         </header>
 
         {currentBlock === 0 ? <PublicSurveyVisibility language={language} /> : null}
@@ -982,19 +1032,25 @@ export function PublicSurveyForm({
                   question.type === "boolean";
 
                 return (
-                  <QuestionCard
-                    key={question.question_key}
-                    question={question}
-                    bundle={bundle}
-                    copy={copy}
-                    globalNumber={globalNum}
-                    totalQuestions={totalQ}
-                    selectedValue={value}
-                    onChange={(v) => handleAnswerChange(question.question_key, v, autoScroll)}
-                    cardRef={(el) => {
-                      questionRefs.current[question.question_key] = el;
-                    }}
-                  />
+                  <div key={question.question_key}>
+                    {question.question_key === firstVisibleTrustAutomationQuestionKey ? (
+                      <TrustAutomationNotice language={language} />
+                    ) : null}
+                    <QuestionCard
+                      question={question}
+                      bundle={bundle}
+                      copy={copy}
+                      globalNumber={globalNum}
+                      totalQuestions={totalQ}
+                      selectedValue={value}
+                      onChange={(v) =>
+                        handleAnswerChange(question.question_key, v, autoScroll)
+                      }
+                      cardRef={(el) => {
+                        questionRefs.current[question.question_key] = el;
+                      }}
+                    />
+                  </div>
                 );
               })}
             </div>

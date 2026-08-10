@@ -3635,6 +3635,36 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   line-height: 1.55;
 }
 
+.sf-survey-note {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: color-mix(in srgb, var(--surface-alt) 88%, white);
+}
+
+.sf-survey-note p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.sf-construct-note {
+  margin-bottom: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-alt) 92%, white);
+}
+
+.sf-construct-note p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 .sf-feedback-form {
   display: flex;
   flex-direction: column;

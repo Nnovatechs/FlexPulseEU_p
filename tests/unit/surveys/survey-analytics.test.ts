@@ -302,6 +302,78 @@ describe("survey analytics", () => {
     );
   });
 
+  it("discovers repaired thermal facet paths from the measurement plan", () => {
+    const survey = buildSurveyFixture();
+    survey.definition_json.survey_meta.measurement_plan_json?.concepts.push({
+      concept_key: "thermal_comfort_norms",
+      evidence_source: "survey_questions",
+      measurement_type: "multi_item_likert_mean",
+      output_type: "number",
+      aggregation_rule: "mean",
+      threshold_profile: "likert_1_5_low_mid_high_strict",
+      minimum_answer_count: 4,
+      question_keys: [
+        "Q_THERMAL_COMFORT_NORMS_01",
+        "Q_THERMAL_COMFORT_NORMS_02",
+        "Q_THERMAL_COMFORT_NORMS_03",
+        "Q_THERMAL_COMFORT_NORMS_04",
+      ],
+      required_question_keys: [
+        "Q_THERMAL_COMFORT_NORMS_01",
+        "Q_THERMAL_COMFORT_NORMS_02",
+        "Q_THERMAL_COMFORT_NORMS_03",
+        "Q_THERMAL_COMFORT_NORMS_04",
+      ],
+      question_intents: [
+        {
+          slot_key: "SLOT_THERMAL_01",
+          question_key: "Q_THERMAL_COMFORT_NORMS_01",
+          facet: "temperature_stability_requirement",
+          intent: "Measure stability requirements.",
+          polarity: "positive",
+        },
+        {
+          slot_key: "SLOT_THERMAL_02",
+          question_key: "Q_THERMAL_COMFORT_NORMS_02",
+          facet: "temporary_deviation_intolerance",
+          intent: "Measure normalized temporary-deviation intolerance.",
+          polarity: "negative",
+        },
+        {
+          slot_key: "SLOT_THERMAL_03",
+          question_key: "Q_THERMAL_COMFORT_NORMS_03",
+          facet: "recovery_expectation",
+          intent: "Measure recovery expectations.",
+          polarity: "positive",
+        },
+        {
+          slot_key: "SLOT_THERMAL_04",
+          question_key: "Q_THERMAL_COMFORT_NORMS_04",
+          facet: "comfort_variation_boundary",
+          intent: "Measure the comfort boundary.",
+          polarity: "positive",
+        },
+      ],
+    });
+
+    const schema = buildSurveyAnalyticsSchema({
+      survey,
+      readyResponseCount: 1,
+    });
+
+    const fieldKeys = new Set(schema.fields.map((field) => field.key));
+    expect(
+      fieldKeys.has(
+        "profile.thermal_comfort_norms.facets.temporary_deviation_intolerance.value",
+      ),
+    ).toBe(true);
+    expect(
+      fieldKeys.has(
+        "profile.thermal_comfort_norms.facets.temporary_deviation_tolerance.value",
+      ),
+    ).toBe(false);
+  });
+
   it("aggregates by segment and geo hierarchy with controlled metrics", () => {
     const survey = buildSurveyFixture();
     const schema = buildSurveyAnalyticsSchema({

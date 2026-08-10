@@ -48,6 +48,7 @@ import type {
   SurveyLanguageTranslations,
 } from "./generator-types";
 import { normalizeSurveyResponseContextConfig } from "./generator-types";
+import { prepareThermalComfortFacetRepair } from "./measurement-plan-repairs";
 import { withSurveyTimingOperation, timeSurveyStep } from "./local-timing";
 
 // ---------------------------------------------------------------------------
@@ -225,6 +226,45 @@ function buildMultilingualValidationResult(
         issue_count: issueCount,
       };
     }),
+  };
+}
+
+export async function repairDraftThermalComfortFacetSemantics(surveyId: string) {
+  if (!surveyId.trim()) {
+    throw new Error("Missing survey ID.");
+  }
+
+  const survey = await getOwnedSurveyById(surveyId.trim());
+
+  if (survey.status !== "draft") {
+    throw new Error("Thermal facet repair only supports draft surveys.");
+  }
+
+  const preparedRepair = prepareThermalComfortFacetRepair(survey);
+  if (!preparedRepair.changed) {
+    return {
+      survey,
+      changed: false,
+      previousMeasurementHash: preparedRepair.previousMeasurementHash,
+      nextMeasurementHash: preparedRepair.nextMeasurementHash,
+    };
+  }
+
+  const updatedSurvey = await updateSurveyDraft({
+    surveyId: survey.id,
+    definition_json: preparedRepair.nextDefinition,
+  });
+
+  revalidatePath(appRoutes.dashboard);
+  revalidatePath(appRoutes.surveys);
+  revalidatePath(appRoutes.surveyDetail(survey.id));
+  revalidatePath(appRoutes.surveyEdit(survey.id));
+
+  return {
+    survey: updatedSurvey,
+    changed: true,
+    previousMeasurementHash: preparedRepair.previousMeasurementHash,
+    nextMeasurementHash: preparedRepair.nextMeasurementHash,
   };
 }
 

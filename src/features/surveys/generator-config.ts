@@ -212,9 +212,9 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
             "Need to preserve the chosen indoor temperature while at home.",
         },
         {
-          key: "temporary_deviation_tolerance",
+          key: "temporary_deviation_intolerance",
           meaning:
-            "Tolerance for a defined moderate indoor-temperature deviation, such as 1°C for 1 hour. Agreement expressing tolerance must use negative polarity.",
+            "Lower tolerance for a defined moderate indoor-temperature deviation, such as 1°C for 1 hour, after normalizing negative-polarity agreement into the construct direction.",
         },
         {
           key: "recovery_expectation",

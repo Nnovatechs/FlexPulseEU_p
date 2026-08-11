@@ -3635,10 +3635,41 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   line-height: 1.55;
 }
 
+.sf-survey-note {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: color-mix(in srgb, var(--surface-alt) 88%, white);
+}
+
+.sf-survey-note p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.sf-construct-note {
+  margin-bottom: 0.9rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-alt) 92%, white);
+}
+
+.sf-construct-note p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 .sf-feedback-form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
 }
 
 .sf-feedback-note {
@@ -3658,6 +3689,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  min-width: 0;
 }
 
 .sf-feedback-rating {
@@ -3688,11 +3720,14 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   gap: 1rem;
   margin-top: 0.6rem;
   font-size: 0.82rem;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .sf-feedback-textarea {
   min-height: 8rem;
   resize: vertical;
+  max-width: 100%;
 }
 
 .sf-feedback-reference {
@@ -3717,6 +3752,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .sf-feedback-reference__item {
   color: var(--foreground);
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .sf-visibility {
@@ -3834,6 +3870,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   border: 1.5px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.625rem;
+  min-width: 0;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -4214,6 +4251,16 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
     background 0.12s ease;
 }
 
+.sf-btn__spinner,
+.sf-submit-overlay__spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: sf-spin 0.7s linear infinite;
+}
+
 .sf-btn:active {
   transform: scale(0.97);
 }
@@ -4241,6 +4288,41 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 
 .sf-btn--secondary:hover:not(:disabled) {
   background: color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.sf-submit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(246, 248, 252, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.sf-submit-overlay__panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow);
+  color: var(--foreground);
+}
+
+.sf-submit-overlay__panel p {
+  margin: 0;
+  font-weight: 600;
+}
+
+@keyframes sf-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Thank you ───────────────────────────────────────────── */
@@ -4452,6 +4534,8 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   }
 
   .sf-feedback-rating__labels {
+    align-items: flex-start;
+    flex-direction: column;
     gap: 0.5rem;
     font-size: 0.75rem;
   }

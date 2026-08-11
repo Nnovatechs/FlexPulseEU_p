@@ -568,6 +568,146 @@ describe("response mapper", () => {
     });
   });
 
+  it("keeps thermal values unchanged while exposing the repaired temporary deviation facet path", () => {
+    const survey = buildPublishedSurveyFixture();
+    survey.definition_json.questions.push(
+      {
+        question_key: "Q_THERMAL_01",
+        type: "rating_scale",
+        required: true,
+        order: 7,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_THERMAL_02",
+        type: "rating_scale",
+        required: true,
+        order: 8,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_THERMAL_03",
+        type: "rating_scale",
+        required: true,
+        order: 9,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+      {
+        question_key: "Q_THERMAL_04",
+        type: "rating_scale",
+        required: true,
+        order: 10,
+        scale: { min: 1, max: 5, step: 1, min_label: "Low", max_label: "High" },
+      },
+    );
+    survey.definition_json.survey_meta.measurement_plan_json?.concepts.push({
+      concept_key: "thermal_comfort_norms",
+      evidence_source: "survey_questions",
+      measurement_type: "multi_item_likert_mean",
+      output_type: "number",
+      aggregation_rule: "mean",
+      threshold_profile: "likert_1_5_low_mid_high_strict",
+      minimum_answer_count: 4,
+      question_keys: ["Q_THERMAL_01", "Q_THERMAL_02", "Q_THERMAL_03", "Q_THERMAL_04"],
+      required_question_keys: [
+        "Q_THERMAL_01",
+        "Q_THERMAL_02",
+        "Q_THERMAL_03",
+        "Q_THERMAL_04",
+      ],
+      question_intents: [
+        {
+          slot_key: "SLOT_THERMAL_01",
+          question_key: "Q_THERMAL_01",
+          facet: "temperature_stability_requirement",
+          intent: "Measure stability expectations.",
+          polarity: "positive",
+        },
+        {
+          slot_key: "SLOT_THERMAL_02",
+          question_key: "Q_THERMAL_02",
+          facet: "temporary_deviation_intolerance",
+          intent: "Measure normalized intolerance to a defined temporary deviation.",
+          polarity: "negative",
+        },
+        {
+          slot_key: "SLOT_THERMAL_03",
+          question_key: "Q_THERMAL_03",
+          facet: "recovery_expectation",
+          intent: "Measure recovery expectations.",
+          polarity: "positive",
+        },
+        {
+          slot_key: "SLOT_THERMAL_04",
+          question_key: "Q_THERMAL_04",
+          facet: "comfort_variation_boundary",
+          intent: "Measure the comfort boundary for defined variation.",
+          polarity: "positive",
+        },
+      ],
+    });
+    survey.mapping_contract_json.mappings.push(
+      {
+        question_key: "Q_THERMAL_01",
+        ontology_target: "flexpulse_behavioural_schema.thermal_comfort_norms",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_THERMAL_02",
+        ontology_target: "flexpulse_behavioural_schema.thermal_comfort_norms",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_THERMAL_03",
+        ontology_target: "flexpulse_behavioural_schema.thermal_comfort_norms",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+      {
+        question_key: "Q_THERMAL_04",
+        ontology_target: "flexpulse_behavioural_schema.thermal_comfort_norms",
+        expected_type: "number",
+        required_for_mapping: true,
+        transform_strategy: { kind: "numeric_range", min: 1, max: 5 },
+      },
+    );
+    survey.mapping_compiled_json = compileMappingContract(survey.mapping_contract_json);
+
+    const output = mapSurveyResponseToOutput({
+      survey,
+      answers: {
+        Q_THERMAL_01: 4,
+        Q_THERMAL_02: 5,
+        Q_THERMAL_03: 5,
+        Q_THERMAL_04: 1,
+      },
+      submittedLanguage: "English",
+      countryCodeRaw: "es",
+      mappingHashAtSubmission: "mapping_hash_v1",
+      measurementHashAtSubmission: "measurement_hash_v1",
+      enrichment: null,
+    });
+
+    expect(output.profile.thermal_comfort_norms).toMatchObject({
+      value: 2.75,
+      tag: "medium",
+      facets: {
+        temperature_stability_requirement: { value: 4 },
+        temporary_deviation_intolerance: { value: 1 },
+        recovery_expectation: { value: 5 },
+        comfort_variation_boundary: { value: 1 },
+      },
+    });
+    expect(output.profile.thermal_comfort_norms?.facets).not.toHaveProperty(
+      "temporary_deviation_tolerance",
+    );
+  });
+
   it("uses mean aggregation for planned concepts and derives the expected tag", () => {
     const output = mapSurveyResponseToOutput({
       survey: buildPublishedSurveyFixture(),

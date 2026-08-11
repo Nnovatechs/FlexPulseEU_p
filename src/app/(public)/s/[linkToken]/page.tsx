@@ -58,6 +58,12 @@ export default async function PublicSurveyLinkPage({
   const allCopy = Object.fromEntries(
     survey.supported_languages.map((lang) => [lang, getPublicSurveyCopy(lang)]),
   );
+  const trustAutomationQuestionKeys = survey.mapping_contract_json.mappings
+    .filter(
+      (mapping) =>
+        mapping.ontology_target === "flexpulse_behavioural_schema.trust_in_automation",
+    )
+    .map((mapping) => mapping.question_key);
 
   return (
     <main>
@@ -85,6 +91,7 @@ export default async function PublicSurveyLinkPage({
           allBundles={allBundles}
           allCopy={allCopy}
           responseContext={responseContext}
+          trustAutomationQuestionKeys={trustAutomationQuestionKeys}
           turnstileSiteKey={getTurnstileSiteKey()}
           submitAction={submitPublicSurveyResponseAction}
           externalRecruitment={

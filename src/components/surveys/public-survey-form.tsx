@@ -15,6 +15,11 @@ import {
   getPostalPrefixFieldSpec,
   getSupportedPostalPrefixCountryCodes,
 } from "@/features/surveys/postal-code";
+import {
+  getFirstVisibleTrustAutomationQuestionKey,
+  getResponseGuidanceNotice,
+  getTrustAutomationNotice,
+} from "@/components/surveys/public-survey-form-helpers";
 import { appRoutes } from "@/lib/config/routes";
 import { rethrowNextNavigationError } from "@/lib/navigation/errors";
 import {
@@ -140,6 +145,7 @@ export type PublicSurveyFormProps = {
   allBundles: Record<string, SurveyLanguageTranslations>;
   allCopy: Record<string, PublicSurveyCopy>;
   responseContext: SurveyResponseContextConfig | undefined;
+  trustAutomationQuestionKeys: string[];
   turnstileSiteKey?: string;
   submitAction: (formData: FormData) => Promise<void>;
   externalRecruitment?: Extract<PublicExternalRecruitment, { kind: "prolific" }>;
@@ -203,6 +209,22 @@ function ProgressBar({ progress }: { progress: number }) {
   return (
     <div className="sf-progress-bar" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
       <div className="sf-progress-fill" style={{ width: `${progress}%` }} />
+    </div>
+  );
+}
+
+function ResponseGuidanceNotice({ language }: { language: string }) {
+  return (
+    <div className="sf-survey-note" role="note">
+      <p>{getResponseGuidanceNotice(language)}</p>
+    </div>
+  );
+}
+
+function TrustAutomationNotice({ language }: { language: string }) {
+  return (
+    <div className="sf-construct-note" role="note">
+      <p>{getTrustAutomationNotice(language)}</p>
     </div>
   );
 }
@@ -588,6 +610,7 @@ function ConsentScreen({
           {bundle?.survey_description && (
             <p className="sf-survey-desc">{bundle.survey_description}</p>
           )}
+          <ResponseGuidanceNotice language={language} />
         </header>
 
         <PublicSurveyVisibility language={language} />
@@ -663,6 +686,7 @@ export function PublicSurveyForm({
   allBundles,
   allCopy,
   responseContext,
+  trustAutomationQuestionKeys,
   turnstileSiteKey,
   submitAction,
   externalRecruitment,
@@ -684,12 +708,18 @@ export function PublicSurveyForm({
   const [hasAcceptedLegal, setHasAcceptedLegal] = useState(false);
   const [blockError, setBlockError] = useState<string | null>(null);
   const [turnstileScriptReady, setTurnstileScriptReady] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const isBusy = isSubmitting || isPending;
 
   const hasTurnstileSiteKey = Boolean(turnstileSiteKey);
   const bundle = allBundles[language] ?? allBundles[defaultLanguage];
   const copy = allCopy[language] ?? allCopy[defaultLanguage];
   const visibleQuestions = getVisibleQuestions(questions, selectedValues);
+  const firstVisibleTrustAutomationQuestionKey = getFirstVisibleTrustAutomationQuestionKey(
+    visibleQuestions,
+    trustAutomationQuestionKeys,
+  );
   const blocks = computeBlocks(visibleQuestions, questions);
   const totalQ = visibleQuestions.length;
   const isLastBlock = currentBlock === blocks.length - 1;
@@ -816,6 +846,10 @@ export function PublicSurveyForm({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
+    if (isBusy) {
+      return;
+    }
+
     for (const block of blocks) {
       const error = validateBlock(block, selectedValues);
       if (error) {
@@ -852,6 +886,7 @@ export function PublicSurveyForm({
     }
 
     setBlockError(null);
+    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const visibleQuestionKeys = new Set(
       getVisibleQuestions(questions, selectedValues).map(
@@ -869,6 +904,7 @@ export function PublicSurveyForm({
         await submitAction(formData);
       } catch (error) {
         rethrowNextNavigationError(error);
+        setIsSubmitting(false);
         setBlockError(copy.submitError);
       }
     });
@@ -928,13 +964,14 @@ export function PublicSurveyForm({
           {bundle?.survey_description && (
             <p className="sf-survey-desc">{bundle.survey_description}</p>
           )}
+          <ResponseGuidanceNotice language={language} />
         </header>
 
         {currentBlock === 0 ? <PublicSurveyVisibility language={language} /> : null}
 
         <BlockDots count={blocks.length} current={currentBlock} />
 
-        <form ref={formRef} onSubmit={handleSubmit} noValidate>
+        <form ref={formRef} onSubmit={handleSubmit} noValidate aria-busy={isBusy}>
           {turnstileSiteKey ? (
             <Script
               src="https://challenges.cloudflare.com/turnstile/v0/api.js"
@@ -974,19 +1011,25 @@ export function PublicSurveyForm({
                   question.type === "boolean";
 
                 return (
-                  <QuestionCard
-                    key={question.question_key}
-                    question={question}
-                    bundle={bundle}
-                    copy={copy}
-                    globalNumber={globalNum}
-                    totalQuestions={totalQ}
-                    selectedValue={value}
-                    onChange={(v) => handleAnswerChange(question.question_key, v, autoScroll)}
-                    cardRef={(el) => {
-                      questionRefs.current[question.question_key] = el;
-                    }}
-                  />
+                  <div key={question.question_key}>
+                    {question.question_key === firstVisibleTrustAutomationQuestionKey ? (
+                      <TrustAutomationNotice language={language} />
+                    ) : null}
+                    <QuestionCard
+                      question={question}
+                      bundle={bundle}
+                      copy={copy}
+                      globalNumber={globalNum}
+                      totalQuestions={totalQ}
+                      selectedValue={value}
+                      onChange={(v) =>
+                        handleAnswerChange(question.question_key, v, autoScroll)
+                      }
+                      cardRef={(el) => {
+                        questionRefs.current[question.question_key] = el;
+                      }}
+                    />
+                  </div>
                 );
               })}
             </div>
@@ -1024,7 +1067,7 @@ export function PublicSurveyForm({
                   type="button"
                   className="sf-btn sf-btn--secondary"
                   onClick={handleBack}
-                  disabled={isPending}
+                  disabled={isBusy}
                 >
                   {copy.backLabel}
                 </button>
@@ -1034,7 +1077,7 @@ export function PublicSurveyForm({
                   type="button"
                   className="sf-btn sf-btn--primary"
                   onClick={handleNext}
-                  disabled={isPending}
+                  disabled={isBusy}
                 >
                   {copy.nextLabel}
                 </button>
@@ -1042,9 +1085,17 @@ export function PublicSurveyForm({
                 <button
                   type="submit"
                   className="sf-btn sf-btn--primary"
-                  disabled={isPending}
+                  disabled={isBusy}
+                  aria-busy={isBusy}
                 >
-                  {isPending ? "…" : copy.submitLabel}
+                  {isBusy ? (
+                    <>
+                      <span className="sf-btn__spinner" aria-hidden="true" />
+                      <span>{copy.submitLabel}...</span>
+                    </>
+                  ) : (
+                    copy.submitLabel
+                  )}
                 </button>
               )}
             </div>
@@ -1052,6 +1103,15 @@ export function PublicSurveyForm({
 
           {currentBlock > 0 ? <PublicSurveyVisibility compact /> : null}
         </form>
+
+        {isBusy ? (
+          <div className="sf-submit-overlay" role="status" aria-live="polite">
+            <div className="sf-submit-overlay__panel">
+              <span className="sf-submit-overlay__spinner" aria-hidden="true" />
+              <p>{copy.submitLabel}...</p>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

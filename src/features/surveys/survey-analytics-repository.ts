@@ -33,6 +33,11 @@ export type OwnedSurveyAnalyticsRuntime = {
   rows: SurveyAnalyticsRecord[];
   excludedUnmappedCount: number;
   readyPipelineCount: number;
+  collectedResponseCount: number;
+  collectedResponseWindow: {
+    firstRespondedAt: string | null;
+    lastRespondedAt: string | null;
+  };
 };
 
 function isNormalizedLocationLevel(value: unknown): value is NormalizedLocationLevel {
@@ -133,23 +138,66 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     | Awaited<ReturnType<typeof createSupabaseServerClient>>
     | ReturnType<typeof createSupabaseAdminClient>,
 ): Promise<OwnedSurveyAnalyticsRuntime> {
-  const { count: readyPipelineCount, error: countError } = await supabase
-    .from("survey_responses")
-    .select("id", { count: "exact", head: true })
-    .eq("survey_id", survey.id)
-    .eq("pipeline_status", "ready");
+  const [
+    { count: readyPipelineCount, error: readyCountError },
+    { count: collectedResponseCount, error: collectedCountError },
+    { data: firstCollectedRaw, error: firstCollectedError },
+    { data: lastCollectedRaw, error: lastCollectedError },
+  ] = await Promise.all([
+    supabase
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", survey.id)
+      .eq("pipeline_status", "ready"),
+    supabase
+      .from("survey_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("survey_id", survey.id),
+    supabase
+      .from("survey_responses")
+      .select("responded_at")
+      .eq("survey_id", survey.id)
+      .order("responded_at", { ascending: true })
+      .limit(1),
+    supabase
+      .from("survey_responses")
+      .select("responded_at")
+      .eq("survey_id", survey.id)
+      .order("responded_at", { ascending: false })
+      .limit(1),
+  ]);
 
-  if (countError) {
-    throw new Error(`Failed to count survey analytics responses: ${countError.message}`);
+  if (readyCountError) {
+    throw new Error(`Failed to count survey analytics responses: ${readyCountError.message}`);
+  }
+
+  if (collectedCountError) {
+    throw new Error(`Failed to count collected survey responses: ${collectedCountError.message}`);
+  }
+
+  if (firstCollectedError) {
+    throw new Error(`Failed to load first collected response timestamp: ${firstCollectedError.message}`);
+  }
+
+  if (lastCollectedError) {
+    throw new Error(`Failed to load last collected response timestamp: ${lastCollectedError.message}`);
   }
 
   const totalReadyCount = readyPipelineCount ?? 0;
+  const totalCollectedCount = collectedResponseCount ?? 0;
+  const collectedResponseWindow = {
+    firstRespondedAt: firstCollectedRaw?.[0]?.responded_at ?? null,
+    lastRespondedAt: lastCollectedRaw?.[0]?.responded_at ?? null,
+  };
+
   if (totalReadyCount === 0) {
     return {
       survey,
       rows: [],
       excludedUnmappedCount: 0,
       readyPipelineCount: 0,
+      collectedResponseCount: totalCollectedCount,
+      collectedResponseWindow,
     };
   }
 
@@ -171,6 +219,8 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
       rows: [],
       excludedUnmappedCount: 0,
       readyPipelineCount: totalReadyCount,
+      collectedResponseCount: totalCollectedCount,
+      collectedResponseWindow,
     };
   }
 
@@ -238,6 +288,8 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     rows,
     excludedUnmappedCount: responseRows.length - rows.length,
     readyPipelineCount: totalReadyCount,
+    collectedResponseCount: totalCollectedCount,
+    collectedResponseWindow,
   };
 }
 

@@ -14,6 +14,7 @@ import {
   runSurveyAnalyticsQuery,
   type SurveyAnalyticsQueryInput,
 } from "./survey-analytics";
+import { buildSurveyOverviewData } from "./analytics/overview-v2";
 import { loadOwnedSurveyAnalyticsRuntimeSnapshot } from "./survey-analytics-repository";
 import {
   getPublicSurveyLinkByToken,
@@ -387,6 +388,25 @@ export async function getSurveyAnalyticsPageData(surveyId: string) {
   return {
     schema: context.schema,
     runPreview: (query: SurveyAnalyticsQueryInput) => runSurveyAnalyticsFromContext(context, query),
+  };
+}
+
+export async function getSurveyAnalyticsOverviewData(surveyId: string) {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  const defaultTranslations =
+    context.survey.definition_json.translations[context.survey.default_language];
+  const surveyTitle = defaultTranslations?.survey_title?.trim() || context.survey.name;
+
+  return {
+    survey: context.survey,
+    surveyTitle,
+    overview: buildSurveyOverviewData({
+      survey: context.survey,
+      schema: context.schema,
+      rows: context.rows,
+      collectedResponseCount: context.collectedResponseCount,
+      collectedResponseWindow: context.collectedResponseWindow,
+    }),
   };
 }
 

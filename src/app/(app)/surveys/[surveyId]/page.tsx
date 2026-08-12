@@ -56,6 +56,9 @@ export default async function SurveyDetailPage({
             <Link href={appRoutes.surveyAnalytics(survey.id)} className="button button--ghost">
               Analytics
             </Link>
+            <Link href={appRoutes.surveyAnalyticsV2(survey.id)} className="button button--ghost">
+              Analytics 2
+            </Link>
             <SurveyDuplicateAction surveyId={survey.id} />
             {survey.status === "Draft" ? (
               <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">

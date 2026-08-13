@@ -5493,6 +5493,267 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   color: #778198;
 }
 
+.analytics-v2-workbench [hidden] {
+  display: none !important;
+}
+
+.analytics-v2-health-empty,
+.analytics-v2-health-shell,
+.analytics-v2-health-overlay {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.analytics-v2-health-empty,
+.analytics-v2-health-overlay {
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 6px;
+  background: var(--an-surface);
+}
+
+.analytics-v2-health-overlay {
+  min-height: calc(100vh - 18rem);
+  place-items: center;
+  text-align: center;
+  align-content: center;
+}
+
+.analytics-v2-health-overlay p {
+  margin: 0;
+  color: var(--an-text-strong);
+  font-size: 1rem;
+}
+
+.analytics-v2-health-overlay small {
+  max-width: 36rem;
+  color: var(--an-muted);
+}
+
+.analytics-v2-health-spinner {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  border: 2px solid var(--an-border-mid);
+  border-top-color: var(--an-text-strong);
+  animation: analytics-v2-health-spin 0.8s linear infinite;
+}
+
+@keyframes analytics-v2-health-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.analytics-v2-health-empty h2,
+.analytics-v2-health-toolbar {
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-health-generate {
+  justify-self: start;
+  border: 1px solid var(--an-border-mid);
+  background: var(--an-surface-alt);
+  color: var(--an-text-strong);
+  border-radius: 4px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.analytics-v2-health-error {
+  color: #f2495c;
+}
+
+.analytics-v2-health-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.analytics-v2-health-controls label,
+.analytics-v2-health-controls select,
+.analytics-v2-health-controls button {
+  font: inherit;
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-health-controls select,
+.analytics-v2-health-controls button {
+  background: var(--an-surface-alt);
+  border: 1px solid var(--an-border-mid);
+  border-radius: 4px;
+  padding: 0.4rem 0.65rem;
+}
+
+.analytics-v2-health-status--consistent {
+  color: #73bf69;
+}
+
+.analytics-v2-health-status--review_required {
+  color: #e0b400;
+}
+
+.analytics-v2-health-status--not_evaluable {
+  color: #f2495c;
+}
+
+.analytics-v2-health-table-wrap {
+  overflow-x: auto;
+}
+
+.analytics-v2-health-table,
+.analytics-v2-health-heatmap {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.analytics-v2-health-table th,
+.analytics-v2-health-heatmap th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  color: var(--an-muted);
+  font-weight: 600;
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--an-border-mid);
+  background: var(--an-surface);
+}
+
+.analytics-v2-health-table td,
+.analytics-v2-health-heatmap td {
+  padding: 0.65rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+  color: var(--an-text);
+}
+
+.analytics-v2-health-table td strong,
+.analytics-v2-health-link {
+  display: block;
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-health-table td span,
+.analytics-v2-health-table td small,
+.analytics-v2-health-table td button + small {
+  display: block;
+  color: var(--an-muted);
+  font-size: 0.74rem;
+}
+
+.analytics-v2-health-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.analytics-v2-health-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--an-border-mid);
+  font-size: 0.7rem;
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-health-chip--flag {
+  border-color: #e0b400;
+  color: #e0b400;
+}
+
+.analytics-v2-health-flags {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.analytics-v2-health-flag-copy {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--an-muted);
+  font-size: 0.7rem;
+}
+
+.analytics-v2-health-muted {
+  color: var(--an-muted);
+}
+
+.analytics-v2-health-likert {
+  display: flex;
+  height: 0.7rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--an-surface-alt);
+  min-width: 7rem;
+}
+
+.analytics-v2-health-likert__seg--1 { background: #5b6abf; }
+.analytics-v2-health-likert__seg--2 { background: #7a89d6; }
+.analytics-v2-health-likert__seg--3 { background: #b7c0cf; }
+.analytics-v2-health-likert__seg--4 { background: #d6a84b; }
+.analytics-v2-health-likert__seg--5 { background: #e0b400; }
+
+.analytics-v2-health-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0.8rem 0;
+}
+
+.analytics-v2-health-mini-grid article {
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--an-border-mid);
+  border-radius: 4px;
+  background: var(--an-surface-alt);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.analytics-v2-health-mini-grid span,
+.analytics-v2-health-detail p,
+.analytics-v2-health-htmt p,
+.analytics-v2-health-htmt li {
+  color: var(--an-muted);
+  font-size: 0.8rem;
+}
+
+.analytics-v2-health-detail {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.analytics-v2-health-heatmap td {
+  text-align: center;
+}
+
+.analytics-v2-health-heatmap small {
+  display: block;
+  color: var(--an-muted);
+}
+
+.analytics-v2-health-toolbar {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .analytics-v2-health-mini-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* ── KPI strip — single home for population stats ───────────── */
 
 .analytics-kpi-strip {

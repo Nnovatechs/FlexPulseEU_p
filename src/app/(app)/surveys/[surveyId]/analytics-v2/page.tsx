@@ -29,7 +29,11 @@ export default async function SurveyAnalyticsV2Page({ params }: SurveyAnalyticsV
         </header>
 
         <div className="analytics-sections-body analytics-sections-body--v2">
-          <AnalyticsV2Workbench surveyTitle={surveyTitle} overviewData={overview} />
+          <AnalyticsV2Workbench
+            surveyId={survey.id}
+            surveyTitle={surveyTitle}
+            overviewData={overview}
+          />
         </div>
       </div>
     </div>

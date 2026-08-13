@@ -15,6 +15,8 @@ import {
   type SurveyAnalyticsQueryInput,
 } from "./survey-analytics";
 import { buildSurveyOverviewData } from "./analytics/overview-v2";
+import { buildInstrumentHealthData } from "./analytics/instrument-health";
+import { loadOwnedInstrumentHealthSource } from "./instrument-health-repository";
 import { loadOwnedSurveyAnalyticsRuntimeSnapshot } from "./survey-analytics-repository";
 import {
   getPublicSurveyLinkByToken,
@@ -28,6 +30,7 @@ const loadCachedSurveyAnalyticsRuntime = unstable_cache(
   ["owned-survey-analytics-runtime"],
   { revalidate: 60 },
 );
+
 
 function formatQuestionType(value: string) {
   const labels: Record<string, string> = {
@@ -408,6 +411,12 @@ export async function getSurveyAnalyticsOverviewData(surveyId: string) {
       collectedResponseWindow: context.collectedResponseWindow,
     }),
   };
+}
+
+export async function generateSurveyInstrumentHealthData(surveyId: string) {
+  await requireCurrentSession();
+  const source = await loadOwnedInstrumentHealthSource(surveyId);
+  return buildInstrumentHealthData(source);
 }
 
 async function loadSurveyAnalyticsContext(surveyId: string) {

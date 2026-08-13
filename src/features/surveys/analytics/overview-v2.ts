@@ -17,11 +17,12 @@ export const OVERVIEW_COUNTRY_INSIGHT_MIN_N = 20;
 const OPPORTUNITY_DOMINANCE_MIN_GAP = 0.1;
 const CONSTRUCT_CONTRAST_MIN_GAP = 0.1;
 const COUNTRY_MEDIAN_DIFF_MIN = 0.4;
-const PLOT_BIN_SIZE = 0.25;
+const PLOT_COORDINATE_DECIMALS = 2;
 
 type ConstructSummary = {
   conceptKey: string;
   label: string;
+  description: string | null;
   applicableN: number;
   median: number;
   q1: number;
@@ -264,10 +265,12 @@ function buildConstructSummary(
     .slice()
     .sort((left, right) => left - right);
   const bandCounts = groupCounts(entries.map((entry) => entry.band));
+  const semantics = getOverviewConstructSemantics(field.concept_key);
 
   return {
     conceptKey: field.concept_key,
     label: field.label,
+    description: semantics.description ?? null,
     applicableN: values.length,
     median: computeLinearQuantile(values, 0.5) ?? 0,
     q1: computeLinearQuantile(values, 0.25) ?? 0,
@@ -297,9 +300,8 @@ function getQuadrantKey(willingness: number, capability: number): OpportunityQua
   return "lower_immediate_fit";
 }
 
-function binScore(value: number) {
-  const rounded = Math.round(value / PLOT_BIN_SIZE) * PLOT_BIN_SIZE;
-  return Math.max(1, Math.min(5, Number(rounded.toFixed(2))));
+function normalizePlotCoordinate(value: number) {
+  return Math.max(1, Math.min(5, Number(value.toFixed(PLOT_COORDINATE_DECIMALS))));
 }
 
 function buildDfcOptionDefinitions(schema: SurveyAnalyticsSchema): DfcOptionDefinition[] {
@@ -373,8 +375,8 @@ function buildOpportunityView(option: DfcOptionDefinition, rows: SurveyAnalytics
   const quadrantCounts = new Map<OpportunityQuadrantKey, number>();
 
   for (const row of applicableRows) {
-    const x = binScore(row.capability);
-    const y = binScore(row.willingness);
+    const x = normalizePlotCoordinate(row.capability);
+    const y = normalizePlotCoordinate(row.willingness);
     const cellKey = `${x}|${y}`;
     const existingCell = cellCounts.get(cellKey);
 

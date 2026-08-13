@@ -292,6 +292,38 @@ describe("buildSurveyOverviewData", () => {
     expect(counts.lower_immediate_fit).toBe(OVERVIEW_PRIVACY_MIN_N);
   });
 
+  it("keeps near-exact opportunity coordinates instead of coarse quarter-bin rounding", () => {
+    const rows = Array.from({ length: OVERVIEW_PRIVACY_MIN_N }, (_, index) =>
+      buildRow({
+        id: `exact-${index}`,
+        country: "IE",
+        willingness: 3.87,
+        willingnessTag: "medium",
+        dfc: 4.13,
+        dfcTag: "high",
+      }),
+    );
+
+    const overview = buildSurveyOverviewData({
+      survey: buildSurvey(),
+      schema: buildSchema(baseFields),
+      rows,
+      collectedResponseCount: rows.length,
+      collectedResponseWindow: {
+        firstRespondedAt: "2026-08-10T10:00:00.000Z",
+        lastRespondedAt: "2026-08-10T11:00:00.000Z",
+      },
+    });
+
+    expect(overview.opportunity.viewsByDfcKey.overall.distributionCells).toEqual([
+      expect.objectContaining({
+        x: 4.13,
+        y: 3.87,
+        count: OVERVIEW_PRIVACY_MIN_N,
+      }),
+    ]);
+  });
+
   it("applies construct-specific semantics for thermal norms", () => {
     const rows = Array.from({ length: OVERVIEW_PRIVACY_MIN_N }, (_, index) =>
       buildRow({

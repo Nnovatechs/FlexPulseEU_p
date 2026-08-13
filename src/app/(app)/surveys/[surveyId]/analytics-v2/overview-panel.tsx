@@ -69,6 +69,7 @@ function BubblePlot({
           {view.missingWillingnessN > 0 ? (
             <span>{`Missing willingness n=${formatCount(view.missingWillingnessN)}`}</span>
           ) : null}
+          <span>Point size increases only when exact overlaps repeat.</span>
         </div>
       </div>
 
@@ -107,7 +108,7 @@ function BubblePlot({
           ))}
 
           {view.distributionCells.map((cell) => {
-            const radius = 8 + (cell.count / maxCount) * 18;
+            const radius = 3.4 + ((cell.count - 1) / Math.max(maxCount - 1, 1)) * 3.8;
             return (
               <circle
                 key={`${cell.x}-${cell.y}`}
@@ -133,6 +134,8 @@ function BubblePlot({
   );
 }
 
+const COUNTRY_COLOURS = ["#5b9cf6", "#3ab590", "#3ecf7c", "#f5a623", "#e85252"];
+
 function CountryPulsePlot({
   construct,
   countries,
@@ -140,7 +143,27 @@ function CountryPulsePlot({
   construct: NonNullable<SurveyOverviewData["countryPulse"]>["constructs"][number];
   countries: NonNullable<SurveyOverviewData["countryPulse"]>["countries"];
 }) {
+  const visibleCountries = countries
+    .map((country, index) => ({
+      country,
+      metric: construct.countries.find((entry) => entry.code === country.code)?.metric ?? null,
+      colour: COUNTRY_COLOURS[index % COUNTRY_COLOURS.length],
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is {
+        country: (typeof countries)[number];
+        metric: NonNullable<(typeof construct.countries)[number]["metric"]>;
+        colour: string;
+      } => entry.metric != null,
+    );
+
   const scale = (value: number) => 26 + ((value - 1) / 4) * 354;
+  const laneGap = 18;
+  const topLaneY = 18;
+  const overallY = topLaneY;
+  const plotHeight = 44 + visibleCountries.length * laneGap;
 
   return (
     <div className="analytics-v2-country-row">
@@ -149,44 +172,97 @@ function CountryPulsePlot({
         <span>{`Median ${formatScore(construct.overall.median)} · IQR ${formatScore(construct.overall.q1)}-${formatScore(construct.overall.q3)} · n=${construct.overall.applicableN}`}</span>
       </div>
 
-      <svg viewBox="0 0 410 54" className="analytics-v2-country-row__plot" role="img">
-        <line x1="26" x2="380" y1="28" y2="28" className="analytics-v2-country-row__axis" />
+      <svg viewBox={`0 0 410 ${plotHeight}`} className="analytics-v2-country-row__plot" role="img">
         {[1, 2, 3, 4, 5].map((tick) => (
           <g key={tick}>
-            <line x1={scale(tick)} x2={scale(tick)} y1="21" y2="35" className="analytics-v2-country-row__tick" />
-            <text x={scale(tick)} y="49" textAnchor="middle">
+            <line
+              x1={scale(tick)}
+              x2={scale(tick)}
+              y1={overallY - 8}
+              y2={plotHeight - 20}
+              className="analytics-v2-country-row__tick"
+            />
+            <text x={scale(tick)} y={plotHeight - 6} textAnchor="middle">
               {tick}
             </text>
           </g>
         ))}
 
-        <circle cx={scale(construct.overall.median)} cy="28" r="6" className="analytics-v2-country-row__dot analytics-v2-country-row__dot--overall">
+        <line
+          x1="26"
+          x2="380"
+          y1={overallY}
+          y2={overallY}
+          className="analytics-v2-country-row__axis"
+        />
+        <line
+          x1={scale(construct.overall.q1)}
+          x2={scale(construct.overall.q3)}
+          y1={overallY}
+          y2={overallY}
+          className="analytics-v2-country-row__range analytics-v2-country-row__range--overall"
+        />
+        <circle
+          cx={scale(construct.overall.median)}
+          cy={overallY}
+          r="5.8"
+          className="analytics-v2-country-row__dot analytics-v2-country-row__dot--overall"
+        >
           <title>{`Overall sample · median ${formatScore(construct.overall.median)} · IQR ${formatScore(construct.overall.q1)}-${formatScore(construct.overall.q3)} · n=${construct.overall.applicableN}`}</title>
         </circle>
 
-        {construct.countries.map((country, index) => {
-          if (!country.metric) {
-            return null;
-          }
-
+        {visibleCountries.map((country, index) => {
+          const y = overallY + laneGap * (index + 1);
           return (
-            <circle
-              key={country.code}
-              cx={scale(country.metric.median)}
-              cy={16 + (index % 2) * 14}
-              r="5"
-              className="analytics-v2-country-row__dot"
-            >
-              <title>{`${country.code} · median ${formatScore(country.metric.median)} · IQR ${formatScore(country.metric.q1)}-${formatScore(country.metric.q3)} · n=${country.metric.applicableN}`}</title>
-            </circle>
+            <g key={country.country.code}>
+              <line
+                x1="26"
+                x2="380"
+                y1={y}
+                y2={y}
+                className="analytics-v2-country-row__axis analytics-v2-country-row__axis--subtle"
+              />
+              <line
+                x1={scale(country.metric.q1)}
+                x2={scale(country.metric.q3)}
+                y1={y}
+                y2={y}
+                className="analytics-v2-country-row__range"
+                stroke={country.colour}
+              />
+              <circle
+                cx={scale(country.metric.median)}
+                cy={y}
+                r="4.9"
+                className="analytics-v2-country-row__dot"
+                fill={country.colour}
+                stroke={country.colour}
+              >
+                <title>{`${country.country.code} · median ${formatScore(country.metric.median)} · IQR ${formatScore(country.metric.q1)}-${formatScore(country.metric.q3)} · n=${country.metric.applicableN}`}</title>
+              </circle>
+            </g>
           );
         })}
       </svg>
 
       <div className="analytics-v2-country-row__legend">
-        <span className="is-overall">Overall</span>
-        {countries.map((country) => (
-          <span key={country.code} className={!country.detailAvailable ? "is-muted" : undefined}>
+        <span className="analytics-v2-country-row__legend-item is-overall">
+          <i className="analytics-v2-country-row__legend-swatch analytics-v2-country-row__legend-swatch--overall" />
+          Baseline
+        </span>
+        {countries.map((country, index) => (
+          <span
+            key={country.code}
+            className={`analytics-v2-country-row__legend-item${!country.detailAvailable ? " is-muted" : ""}`}
+          >
+            <i
+              className="analytics-v2-country-row__legend-swatch"
+              style={{
+                background: country.detailAvailable
+                  ? COUNTRY_COLOURS[index % COUNTRY_COLOURS.length]
+                  : "#5f687b",
+              }}
+            />
             {country.detailAvailable ? `${country.code} · n=${country.count}` : `${country.code} · n=${country.count} hidden`}
           </span>
         ))}
@@ -304,14 +380,49 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
 
                 <article className="analytics-v2-card">
                   <h4>Operational groups</h4>
-                  <ul className="analytics-v2-quadrant-list">
-                    {selectedView.quadrants.map((quadrant) => (
-                      <li key={quadrant.key}>
-                        <strong>{quadrant.label}</strong>
-                        <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="analytics-v2-matrix">
+                    <div className="analytics-v2-matrix__corner" />
+                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--column">
+                      {"Capability >= 4"}
+                    </div>
+                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--column">
+                      Capability &lt; 4
+                    </div>
+
+                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
+                      Willingness &gt;= 4
+                    </div>
+                    {selectedView.quadrants
+                      .filter((quadrant) =>
+                        [
+                          "high_willingness_high_capability",
+                          "high_willingness_limited_capability",
+                        ].includes(quadrant.key),
+                      )
+                      .map((quadrant) => (
+                        <div key={quadrant.key} className="analytics-v2-matrix__cell">
+                          <strong>{quadrant.label}</strong>
+                          <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
+                        </div>
+                      ))}
+
+                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
+                      Willingness &lt; 4
+                    </div>
+                    {selectedView.quadrants
+                      .filter((quadrant) =>
+                        [
+                          "lower_willingness_high_capability",
+                          "lower_immediate_fit",
+                        ].includes(quadrant.key),
+                      )
+                      .map((quadrant) => (
+                        <div key={quadrant.key} className="analytics-v2-matrix__cell">
+                          <strong>{quadrant.label}</strong>
+                          <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
+                        </div>
+                      ))}
+                  </div>
                 </article>
               </div>
             )}
@@ -350,8 +461,13 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
               {data.constructs.map((construct) => (
                 <article key={construct.conceptKey} className="analytics-v2-card">
                   <div className="analytics-v2-construct-row">
-                    <div>
+                    <div className="analytics-v2-construct-row__summary">
                       <h4>{construct.label}</h4>
+                      {construct.description ? (
+                        <p className="analytics-v2-construct-row__description">
+                          {construct.description}
+                        </p>
+                      ) : null}
                       <p>{`Median ${formatScore(construct.median)} · IQR ${formatScore(construct.q1)}-${formatScore(construct.q3)}`}</p>
                     </div>
                     <span className="analytics-v2-n-badge">{`n=${formatCount(construct.applicableN)}`}</span>

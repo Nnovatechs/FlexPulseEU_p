@@ -29,6 +29,7 @@
     "eval:dfc": "vitest run tests/evals/surveys/dfc",
     "eval:dfc:ci": "vitest run tests/evals/surveys/dfc",
     "repair:thermal-facet": "tsx scripts/repair-thermal-facet.ts",
+    "repair:flexibility-thermal-intent": "tsx scripts/repair-flexibility-thermal-intent.ts",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run eval:mapper-profiling:ci && npm run eval:dfc:ci && npm run build"
   },
   "keywords": [],

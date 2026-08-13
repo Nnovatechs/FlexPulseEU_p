@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { MeasurementPlan } from "@/features/surveys/generator-types";
 import {
+  FLEXIBILITY_THERMAL_INTENT_LEGACY_TEXT,
+  FLEXIBILITY_THERMAL_INTENT_REPAIRED_TEXT,
   THERMAL_COMFORT_LEGACY_FACET_KEY,
   THERMAL_COMFORT_REPAIRED_FACET_KEY,
+  repairFlexibilityThermalIntentMeasurementPlan,
   repairThermalComfortMeasurementPlan,
 } from "@/features/surveys/measurement-plan-repairs";
 
@@ -68,6 +71,68 @@ function buildMeasurementPlan(
   };
 }
 
+function buildFlexibilityMeasurementPlan(
+  thermalIntent: string = FLEXIBILITY_THERMAL_INTENT_LEGACY_TEXT,
+): MeasurementPlan {
+  return {
+    schema_version: 1,
+    schema_namespace: "flexpulse_behavioural_schema",
+    concepts: [
+      {
+        concept_key: "flexibility_willingness",
+        evidence_source: "survey_questions",
+        measurement_type: "multi_item_likert_mean",
+        output_type: "number",
+        aggregation_rule: "mean",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 4,
+        question_keys: [
+          "Q_FLEXIBILITY_WILLINGNESS_01",
+          "Q_FLEXIBILITY_WILLINGNESS_02",
+          "Q_FLEXIBILITY_WILLINGNESS_03",
+          "Q_FLEXIBILITY_WILLINGNESS_04",
+        ],
+        required_question_keys: [
+          "Q_FLEXIBILITY_WILLINGNESS_01",
+          "Q_FLEXIBILITY_WILLINGNESS_02",
+          "Q_FLEXIBILITY_WILLINGNESS_03",
+          "Q_FLEXIBILITY_WILLINGNESS_04",
+        ],
+        question_intents: [
+          {
+            slot_key: "SLOT_FLEX_01",
+            question_key: "Q_FLEXIBILITY_WILLINGNESS_01",
+            facet: "participation_intention",
+            intent: "Measure bounded programme participation willingness.",
+            polarity: "positive",
+          },
+          {
+            slot_key: "SLOT_FLEX_02",
+            question_key: "Q_FLEXIBILITY_WILLINGNESS_02",
+            facet: "appliance_shift_acceptance",
+            intent: "Measure bounded appliance-shift willingness.",
+            polarity: "positive",
+          },
+          {
+            slot_key: "SLOT_FLEX_03",
+            question_key: "Q_FLEXIBILITY_WILLINGNESS_03",
+            facet: "temporary_thermal_adjustment_acceptance",
+            intent: thermalIntent,
+            polarity: "positive",
+          },
+          {
+            slot_key: "SLOT_FLEX_04",
+            question_key: "Q_FLEXIBILITY_WILLINGNESS_04",
+            facet: "routine_disruption_boundary",
+            intent: "Measure bounded routine-rescheduling willingness.",
+            polarity: "positive",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("measurement plan repairs", () => {
   it("renames only the legacy thermal temporary-deviation facet", () => {
     const original = buildMeasurementPlan();
@@ -110,6 +175,49 @@ describe("measurement plan repairs", () => {
 
     expect(() => repairThermalComfortMeasurementPlan(mixedPlan)).toThrow(
       "Thermal comfort repair found mixed legacy and repaired temporary-deviation facets.",
+    );
+  });
+
+  it("repairs only the legacy flexibility thermal intent text", () => {
+    const original = buildFlexibilityMeasurementPlan();
+
+    const repaired = repairFlexibilityThermalIntentMeasurementPlan(original);
+
+    expect(repaired.changed).toBe(true);
+    expect(
+      repaired.measurementPlan.concepts[0].question_intents?.find(
+        (intent) => intent.question_key === "Q_FLEXIBILITY_WILLINGNESS_03",
+      )?.intent,
+    ).toBe(FLEXIBILITY_THERMAL_INTENT_REPAIRED_TEXT);
+  });
+
+  it("is idempotent once the flexibility thermal intent has already been repaired", () => {
+    const repairedPlan = buildFlexibilityMeasurementPlan(
+      FLEXIBILITY_THERMAL_INTENT_REPAIRED_TEXT,
+    );
+
+    const repaired = repairFlexibilityThermalIntentMeasurementPlan(repairedPlan);
+
+    expect(repaired.changed).toBe(false);
+    expect(repaired.measurementPlan).toEqual(repairedPlan);
+  });
+
+  it("rejects multiple flexibility thermal intent candidates", () => {
+    const mixedPlan = buildFlexibilityMeasurementPlan();
+    const intents = mixedPlan.concepts[0].question_intents;
+    if (!intents) {
+      throw new Error("Missing question intents.");
+    }
+    intents.push({
+      slot_key: "SLOT_FLEX_05",
+      question_key: "Q_FLEXIBILITY_WILLINGNESS_05",
+      facet: "temporary_thermal_adjustment_acceptance",
+      intent: FLEXIBILITY_THERMAL_INTENT_LEGACY_TEXT,
+      polarity: "positive",
+    });
+
+    expect(() => repairFlexibilityThermalIntentMeasurementPlan(mixedPlan)).toThrow(
+      "Flexibility thermal intent repair requires exactly one positive temporary_thermal_adjustment_acceptance intent.",
     );
   });
 });

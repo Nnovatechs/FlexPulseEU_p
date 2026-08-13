@@ -227,7 +227,7 @@ describe("measurement planner prompt", () => {
       "Use a single-event condition such as 'by 2 hours', not an 'up to' range, unless the intent explicitly measures a maximum or threshold",
     );
     expect(prompt.user).toContain(
-      "Use a single-event condition such as '1\u00b0C for 1 hour', not an 'up to' range, unless the intent explicitly measures a maximum or threshold",
+      "Use this specific single-event condition, not an 'up to' range, unless the intent explicitly measures a maximum or threshold",
     );
     expect(prompt.user).toContain(
       "Keep programme participation distinct from acceptance of a single action",

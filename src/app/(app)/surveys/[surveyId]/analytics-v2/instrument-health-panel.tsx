@@ -305,7 +305,6 @@ function GeneratedView({ data }: { data: InstrumentHealthData }) {
       <section className="analytics-v2-section analytics-v2-section--context">
         <div className="analytics-v2-section__heading">
           <div>
-            <p className="analytics-v2-section__eyebrow">Instrument Health</p>
             <h3>Analysis scope</h3>
             <p>
               Current instrument version · measurement hash {formatHash(data.context.currentMeasurementHash)}
@@ -664,7 +663,6 @@ export function InstrumentHealthPanel({ surveyId }: InstrumentHealthPanelProps) 
     return (
       <section className="analytics-v2-health-empty">
         <div>
-          <p className="analytics-v2-section__eyebrow">Instrument Health</p>
           <h2>Generate instrument health</h2>
           <p>
             This analysis is not loaded with Analytics 2. It uses the full eligible sample for the current

@@ -315,10 +315,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
     <div className="analytics-v2-overview">
       <section className="analytics-v2-section analytics-v2-section--context">
         <div className="analytics-v2-section__heading">
-          <div>
-            <p className="analytics-v2-section__eyebrow">Survey Overview</p>
-            <h3>Survey context</h3>
-          </div>
+          <h3>Survey context</h3>
           <span className="analytics-v2-section__badge">{data.context.sampleLabel}</span>
         </div>
 
@@ -371,10 +368,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
         <>
           <section className="analytics-v2-section">
             <div className="analytics-v2-section__heading">
-              <div>
-                <p className="analytics-v2-section__eyebrow">Visual snapshot</p>
-                <h3>Flexibility opportunity snapshot</h3>
-              </div>
+              <h3>Flexibility opportunity snapshot</h3>
             </div>
 
             <div className="analytics-v2-dfc-selector">
@@ -473,10 +467,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
           {data.insights.length > 0 ? (
             <section className="analytics-v2-section">
               <div className="analytics-v2-section__heading">
-                <div>
-                  <p className="analytics-v2-section__eyebrow">Transparent observations</p>
-                  <h3>What stands out</h3>
-                </div>
+                <h3>What stands out</h3>
               </div>
 
               <div className="analytics-v2-insights-grid">
@@ -493,10 +484,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
 
           <section className="analytics-v2-section">
             <div className="analytics-v2-section__heading">
-              <div>
-                <p className="analytics-v2-section__eyebrow">Constructs measured</p>
-                <h3>Construct profile</h3>
-              </div>
+              <h3>Construct profile</h3>
             </div>
 
             <div className="analytics-v2-construct-list">
@@ -531,10 +519,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
           {data.countryPulse ? (
             <section className="analytics-v2-section">
               <div className="analytics-v2-section__heading">
-                <div>
-                  <p className="analytics-v2-section__eyebrow">Cross-country read</p>
-                  <h3>Country pulse</h3>
-                </div>
+                <h3>Country pulse</h3>
               </div>
 
               <div className="analytics-v2-country-list">

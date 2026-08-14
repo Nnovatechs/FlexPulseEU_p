@@ -65,7 +65,6 @@ export function AnalyticsV2Workbench({
         <section className="analytics-v2-panel-grid">
           <article className="analytics-v2-hero-card">
             <div>
-              <p className="analytics-v2-hero-card__eyebrow">{activeDefinition.eyebrow}</p>
               <h2>{activeDefinition.title}</h2>
               <p>{activeDefinition.description}</p>
             </div>

@@ -21,7 +21,7 @@ function formatScore(value: number) {
 
 function formatDateRange(data: SurveyOverviewData["context"]["dateRange"]) {
   if (!data?.startAt || !data.endAt) {
-    return "No response dates yet";
+    return { value: "No dates yet", caption: "No response dates yet" };
   }
 
   const formatter = new Intl.DateTimeFormat("en-GB", {
@@ -32,10 +32,10 @@ function formatDateRange(data: SurveyOverviewData["context"]["dateRange"]) {
 
   const start = formatter.format(new Date(data.startAt));
   const end = formatter.format(new Date(data.endAt));
-  const scopeLabel =
-    data.scope === "collected" ? "all collected responses" : "analysed responses only";
+  const caption =
+    data.scope === "collected" ? "All collected responses" : "Analysed responses only";
 
-  return `${start} -> ${end} (${scopeLabel})`;
+  return { value: `${start} – ${end}`, caption };
 }
 
 function countrySummary(countries: SurveyOverviewData["context"]["countries"]) {
@@ -285,44 +285,39 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
     [data.opportunity.defaultDfcKey, data.opportunity.viewsByDfcKey, selectedDfcKey],
   );
 
+  const dateRange = formatDateRange(data.context.dateRange);
+
   return (
     <div className="analytics-v2-overview">
-      <section className="analytics-v2-section analytics-v2-section--context">
-        <div className="analytics-v2-section__heading">
-          <h3>Survey context</h3>
-          <span className="analytics-v2-section__badge">{data.context.sampleLabel}</span>
-        </div>
-
-        <div className="analytics-v2-context-grid">
-          <article className="analytics-v2-stat-card">
-            <span>Responses analysed</span>
-            <strong>{formatCount(data.context.analysedResponseCount)}</strong>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Countries analysed</span>
-            <strong>{countrySummary(data.context.countries)}</strong>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Collection period</span>
-            <strong>{formatDateRange(data.context.dateRange)}</strong>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Mapping coverage</span>
-            <strong>
-              {data.context.mappingCoverage
-                ? `${formatCount(data.context.mappingCoverage.analysed)} of ${formatCount(data.context.mappingCoverage.collected)} collected responses available for analysis`
-                : "No collected responses yet"}
-            </strong>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Survey status</span>
-            <strong>{data.context.surveyStatus}</strong>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Sample framing</span>
-            <strong>{data.context.sampleLabel}</strong>
-          </article>
-        </div>
+      <section className="analytics-v2-kpi-strip" aria-label="Survey context">
+        <article className="analytics-v2-kpi">
+          <span>Responses</span>
+          <strong>{formatCount(data.context.analysedResponseCount)}</strong>
+          <small>{data.context.sampleLabel}</small>
+        </article>
+        <article className="analytics-v2-kpi">
+          <span>Countries</span>
+          <strong>{formatCount(data.context.countries.length)}</strong>
+          <small>{countrySummary(data.context.countries)}</small>
+        </article>
+        <article className="analytics-v2-kpi">
+          <span>Collection</span>
+          <strong>{dateRange.value}</strong>
+          <small>{dateRange.caption}</small>
+        </article>
+        <article className="analytics-v2-kpi">
+          <span>Coverage</span>
+          <strong>
+            {data.context.mappingCoverage
+              ? `${formatCount(data.context.mappingCoverage.analysed)} / ${formatCount(data.context.mappingCoverage.collected)}`
+              : "—"}
+          </strong>
+          <small>
+            {data.context.mappingCoverage
+              ? `${data.context.surveyStatus} · analysed of collected`
+              : data.context.surveyStatus}
+          </small>
+        </article>
       </section>
 
       {!data.state.hasCollectedResponses ? (
@@ -340,25 +335,24 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
         </section>
       ) : (
         <>
-          <section className="analytics-v2-section">
-            <div className="analytics-v2-section__heading">
-              <h3>Flexibility opportunity snapshot</h3>
-            </div>
-
-            <div className="analytics-v2-dfc-selector">
-              {data.opportunity.dfcOptions.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  className={`analytics-v2-dfc-selector__button${selectedDfcKey === option.key ? " is-active" : ""}`}
-                  disabled={!option.detailAvailable}
-                  onClick={() => setSelectedDfcKey(option.key)}
-                >
-                  <span>{option.label}</span>
-                  <small>{`Applicable n=${formatCount(option.applicableN)}`}</small>
-                </button>
-              ))}
-            </div>
+          <section className="analytics-v2-panel">
+            <header className="analytics-v2-panel__head">
+              <h3>Flexibility opportunity</h3>
+              <div className="analytics-v2-dfc-selector">
+                {data.opportunity.dfcOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={`analytics-v2-dfc-selector__button${selectedDfcKey === option.key ? " is-active" : ""}`}
+                    disabled={!option.detailAvailable}
+                    onClick={() => setSelectedDfcKey(option.key)}
+                  >
+                    <span>{option.label}</span>
+                    <small>{`n=${formatCount(option.applicableN)}`}</small>
+                  </button>
+                ))}
+              </div>
+            </header>
 
             {!selectedView.detailAvailable ? (
               <div className="analytics-v2-empty-card analytics-v2-empty-card--inline">
@@ -439,78 +433,72 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
           </section>
 
           {data.insights.length > 0 ? (
-            <section className="analytics-v2-section">
-              <div className="analytics-v2-section__heading">
+            <section className="analytics-v2-panel">
+              <header className="analytics-v2-panel__head">
                 <h3>What stands out</h3>
-              </div>
+              </header>
 
               <div className="analytics-v2-insights-grid">
                 {data.insights.map((insight) => (
                   <article key={`${insight.title}-${insight.evidence}`} className="analytics-v2-insight">
                     <h4>{insight.title}</h4>
-                    <p>{insight.body}</p>
-                    <small>{insight.evidence}</small>
+                    <p className="analytics-v2-insight__evidence">{insight.evidence}</p>
+                    <p className="analytics-v2-insight__body">{insight.body}</p>
                   </article>
                 ))}
               </div>
             </section>
           ) : null}
 
-          <section className="analytics-v2-section">
-            <div className="analytics-v2-section__heading">
+          <section className="analytics-v2-panel">
+            <header className="analytics-v2-panel__head">
               <h3>Construct profile</h3>
-            </div>
+            </header>
 
-            <div className="analytics-v2-construct-list">
+            <div className="analytics-v2-construct-table">
+              <div className="analytics-v2-construct-table__head">
+                <span>Construct</span>
+                <span>Median</span>
+                <span>IQR</span>
+                <span>Band mix</span>
+                <span>n</span>
+              </div>
               {data.constructs.map((construct) => (
-                <article key={construct.conceptKey} className="analytics-v2-construct">
-                  <div className="analytics-v2-construct-row">
-                    <div className="analytics-v2-construct-row__summary">
-                      <div className="analytics-v2-construct-row__title">
-                        <h4>{construct.label}</h4>
-                        <span className="analytics-v2-n-badge">{`n=${formatCount(construct.applicableN)}`}</span>
-                      </div>
-                      {construct.description ? (
-                        <p className="analytics-v2-construct-row__description">
-                          {construct.description}
-                        </p>
-                      ) : null}
-                      <p className="analytics-v2-construct-row__stats">
-                        {`Median ${formatScore(construct.median)}`}
-                        <span>IQR {formatScore(construct.q1)}–{formatScore(construct.q3)}</span>
-                      </p>
+                <div key={construct.conceptKey} className="analytics-v2-construct-table__row">
+                  <strong title={construct.description ?? undefined}>{construct.label}</strong>
+                  <span className="analytics-v2-construct-table__num">{formatScore(construct.median)}</span>
+                  <span className="analytics-v2-construct-table__iqr">
+                    {formatScore(construct.q1)}–{formatScore(construct.q3)}
+                  </span>
+                  <div className="analytics-v2-construct-table__mix">
+                    <div className="analytics-v2-stack" aria-hidden="true">
+                      {construct.bands.map((band) =>
+                        band.share > 0 ? (
+                          <span
+                            key={band.key}
+                            className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
+                            style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
+                          />
+                        ) : null,
+                      )}
                     </div>
+                    <small>
+                      {construct.bands
+                        .map((band) => `${formatPercent(band.share)} ${band.label}`)
+                        .join(" · ")}
+                    </small>
                   </div>
-
-                  <div className="analytics-v2-stack" aria-hidden="true">
-                    {construct.bands.map((band) =>
-                      band.share > 0 ? (
-                        <span
-                          key={band.key}
-                          className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
-                          style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
-                        />
-                      ) : null,
-                    )}
-                  </div>
-                  <div className="analytics-v2-stack__legend">
-                    {construct.bands.map((band) => (
-                      <div key={band.key} className={`analytics-v2-stack__item analytics-v2-stack__item--${band.key}`}>
-                        <strong>{band.label}</strong>
-                        <span>{`${formatPercent(band.share)} · n=${formatCount(band.count)}`}</span>
-                      </div>
-                    ))}
-                  </div>
-                </article>
+                  <span className="analytics-v2-construct-table__n">{formatCount(construct.applicableN)}</span>
+                </div>
               ))}
             </div>
           </section>
 
           {data.countryPulse ? (
-            <section className="analytics-v2-section">
-              <div className="analytics-v2-section__heading">
+            <section className="analytics-v2-panel">
+              <header className="analytics-v2-panel__head">
                 <h3>Country pulse</h3>
-              </div>
+              </header>
 
               <div className="analytics-v2-country-list">
                 {data.countryPulse.constructs.map((construct) => (

@@ -1,24 +1,27 @@
-import { getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
-  ADVANCED_MODEL_ROWS,
-  DFC_COMPONENT_LABELS,
-  DFC_MODULE_LABELS,
   INSTRUMENT_HEALTH_ANALYSIS_VERSION,
-  INSTRUMENT_HEALTH_CONCENTRATION_SHARE,
-  INSTRUMENT_HEALTH_LOW_ITEM_TOTAL,
-  INSTRUMENT_HEALTH_LOW_SPREAD_SD,
   INSTRUMENT_HEALTH_LOW_DIFFERENTIATION_SD,
-  INSTRUMENT_HEALTH_OVERLAP_RHO,
+  INSTRUMENT_HEALTH_METHODOLOGY_VERSION,
+  INSTRUMENT_HEALTH_POLICY_V1,
   INSTRUMENT_HEALTH_SCORE_TOLERANCE,
   MULTILINGUAL_INVARIANCE_NOTE,
   buildItemFlag,
-  getAlphaReading,
-  getConstructDirectionNote,
-  getConstructInterpretation,
+  defaultInstrumentHealthSchemaRef,
+  automatedSignalsActive,
+  getConditionalModuleCatalog,
+  getConstructBandLabel,
   getInstrumentMeasurementRole,
   getMeasurementRoleLabel,
+  getSampleAdequacy,
+  getSampleAdequacyLabel,
+  getScoreDirectionNote,
+  resolveInstrumentAnalysisModel,
+  resolveInstrumentConcept,
   type InstrumentHealthItemFlag,
+  type InstrumentHealthSampleAdequacy,
+  type InstrumentHealthSchemaRef,
   type InstrumentMeasurementRole,
+  type InstrumentScoreDirection,
   type ItemPolarity,
 } from "@/features/surveys/analytics/instrument-health-semantics";
 import {
@@ -39,15 +42,8 @@ import {
 } from "@/features/surveys/analytics/instrument-health-stats";
 import {
   getOverviewBandFromScore,
-  getOverviewBandLabel,
-  getOverviewConstructSemantics,
   type OverviewBandKey,
 } from "@/features/surveys/analytics/overview-semantics";
-import {
-  DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
-  DFC_COMPONENT_COUNT,
-  type DeclaredFlexibilityCapabilitySetKey,
-} from "@/features/surveys/declared-flexibility-capability-module";
 import type {
   MapperOutput,
   MeasurementPlanEntry,
@@ -102,7 +98,6 @@ export type InstrumentHealthReliability = {
   averageInterItemCorrelation: number | null;
   itemTotalRange: { min: number; max: number } | null;
   omegaOrdinal: "not_computed";
-  reading: string | null;
 };
 
 export type InstrumentHealthConstruct = {
@@ -122,8 +117,11 @@ export type InstrumentHealthConstruct = {
     share: number;
   }>;
   reliability: InstrumentHealthReliability;
-  itemFlagCount: number;
-  interpretation: string;
+  itemsWithDistributionSignals: number;
+  itemsWithCoherenceSignals: number;
+  sampleAdequacy: InstrumentHealthSampleAdequacy;
+  sampleAdequacyLabel: string | null;
+  scoreDirection: InstrumentScoreDirection;
   directionNote: string | null;
   items: InstrumentHealthItemAnalysis[];
 };
@@ -143,6 +141,11 @@ export type InstrumentHealthHtmtCell = {
   value: number | null;
   status: "computed" | "not_computable";
   reason: string | null;
+  n: number;
+  overlapFlag: boolean;
+  reference: number;
+  sampleAdequacy: InstrumentHealthSampleAdequacy;
+  sampleAdequacyLabel: string | null;
 };
 
 export type InstrumentHealthDfcFacet = {
@@ -163,6 +166,8 @@ export type InstrumentHealthDfcModule = {
   expectedFacets: number;
   evidenceCount: number | null;
   scoreDescriptives: NumericDescriptives;
+  sampleAdequacy: InstrumentHealthSampleAdequacy;
+  sampleAdequacyLabel: string | null;
   facets: InstrumentHealthDfcFacet[];
   missingWithinApplicableN: number;
 };
@@ -179,8 +184,11 @@ export type InstrumentHealthResponsePatterns = {
     p90: number | null;
     max: number | null;
     n: number;
+    medianShare: number | null;
+    p90Share: number | null;
+    maxShare: number | null;
   };
-  straightliningByConstruct: Array<{
+  identicalRatingsByConstruct: Array<{
     conceptKey: string;
     label: string;
     n: number;
@@ -197,20 +205,23 @@ export type InstrumentHealthScope = {
   constructs: InstrumentHealthConstruct[];
   correlations: InstrumentHealthCorrelationCell[];
   htmt: InstrumentHealthHtmtCell[];
-  dfc: {
+  conditionalModules: Array<{
+    conceptKey: string;
+    label: string;
     modules: InstrumentHealthDfcModule[];
     applicableModuleCountDistribution: Array<{
       modules: number;
       n: number;
       share: number;
     }>;
-  } | null;
+  }>;
   responsePatterns: InstrumentHealthResponsePatterns;
 };
 
 export type InstrumentHealthDebrief = {
   feedbackN: number;
   coverageShare: number | null;
+  currentlyEnabled: boolean | null;
   questionSetVersions: Array<{ version: string; n: number }>;
   ease: NumericDescriptives & { likertBins: InstrumentHealthLikertBin[] };
   textFieldsReceivedN: number;
@@ -218,6 +229,7 @@ export type InstrumentHealthDebrief = {
 
 export type InstrumentHealthData = {
   analysisVersion: string;
+  methodologyVersion: string;
   generatedAt: string;
   cacheKey: string;
   context: {
@@ -249,7 +261,6 @@ export type InstrumentHealthData = {
   multilingual: {
     languageCount: number;
     invarianceNote: string;
-    advancedModels: typeof ADVANCED_MODEL_ROWS;
   };
   debrief: InstrumentHealthDebrief | null;
 };
@@ -273,6 +284,7 @@ export type InstrumentHealthSource = {
   survey: PersistedSurvey;
   responses: InstrumentHealthLoadedResponse[];
   feedback: InstrumentHealthFeedbackRecord[];
+  feedbackConfigEnabled?: boolean | null;
 };
 
 type PreparedItem = {
@@ -293,13 +305,18 @@ type IncludedResponse = {
   recomputedOutput: MapperOutput | null;
 };
 
-const DFC_SET_KEYS: DeclaredFlexibilityCapabilitySetKey[] = [
-  "washing_machine_scheduling",
-  "ev_charging",
-  "space_conditioning",
-  "water_heating",
-  "battery_operation",
-];
+function schemaRefFromPlan(
+  plan: { schema_namespace: string; schema_version: number } | null | undefined,
+): InstrumentHealthSchemaRef {
+  if (!plan) {
+    return defaultInstrumentHealthSchemaRef();
+  }
+
+  return {
+    schemaNamespace: plan.schema_namespace,
+    schemaVersion: plan.schema_version,
+  };
+}
 
 function valuesEqual(left: unknown, right: unknown): boolean {
   if (left == null && right == null) {
@@ -446,14 +463,17 @@ function itemFlagList(input: {
 }): InstrumentHealthItemFlag[] {
   const flags: InstrumentHealthItemFlag[] = [];
   const { descriptives } = input;
+  const screeningN = descriptives.n;
+  const activateSignals = automatedSignalsActive(screeningN);
 
-  if (descriptives.n > 0 && descriptives.sd === 0) {
+  if (activateSignals && descriptives.n > 0 && descriptives.sd === 0) {
     flags.push(buildItemFlag("zero_variance", "All valid answers are identical."));
   }
 
   if (
+    activateSignals &&
     descriptives.topTwoShare != null &&
-    descriptives.topTwoShare >= INSTRUMENT_HEALTH_CONCENTRATION_SHARE
+    descriptives.topTwoShare >= INSTRUMENT_HEALTH_POLICY_V1.topTwoConcentrationAtOrAbove
   ) {
     flags.push(
       buildItemFlag(
@@ -464,8 +484,9 @@ function itemFlagList(input: {
   }
 
   if (
+    activateSignals &&
     descriptives.bottomTwoShare != null &&
-    descriptives.bottomTwoShare >= INSTRUMENT_HEALTH_CONCENTRATION_SHARE
+    descriptives.bottomTwoShare >= INSTRUMENT_HEALTH_POLICY_V1.bottomTwoConcentrationAtOrAbove
   ) {
     flags.push(
       buildItemFlag(
@@ -476,32 +497,22 @@ function itemFlagList(input: {
   }
 
   if (
+    activateSignals &&
     descriptives.sd != null &&
     descriptives.sd > 0 &&
-    descriptives.sd < INSTRUMENT_HEALTH_LOW_SPREAD_SD
+    descriptives.sd < INSTRUMENT_HEALTH_POLICY_V1.lowItemSpreadBelow
   ) {
     flags.push(buildItemFlag("low_spread", `Sample SD is ${descriptives.sd.toFixed(2)}.`));
   }
 
   if (
+    activateSignals &&
     input.interpretive &&
     input.correctedItemTotal != null &&
-    input.correctedItemTotal < INSTRUMENT_HEALTH_LOW_ITEM_TOTAL
+    input.correctedItemTotal < INSTRUMENT_HEALTH_POLICY_V1.correctedItemTotalReviewBelow
   ) {
     flags.push(
       buildItemFlag("low_item_total", `Corrected item-total is ${input.correctedItemTotal.toFixed(2)}.`),
-    );
-  }
-
-  if (
-    (descriptives.floorShare != null && descriptives.floorShare > 0.15) ||
-    (descriptives.ceilingShare != null && descriptives.ceilingShare > 0.15)
-  ) {
-    const floor = descriptives.floorShare == null ? "n/a" : `${Math.round(descriptives.floorShare * 100)}%`;
-    const ceiling =
-      descriptives.ceilingShare == null ? "n/a" : `${Math.round(descriptives.ceilingShare * 100)}%`;
-    flags.push(
-      buildItemFlag("endpoint_concentration", `Exact floor ${floor}; exact ceiling ${ceiling}.`),
     );
   }
 
@@ -521,7 +532,6 @@ function emptyReliability(reason: string, interpretive: boolean, itemCount: numb
     averageInterItemCorrelation: null,
     itemTotalRange: null,
     omegaOrdinal: "not_computed",
-    reading: reason,
   };
 }
 
@@ -569,17 +579,12 @@ function buildReliability(input: {
       averageInterItemCorrelation: average,
       itemTotalRange,
       omegaOrdinal: "not_computed",
-      reading: alphaResult.reason,
     };
   }
 
   const ci = interpretive
     ? bootstrapAlphaCi({ completeCases: input.completeCases, seedKey: input.seedKey })
     : null;
-
-  const reading = interpretive
-    ? getAlphaReading(alphaResult.alpha)
-    : "Internal consistency is not a pass/fail criterion for this measure.";
 
   return {
     status: interpretive ? "computed" : "not_applicable",
@@ -593,7 +598,6 @@ function buildReliability(input: {
     averageInterItemCorrelation: average,
     itemTotalRange,
     omegaOrdinal: "not_computed",
-    reading,
   };
 }
 
@@ -623,10 +627,11 @@ function buildConstruct(
   items: PreparedItem[],
   languageCode: string | null,
   seedKey: string,
+  schemaRef: InstrumentHealthSchemaRef,
 ): InstrumentHealthConstruct {
-  const role = getInstrumentMeasurementRole(concept.concept_key);
-  const ontology = getFlexpulseBehaviouralConcept(concept.concept_key);
-  const semantics = getOverviewConstructSemantics(concept.concept_key);
+  const analysisModel = resolveInstrumentAnalysisModel(concept.concept_key, schemaRef);
+  const role = analysisModel?.measurement_role ?? "not_applicable";
+  const ontology = resolveInstrumentConcept(concept.concept_key, schemaRef);
   const constructItems = items.filter((item) => item.concept.concept_key === concept.concept_key);
   const ratingItems = constructItems.filter((item) => isLikertQuestion(item.question));
   const scores: number[] = [];
@@ -731,12 +736,18 @@ function buildConstruct(
     };
   });
 
-  const itemFlagCount = itemAnalyses.reduce((sum, item) => sum + item.flags.length, 0);
+  const itemsWithDistributionSignals = itemAnalyses.filter((item) =>
+    item.flags.some((flag) => flag.kind === "distribution"),
+  ).length;
+  const itemsWithCoherenceSignals = itemAnalyses.filter((item) =>
+    item.flags.some((flag) => flag.kind === "item_coherence"),
+  ).length;
+  const sampleAdequacy = getSampleAdequacy(scoreDescriptives.n);
 
   return {
     conceptKey: concept.concept_key,
     label: ontology?.label ?? concept.concept_key,
-    description: semantics.description ?? ontology?.description ?? null,
+    description: ontology?.description ?? null,
     role,
     roleLabel: getMeasurementRoleLabel(role),
     validN: completeCases.length,
@@ -745,18 +756,17 @@ function buildConstruct(
     scoreDescriptives,
     bands: (["high", "medium", "low"] as const).map((band) => ({
       key: band,
-      label: getOverviewBandLabel(concept.concept_key, band),
+      label: getConstructBandLabel(concept.concept_key, band, schemaRef),
       count: bandCounts.get(band) ?? 0,
       share: scores.length === 0 ? 0 : (bandCounts.get(band) ?? 0) / scores.length,
     })),
     reliability,
-    itemFlagCount,
-    interpretation: getConstructInterpretation({
-      role,
-      itemFlagCount,
-      itemCount: ratingItems.length,
-    }),
-    directionNote: getConstructDirectionNote(concept.concept_key),
+    itemsWithDistributionSignals,
+    itemsWithCoherenceSignals,
+    sampleAdequacy,
+    sampleAdequacyLabel: getSampleAdequacyLabel(sampleAdequacy),
+    scoreDirection: analysisModel?.score_direction ?? "not_directional",
+    directionNote: getScoreDirectionNote(analysisModel?.score_direction),
     items: itemAnalyses,
   };
 }
@@ -799,12 +809,31 @@ function buildCorrelations(constructs: InstrumentHealthConstruct[], responses: I
         spearmanRho: rho,
         pearsonR: pearsonCorrelation(paired.left, paired.right),
         n: paired.n,
-        overlapFlag: rho != null && Math.abs(rho) >= INSTRUMENT_HEALTH_OVERLAP_RHO,
+        overlapFlag: false,
       });
     }
   }
 
   return cells;
+}
+
+function completeCaseNForMatrices(
+  leftMatrix: Array<Array<number | null>>,
+  rightMatrix: Array<Array<number | null>>,
+) {
+  const responseCount = leftMatrix[0]?.length ?? rightMatrix[0]?.length ?? 0;
+  let n = 0;
+
+  for (let index = 0; index < responseCount; index += 1) {
+    const complete =
+      leftMatrix.every((row) => row[index] != null) &&
+      rightMatrix.every((row) => row[index] != null);
+    if (complete) {
+      n += 1;
+    }
+  }
+
+  return n;
 }
 
 function buildHtmt(constructs: InstrumentHealthConstruct[], responses: IncludedResponse[], items: PreparedItem[]) {
@@ -842,12 +871,22 @@ function buildHtmt(constructs: InstrumentHealthConstruct[], responses: IncludedR
         }),
       );
       const result = computeHtmt(leftMatrix, rightMatrix);
+      const n = completeCaseNForMatrices(leftMatrix, rightMatrix);
+      const sampleAdequacy = getSampleAdequacy(n);
       cells.push({
         conceptKeyA: left.conceptKey,
         conceptKeyB: right.conceptKey,
         value: result.value,
         status: result.status,
         reason: result.reason,
+        n,
+        overlapFlag:
+          automatedSignalsActive(n) &&
+          result.value != null &&
+          result.value >= INSTRUMENT_HEALTH_POLICY_V1.htmtOverlapAtOrAbove,
+        reference: INSTRUMENT_HEALTH_POLICY_V1.htmtOverlapAtOrAbove,
+        sampleAdequacy,
+        sampleAdequacyLabel: getSampleAdequacyLabel(sampleAdequacy),
       });
     }
   }
@@ -855,104 +894,140 @@ function buildHtmt(constructs: InstrumentHealthConstruct[], responses: IncludedR
   return cells;
 }
 
-function dfcQuestionsForSet(
-  items: PreparedItem[],
-  setKey: string,
+function componentKeyFromItem(
+  item: PreparedItem,
+  expectedComponents: string[],
 ) {
-  return items.filter(
-    (item) =>
-      item.concept.concept_key === DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY &&
-      item.intent?.facet === setKey,
+  const slot = item.intent?.slot_key?.toUpperCase() ?? "";
+  const matched = expectedComponents.find((component) =>
+    slot.endsWith(component.toUpperCase().replace(/[^A-Z0-9]+/g, "_")),
   );
+  return matched ?? item.intent?.slot_key ?? item.question.question_key;
 }
 
-function buildDfc(responses: IncludedResponse[], items: PreparedItem[]) {
-  const dfcItems = items.filter(
-    (item) => item.concept.concept_key === DECLARED_FLEXIBILITY_CAPABILITY_CONCEPT_KEY,
-  );
-  if (dfcItems.length === 0) {
-    return null;
-  }
+function buildConditionalModules(
+  constructs: InstrumentHealthConstruct[],
+  items: PreparedItem[],
+  responses: IncludedResponse[],
+  schemaRef: InstrumentHealthSchemaRef,
+) {
+  return constructs
+    .filter((construct) => construct.role === "conditional_module")
+    .map((construct) => {
+      const analysisModel = resolveInstrumentAnalysisModel(construct.conceptKey, schemaRef);
+      const config = analysisModel?.conditional_module_config;
+      const catalog = getConditionalModuleCatalog(config?.catalog_id);
+      const expectedComponents =
+        config?.expected_components ?? catalog?.expectedComponents ?? [];
+      const expectedFacets = expectedComponents.length;
+      const constructItems = items.filter(
+        (item) => item.concept.concept_key === construct.conceptKey && isLikertQuestion(item.question),
+      );
+      const discoveredGroups = Array.from(
+        new Set(
+          constructItems
+            .map((item) => item.intent?.facet)
+            .filter((facet): facet is string => Boolean(facet)),
+        ),
+      );
+      const groupKeys = catalog?.expectedGroups ?? discoveredGroups;
+      const groupLabels = catalog?.groupLabels ?? {};
+      const componentLabels = catalog?.componentLabels ?? {};
 
-  const modules: InstrumentHealthDfcModule[] = DFC_SET_KEYS.map((setKey) => {
-    const setItems = dfcQuestionsForSet(items, setKey);
-    let applicableN = 0;
-    let missingWithinApplicableN = 0;
-    const scores: number[] = [];
-    const facetValues = new Map<string, number[]>();
-    const facetMissing = new Map<string, number>();
+      const modules: InstrumentHealthDfcModule[] = groupKeys.map((setKey) => {
+        const setItems = constructItems.filter((item) => item.intent?.facet === setKey);
+        let applicableN = 0;
+        let missingWithinApplicableN = 0;
+        const scores: number[] = [];
+        const facetValues = new Map<string, number[]>();
+        const facetMissing = new Map<string, number>();
 
-    for (const response of responses) {
-      const applicable = setItems.some((item) => isQuestionVisible(item.question, response.answers));
-      if (!applicable) {
-        continue;
-      }
+        for (const response of responses) {
+          const applicable = setItems.some((item) => isQuestionVisible(item.question, response.answers));
+          if (!applicable) {
+            continue;
+          }
 
-      applicableN += 1;
-      const values: number[] = [];
-      for (const item of setItems) {
-        const raw = numericAnswer(response.answers, item.question.question_key);
-        if (raw == null) {
-          facetMissing.set(item.question.question_key, (facetMissing.get(item.question.question_key) ?? 0) + 1);
-          continue;
+          applicableN += 1;
+          const values: number[] = [];
+          for (const item of setItems) {
+            const raw = numericAnswer(response.answers, item.question.question_key);
+            if (raw == null) {
+              facetMissing.set(
+                item.question.question_key,
+                (facetMissing.get(item.question.question_key) ?? 0) + 1,
+              );
+              continue;
+            }
+
+            values.push(raw);
+            const current = facetValues.get(item.question.question_key) ?? [];
+            current.push(raw);
+            facetValues.set(item.question.question_key, current);
+          }
+
+          if (expectedFacets > 0 && values.length < expectedFacets) {
+            missingWithinApplicableN += 1;
+          }
+
+          if (expectedFacets > 0 && values.length === expectedFacets) {
+            scores.push(values.reduce((sum, value) => sum + value, 0) / expectedFacets);
+          }
         }
 
-        values.push(raw);
-        const current = facetValues.get(item.question.question_key) ?? [];
-        current.push(raw);
-        facetValues.set(item.question.question_key, current);
-      }
+        const moduleAdequacy = getSampleAdequacy(applicableN);
 
-      if (values.length < DFC_COMPONENT_COUNT) {
-        missingWithinApplicableN += 1;
-      }
-
-      if (values.length === DFC_COMPONENT_COUNT) {
-        scores.push(values.reduce((sum, value) => sum + value, 0) / DFC_COMPONENT_COUNT);
-      }
-    }
-
-    return {
-      setKey,
-      label: DFC_MODULE_LABELS[setKey] ?? setKey,
-      applicableN,
-      applicableShare: responses.length === 0 ? 0 : applicableN / responses.length,
-      notApplicableN: responses.length - applicableN,
-      expectedFacets: DFC_COMPONENT_COUNT,
-      evidenceCount: scores.length === 0 ? null : DFC_COMPONENT_COUNT,
-      scoreDescriptives: buildNumericDescriptives(scores, { min: 1, max: 5 }),
-      facets: setItems.map((item) => {
-        const values = facetValues.get(item.question.question_key) ?? [];
         return {
-          component: item.intent?.slot_key ?? item.question.question_key,
-          label: DFC_COMPONENT_LABELS[item.intent?.slot_key?.split("_").slice(-2).join("_") ?? ""]
-            ?? item.intent?.intent
-            ?? item.question.question_key,
-          questionKey: item.question.question_key,
-          descriptives: buildNumericDescriptives(values, { min: 1, max: 5 }),
-          likertBins: likertBins(values, 1, 5),
-          missingWithinApplicableN: facetMissing.get(item.question.question_key) ?? 0,
+          setKey,
+          label: groupLabels[setKey] ?? setKey,
+          applicableN,
+          applicableShare: responses.length === 0 ? 0 : applicableN / responses.length,
+          notApplicableN: responses.length - applicableN,
+          expectedFacets,
+          evidenceCount: scores.length === 0 ? null : expectedFacets,
+          scoreDescriptives: buildNumericDescriptives(scores, { min: 1, max: 5 }),
+          sampleAdequacy: moduleAdequacy,
+          sampleAdequacyLabel: getSampleAdequacyLabel(moduleAdequacy),
+          facets: setItems.map((item) => {
+            const values = facetValues.get(item.question.question_key) ?? [];
+            const component = componentKeyFromItem(item, expectedComponents);
+            return {
+              component,
+              label: componentLabels[component] ?? item.intent?.intent ?? item.question.question_key,
+              questionKey: item.question.question_key,
+              descriptives: buildNumericDescriptives(values, { min: 1, max: 5 }),
+              likertBins: likertBins(values, 1, 5),
+              missingWithinApplicableN: facetMissing.get(item.question.question_key) ?? 0,
+            };
+          }),
+          missingWithinApplicableN,
         };
-      }),
-      missingWithinApplicableN,
-    };
-  });
+      });
 
-  const moduleCounts = responses.map((response) =>
-    DFC_SET_KEYS.filter((setKey) =>
-      dfcQuestionsForSet(items, setKey).some((item) => isQuestionVisible(item.question, response.answers)),
-    ).length,
-  );
-  const distributionCounts = countBy(moduleCounts, (value) => String(value));
-  const applicableModuleCountDistribution = Array.from(distributionCounts.entries())
-    .map(([modules, n]) => ({
-      modules: Number(modules),
-      n,
-      share: responses.length === 0 ? 0 : n / responses.length,
-    }))
-    .sort((left, right) => left.modules - right.modules);
+      const moduleCounts = responses.map(
+        (response) =>
+          groupKeys.filter((setKey) =>
+            constructItems
+              .filter((item) => item.intent?.facet === setKey)
+              .some((item) => isQuestionVisible(item.question, response.answers)),
+          ).length,
+      );
+      const distributionCounts = countBy(moduleCounts, (value) => String(value));
+      const applicableModuleCountDistribution = Array.from(distributionCounts.entries())
+        .map(([modulesCount, n]) => ({
+          modules: Number(modulesCount),
+          n,
+          share: responses.length === 0 ? 0 : n / responses.length,
+        }))
+        .sort((left, right) => left.modules - right.modules);
 
-  return { modules, applicableModuleCountDistribution };
+      return {
+        conceptKey: construct.conceptKey,
+        label: construct.label,
+        modules,
+        applicableModuleCountDistribution,
+      };
+    });
 }
 
 function buildResponsePatterns(
@@ -964,6 +1039,7 @@ function buildResponsePatterns(
   let identicalN = 0;
   let lowSdN = 0;
   const runs: number[] = [];
+  const runShares: number[] = [];
   const ratedResponseN = responses.length;
 
   for (const response of responses) {
@@ -982,12 +1058,16 @@ function buildResponsePatterns(
     }
 
     if (visibleRatings.length > 0) {
-      runs.push(longestRun(visibleRatings));
+      const run = longestRun(visibleRatings);
+      runs.push(run);
+      runShares.push(run / visibleRatings.length);
     }
   }
 
   const runDescriptives = buildNumericDescriptives(runs);
+  const shareDescriptives = buildNumericDescriptives(runShares);
   const sortedRuns = [...runs].sort((left, right) => left - right);
+  const sortedShares = [...runShares].sort((left, right) => left - right);
 
   return {
     identicalRatingItems: {
@@ -1004,8 +1084,14 @@ function buildResponsePatterns(
       p90: sortedRuns.length === 0 ? null : sortedRuns[Math.min(sortedRuns.length - 1, Math.floor(0.9 * (sortedRuns.length - 1)))],
       max: runDescriptives.max,
       n: runs.length,
+      medianShare: shareDescriptives.median,
+      p90Share:
+        sortedShares.length === 0
+          ? null
+          : sortedShares[Math.min(sortedShares.length - 1, Math.floor(0.9 * (sortedShares.length - 1)))],
+      maxShare: shareDescriptives.max,
     },
-    straightliningByConstruct: constructs
+    identicalRatingsByConstruct: constructs
       .filter((construct) => construct.role === "reflective_candidate" && construct.itemCount >= 2)
       .map((construct) => {
         let n = 0;
@@ -1035,7 +1121,11 @@ function buildResponsePatterns(
   };
 }
 
-function buildDebrief(feedback: InstrumentHealthFeedbackRecord[], includedN: number): InstrumentHealthDebrief | null {
+function buildDebrief(
+  feedback: InstrumentHealthFeedbackRecord[],
+  includedN: number,
+  currentlyEnabled: boolean | null,
+): InstrumentHealthDebrief | null {
   if (feedback.length === 0) {
     return null;
   }
@@ -1048,6 +1138,7 @@ function buildDebrief(feedback: InstrumentHealthFeedbackRecord[], includedN: num
   return {
     feedbackN: feedback.length,
     coverageShare: includedN === 0 ? null : feedback.length / includedN,
+    currentlyEnabled,
     questionSetVersions: versions,
     ease: {
       ...buildNumericDescriptives(easeValues, { min: 1, max: 5 }),
@@ -1066,9 +1157,10 @@ function buildScope(input: {
   items: PreparedItem[];
   responses: IncludedResponse[];
   seedKey: string;
+  schemaRef: InstrumentHealthSchemaRef;
 }): InstrumentHealthScope {
   const constructs = input.concepts
-    .filter((concept) => getInstrumentMeasurementRole(concept.concept_key) !== "not_applicable")
+    .filter((concept) => getInstrumentMeasurementRole(concept.concept_key, input.schemaRef) !== "not_applicable")
     .map((concept) =>
       buildConstruct(
         input.survey,
@@ -1077,6 +1169,7 @@ function buildScope(input: {
         input.items,
         input.languageCode,
         input.seedKey,
+        input.schemaRef,
       ),
     );
 
@@ -1088,7 +1181,7 @@ function buildScope(input: {
     constructs,
     correlations: buildCorrelations(constructs, input.responses),
     htmt: buildHtmt(constructs, input.responses, input.items),
-    dfc: buildDfc(input.responses, input.items),
+    conditionalModules: buildConditionalModules(constructs, input.items, input.responses, input.schemaRef),
     responsePatterns: buildResponsePatterns(input.survey, input.responses, constructs),
   };
 }
@@ -1110,16 +1203,19 @@ export function buildInstrumentHealthData(source: InstrumentHealthSource): Instr
   }).length;
 
   const measurementPlan = survey.definition_json.survey_meta.measurement_plan_json;
+  const schemaRef = schemaRefFromPlan(measurementPlan);
   const cacheKey = [
     survey.id,
     currentMeasurementHash ?? "",
     currentMappingHash ?? "",
     INSTRUMENT_HEALTH_ANALYSIS_VERSION,
+    INSTRUMENT_HEALTH_METHODOLOGY_VERSION,
   ].join(":");
 
   if (!measurementPlan) {
     return {
       analysisVersion: INSTRUMENT_HEALTH_ANALYSIS_VERSION,
+      methodologyVersion: INSTRUMENT_HEALTH_METHODOLOGY_VERSION,
       generatedAt,
       cacheKey,
       context: {
@@ -1151,12 +1247,20 @@ export function buildInstrumentHealthData(source: InstrumentHealthSource): Instr
           constructs: [],
           correlations: [],
           htmt: [],
-          dfc: null,
+          conditionalModules: [],
           responsePatterns: {
             identicalRatingItems: { n: 0, share: 0 },
             lowWithinPersonSd: { n: 0, share: 0, threshold: INSTRUMENT_HEALTH_LOW_DIFFERENTIATION_SD },
-            longestSameResponseRun: { median: null, p90: null, max: null, n: 0 },
-            straightliningByConstruct: [],
+            longestSameResponseRun: {
+              median: null,
+              p90: null,
+              max: null,
+              n: 0,
+              medianShare: null,
+              p90Share: null,
+              maxShare: null,
+            },
+            identicalRatingsByConstruct: [],
           },
         },
       },
@@ -1165,7 +1269,6 @@ export function buildInstrumentHealthData(source: InstrumentHealthSource): Instr
       multilingual: {
         languageCount: 0,
         invarianceNote: MULTILINGUAL_INVARIANCE_NOTE,
-        advancedModels: ADVANCED_MODEL_ROWS,
       },
       debrief: null,
     };
@@ -1278,6 +1381,7 @@ export function buildInstrumentHealthData(source: InstrumentHealthSource): Instr
     items,
     responses: included,
     seedKey,
+    schemaRef,
   });
 
   const scopes: Record<string, InstrumentHealthScope> = {
@@ -1295,16 +1399,18 @@ export function buildInstrumentHealthData(source: InstrumentHealthSource): Instr
       items,
       responses: included.filter((response) => response.submittedLanguage === language.code),
       seedKey: `${seedKey}:${key}`,
+      schemaRef,
     });
   }
 
   const analysedItemCount = items.filter((item) => {
-    const role = getInstrumentMeasurementRole(item.concept.concept_key);
+    const role = getInstrumentMeasurementRole(item.concept.concept_key, schemaRef);
     return role !== "not_applicable" && isLikertQuestion(item.question);
   }).length;
 
   return {
     analysisVersion: INSTRUMENT_HEALTH_ANALYSIS_VERSION,
+    methodologyVersion: INSTRUMENT_HEALTH_METHODOLOGY_VERSION,
     generatedAt,
     cacheKey,
     context: {
@@ -1333,9 +1439,8 @@ export function buildInstrumentHealthData(source: InstrumentHealthSource): Instr
     multilingual: {
       languageCount: languageCounts.length,
       invarianceNote: MULTILINGUAL_INVARIANCE_NOTE,
-      advancedModels: ADVANCED_MODEL_ROWS,
     },
-    debrief: buildDebrief(source.feedback, included.length),
+    debrief: buildDebrief(source.feedback, included.length, source.feedbackConfigEnabled ?? null),
   };
 }
 

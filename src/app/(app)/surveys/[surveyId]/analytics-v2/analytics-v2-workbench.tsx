@@ -58,7 +58,10 @@ export function AnalyticsV2Workbench({
       </div>
 
       <div hidden={activeTab !== "diagnostics"}>
-        <InstrumentHealthPanel surveyId={surveyId} />
+        <InstrumentHealthPanel
+          surveyId={surveyId}
+          currentCollectedN={overviewData.context.collectedResponseCount}
+        />
       </div>
 
       {activeTab !== "overview" && activeTab !== "diagnostics" ? (

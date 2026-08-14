@@ -108,7 +108,7 @@ export async function loadOwnedInstrumentHealthSource(
     .filter((row) => row.pipeline_status === "ready")
     .map((row) => row.id);
 
-  const [answerRows, mappingRows, feedbackRows] = await Promise.all([
+  const [answerRows, mappingRows, feedbackRows, feedbackConfigResult] = await Promise.all([
     selectByIds(includedIds, async (chunk) => {
       const { data, error } = await supabase
         .from("survey_responses")
@@ -147,6 +147,11 @@ export async function loadOwnedInstrumentHealthSource(
 
       return (data ?? []) as FeedbackRow[];
     }),
+    supabase
+      .from("survey_feedback_configs")
+      .select("enabled")
+      .eq("survey_id", survey.id)
+      .maybeSingle(),
   ]);
 
   const answersById = new Map(answerRows.map((row) => [row.id, row.answers_json]));
@@ -167,5 +172,11 @@ export async function loadOwnedInstrumentHealthSource(
     textFieldFilledCount: countFilledText(row),
   }));
 
-  return { survey, responses, feedback };
+  return {
+    survey,
+    responses,
+    feedback,
+    feedbackConfigEnabled:
+      typeof feedbackConfigResult.data?.enabled === "boolean" ? feedbackConfigResult.data.enabled : null,
+  };
 }

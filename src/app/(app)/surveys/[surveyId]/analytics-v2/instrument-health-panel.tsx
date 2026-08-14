@@ -1,19 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { generateInstrumentHealthAction } from "@/features/surveys/instrument-health-actions";
+import {
+  readInstrumentHealthSession,
+  subscribeInstrumentHealthSession,
+  writeInstrumentHealthSession,
+} from "@/features/surveys/analytics/instrument-health-session";
 import type {
   InstrumentHealthConstruct,
   InstrumentHealthCorrelationCell,
   InstrumentHealthData,
+  InstrumentHealthHtmtCell,
   InstrumentHealthItemAnalysis,
   InstrumentHealthLikertBin,
   InstrumentHealthScope,
 } from "@/features/surveys/analytics/instrument-health";
-import { INSTRUMENT_HEALTH_HTMT_REFERENCE } from "@/features/surveys/analytics/instrument-health-semantics";
+import { INSTRUMENT_HEALTH_COPY } from "@/features/surveys/analytics/instrument-health-semantics";
+import { appRoutes } from "@/lib/config/routes";
 
 type InstrumentHealthPanelProps = {
   surveyId: string;
+  currentCollectedN?: number;
 };
 
 function formatCount(value: number) {
@@ -42,6 +50,44 @@ function formatHash(value: string | null) {
   }
 
   return value.length > 12 ? `${value.slice(0, 10)}…` : value;
+}
+
+function MethodologyLink() {
+  return (
+    <a
+      className="analytics-v2-health-method-link"
+      href={appRoutes.instrumentHealthMethodology}
+      target="_blank"
+      rel="noreferrer"
+    >
+      {INSTRUMENT_HEALTH_COPY.methodologyLink} ↗
+    </a>
+  );
+}
+
+function formatAlpha(reliability: InstrumentHealthConstruct["reliability"]) {
+  if (reliability.alpha == null) {
+    return reliability.reason ?? "n/a";
+  }
+
+  const ci = reliability.alphaCi95;
+  if (ci?.lower != null && ci?.upper != null) {
+    return `${formatScore(reliability.alpha)} [${formatScore(ci.lower)}–${formatScore(ci.upper)}]`;
+  }
+
+  return formatScore(reliability.alpha);
+}
+
+function signalKindLabel(kind: InstrumentHealthItemAnalysis["flags"][number]["kind"]) {
+  if (kind === "distribution") {
+    return "Distribution";
+  }
+
+  if (kind === "item_coherence") {
+    return "Item coherence";
+  }
+
+  return "Scoring integrity";
 }
 
 function integrityLabel(status: InstrumentHealthData["integrity"]["status"]) {
@@ -75,6 +121,92 @@ function LikertBar({ bins }: { bins: InstrumentHealthLikertBin[] | null }) {
   );
 }
 
+function subscribeNever() {
+  return () => {};
+}
+
+function formatGeneratedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatHtmtCell(cell: InstrumentHealthHtmtCell) {
+  const nPart = `n=${formatCount(cell.n)}`;
+  const descriptiveLabel =
+    cell.sampleAdequacy === "descriptive_only" && cell.sampleAdequacyLabel
+      ? ` · ${cell.sampleAdequacyLabel}`
+      : "";
+
+  if (cell.status !== "computed") {
+    return `Not computable${cell.reason ? ` (${cell.reason})` : ""} · ${nPart}${descriptiveLabel}`;
+  }
+
+  const overlap = cell.overlapFlag
+    ? cell.sampleAdequacy === "preliminary"
+      ? " · overlap signal · preliminary"
+      : " · overlap signal"
+    : "";
+
+  return `${formatScore(cell.value)} · ${nPart} · reference ${formatScore(cell.reference)}${overlap}${descriptiveLabel}`;
+}
+
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <button
+      ref={rootRef}
+      type="button"
+      className={`analytics-v2-health-tip${open ? " is-open" : ""}`}
+      aria-label="More information"
+      aria-expanded={open}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen((current) => !current);
+      }}
+    >
+      ?
+      <span className="analytics-v2-health-tip__bubble" role="tooltip">
+        {text}
+      </span>
+    </button>
+  );
+}
+
 function FlagList({ item }: { item: InstrumentHealthItemAnalysis }) {
   if (item.flags.length === 0) {
     return <span className="analytics-v2-health-muted">None</span>;
@@ -84,9 +216,11 @@ function FlagList({ item }: { item: InstrumentHealthItemAnalysis }) {
     <ul className="analytics-v2-health-flags">
       {item.flags.map((flag) => (
         <li key={flag.key}>
-          <span className="analytics-v2-health-chip analytics-v2-health-chip--flag">{flag.label}</span>
+          <span className={`analytics-v2-health-chip analytics-v2-health-chip--${flag.kind}`}>
+            {`${signalKindLabel(flag.kind)}: ${flag.label}`}
+          </span>
           <span className="analytics-v2-health-flag-copy">
-            {flag.observed} {flag.rule} {flag.whyNotDelete}
+            {flag.observed} {flag.rule}
           </span>
         </li>
       ))}
@@ -99,9 +233,6 @@ function ConstructDetail({ construct }: { construct: InstrumentHealthConstruct }
 
   return (
     <div className="analytics-v2-health-detail">
-      {construct.directionNote ? <p>{construct.directionNote}</p> : null}
-      {construct.description ? <p>{construct.description}</p> : null}
-
       <div className="analytics-v2-health-mini-grid">
         <article>
           <span>Score n</span>
@@ -121,25 +252,27 @@ function ConstructDetail({ construct }: { construct: InstrumentHealthConstruct }
         </article>
       </div>
 
-      <div className="analytics-v2-stack" aria-hidden="true">
-        {construct.bands.map((band) =>
-          band.share > 0 ? (
-            <span
-              key={band.key}
-              className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
-              style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
-            />
-          ) : null,
-        )}
+      <div className="analytics-v2-construct-table__mix">
+        <div className="analytics-v2-stack" aria-hidden="true">
+          {construct.bands.map((band) =>
+            band.share > 0 ? (
+              <span
+                key={band.key}
+                className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
+                style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
+              />
+            ) : null,
+          )}
+        </div>
+        <small>
+          {construct.bands.map((band) => `${formatPercent(band.share)} ${band.label}`).join(" · ")}
+        </small>
       </div>
-      <div className="analytics-v2-stack__legend">
-        {construct.bands.map((band) => (
-          <div key={band.key} className={`analytics-v2-stack__item analytics-v2-stack__item--${band.key}`}>
-            <strong>{band.label}</strong>
-            <span>{`${formatPercent(band.share)} · n=${formatCount(band.count)}`}</span>
-          </div>
-        ))}
-      </div>
+
+      {construct.directionNote ? <p>{construct.directionNote}</p> : null}
+      {construct.sampleAdequacyLabel ? (
+        <p className="analytics-v2-health-muted">{construct.sampleAdequacyLabel}</p>
+      ) : null}
 
       <div className="analytics-v2-health-reliability">
         <h4>Reliability summary</h4>
@@ -155,18 +288,15 @@ function ConstructDetail({ construct }: { construct: InstrumentHealthConstruct }
             <p>
               Average inter-item r={formatScore(reliability.averageInterItemCorrelation)}
               {reliability.itemTotalRange
-                ? ` · item-total range ${formatScore(reliability.itemTotalRange.min)} to ${formatScore(reliability.itemTotalRange.max)}`
+                ? ` · Corrected item-total range ${formatScore(reliability.itemTotalRange.min)}–${formatScore(reliability.itemTotalRange.max)}`
                 : ""}
             </p>
             <p>Omega ordinal: Not computed in this build.</p>
-            <p>{reliability.reading}</p>
           </>
         ) : (
           <p>
             {reliability.reason ?? "Not a reflective scale."}
-            {reliability.secondaryAlpha != null
-              ? ` Secondary alpha=${formatScore(reliability.secondaryAlpha)} is shown only as a descriptive statistic.`
-              : ""}
+            {construct.sampleAdequacyLabel ? ` ${construct.sampleAdequacyLabel}.` : ""}
           </p>
         )}
       </div>
@@ -266,9 +396,21 @@ function CorrelationHeatmap({
                 const rho = cell?.spearmanRho ?? null;
                 const diagonal = row.conceptKey === columnKey;
                 const color = heatmapColor(rho, diagonal);
+                const involvesStricter =
+                  row.scoreDirection === "higher_is_stricter" ||
+                  constructs.find((construct) => construct.conceptKey === columnKey)?.scoreDirection ===
+                    "higher_is_stricter";
+                const titleParts = [
+                  cell
+                    ? `Pearson r=${formatScore(cell.pearsonR)} · n=${formatCount(cell.n)}`
+                    : "",
+                  involvesStricter
+                    ? "A negative association with a stricter-direction construct means higher strictness tends to accompany lower scores on the other construct."
+                    : "",
+                ].filter(Boolean);
                 return (
                   <td key={columnKey} style={{ background: color }}>
-                    <span title={cell ? `Pearson r=${formatScore(cell.pearsonR)} · n=${formatCount(cell.n)}${cell.overlapFlag ? " · possible construct overlap — inspect" : ""}` : ""}>
+                    <span title={titleParts.join(" ")}>
                       {diagonal ? "—" : formatScore(rho)}
                     </span>
                     {!diagonal && cell ? <small>n={formatCount(cell.n)}</small> : null}
@@ -296,11 +438,39 @@ function heatmapColor(rho: number | null, diagonal: boolean) {
   return `rgba(184, 119, 217, ${0.08 + intensity * 0.52})`;
 }
 
-function GeneratedView({ data }: { data: InstrumentHealthData }) {
+function languageCaption(languages: InstrumentHealthData["context"]["languages"]) {
+  if (languages.length === 0) {
+    return "No language data";
+  }
+
+  return languages.map((language) => `${language.code} (${formatCount(language.n)})`).join(" · ");
+}
+
+function GeneratedView({
+  data,
+  currentCollectedN,
+  error,
+  onRegenerate,
+}: {
+  data: InstrumentHealthData;
+  currentCollectedN?: number;
+  error: string | null;
+  onRegenerate: () => void;
+}) {
   const [scopeKey, setScopeKey] = useState(data.defaultScopeKey);
   const [openConstruct, setOpenConstruct] = useState<string | null>(null);
-  const [showHelp, setShowHelp] = useState(false);
+  const [sequenceOpen, setSequenceOpen] = useState(false);
   const scope: InstrumentHealthScope = data.scopes[scopeKey] ?? data.scopes[data.defaultScopeKey];
+  const reflectiveConstructs = scope.constructs.filter(
+    (construct) => construct.role === "reflective_candidate",
+  );
+  const exploratoryConstructs = scope.constructs.filter(
+    (construct) => construct.role !== "reflective_candidate",
+  );
+  const collectedDriftN =
+    currentCollectedN != null && currentCollectedN !== data.context.collectedN
+      ? currentCollectedN
+      : null;
 
   const scopeOptions = useMemo(
     () =>
@@ -313,300 +483,375 @@ function GeneratedView({ data }: { data: InstrumentHealthData }) {
 
   return (
     <div className="analytics-v2-overview analytics-v2-health">
-      <section className="analytics-v2-section analytics-v2-section--context">
-        <div className="analytics-v2-section__heading">
-          <div>
-            <h3>Analysis scope</h3>
-            <p>
-              Current instrument version · measurement hash {formatHash(data.context.currentMeasurementHash)}
-              {data.context.currentMappingHash ? ` · mapping hash ${formatHash(data.context.currentMappingHash)}` : ""}
-            </p>
-            <p>
-              {`Overall n=${formatCount(scope.n)} · ${formatCount(data.context.itemCount)} items · languages ${
-                data.context.languages.length === 0
-                  ? "none"
-                  : data.context.languages.map((language) => `${language.code} (${formatCount(language.n)})`).join(" · ")
-              }`}
-            </p>
-            <p>
-              {`Collected ${formatCount(data.context.collectedN)} · ready ${formatCount(data.context.readyN)} · included ${formatCount(data.context.includedN)} · excluded other hash ${formatCount(data.context.excludedDifferentHashN)} · unknown hash ${formatCount(data.context.unknownHashN)}`}
-            </p>
-            {data.context.mapperVersions.length > 0 ? (
-              <p>{`Mapper version ${data.context.mapperVersions.join(", ")}`}</p>
-            ) : null}
-          </div>
-          <div className="analytics-v2-health-controls">
-            <label>
-              Scope
-              <select value={scopeKey} onChange={(event) => setScopeKey(event.target.value)}>
-                {scopeOptions.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" onClick={() => setShowHelp((current) => !current)}>
-              How to read this page
-            </button>
-          </div>
-        </div>
-        {showHelp ? (
-          <p className="analytics-v2-section__note">
-            This page audits the instrument, not business performance. Alpha is only a strong reading for
-            reflective candidates and only if the scale is sufficiently unidimensional. Tariff, DER and DFC
-            are not pass/fail reliability scales. Reverse-scored items keep the raw answer in the bar and
-            invert only for consistency and scoring. Advanced CFA, omega and invariance are not run in this
-            build.
-          </p>
-        ) : null}
-      </section>
-
-      <section className="analytics-v2-section">
-        <div className="analytics-v2-section__heading">
-          <h3>Scoring and data integrity</h3>
-          <span className={`analytics-v2-section__badge analytics-v2-health-status--${data.integrity.status}`}>
-            {integrityLabel(data.integrity.status)}
-          </span>
-        </div>
-        <div className="analytics-v2-context-grid">
-          <article className="analytics-v2-stat-card">
-            <span>Version consistency</span>
-            <strong>{formatCount(data.context.includedN)}</strong>
-            <small>{`Included on current hash. Excluded other hash n=${formatCount(data.context.excludedDifferentHashN)}. Unknown hash n=${formatCount(data.context.unknownHashN)}.`}</small>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Mapping coverage</span>
-            <strong>{`${formatCount(data.context.readyN)} / ${formatCount(data.context.collectedN)}`}</strong>
-            <small>{`Ready vs collected. Mapping gap n=${formatCount(data.integrity.mappingGapN)}.`}</small>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Scoring reproduction</span>
-            <strong>{formatCount(data.integrity.scoringMismatchN)}</strong>
-            <small>Responses whose recomputed mapper profile does not match the stored profile.</small>
-          </article>
-          <article className="analytics-v2-stat-card">
-            <span>Answer validity</span>
-            <strong>{formatCount(data.integrity.invalidNumericAnswerN + data.integrity.missingRequiredAnswerN)}</strong>
-            <small>{`Out of range n=${formatCount(data.integrity.invalidNumericAnswerN)} · required missing n=${formatCount(data.integrity.missingRequiredAnswerN)} · missing polarity n=${formatCount(data.integrity.missingPolarityN)}.`}</small>
-          </article>
-        </div>
-      </section>
-
-      <section className="analytics-v2-section">
-        <div className="analytics-v2-section__heading">
-          <h3>Construct health overview</h3>
-        </div>
-        {scope.constructs.length === 0 ? (
-          <p>No constructs are evaluable for this survey version.</p>
-        ) : (
-          <div className="analytics-v2-health-table-wrap">
-            <table className="analytics-v2-health-table">
-              <thead>
-                <tr>
-                  <th>Construct</th>
-                  <th>Valid n</th>
-                  <th>Items</th>
-                  <th>Distribution</th>
-                  <th>Internal consistency</th>
-                  <th>Item flags</th>
-                  <th>Interpretation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scope.constructs.map((construct) => (
-                  <tr key={construct.conceptKey}>
-                    <td>
-                      <button
-                        type="button"
-                        className="analytics-v2-health-link"
-                        aria-expanded={openConstruct === construct.conceptKey}
-                        onClick={() =>
-                          setOpenConstruct((current) =>
-                            current === construct.conceptKey ? null : construct.conceptKey,
-                          )
-                        }
-                      >
-                        {construct.label}
-                      </button>
-                      <small>{construct.roleLabel}</small>
-                    </td>
-                    <td>{`${formatCount(construct.validN)} complete · ${formatCount(construct.applicableN)} applicable`}</td>
-                    <td>{formatCount(construct.itemCount)}</td>
-                    <td>{`Median ${formatScore(construct.scoreDescriptives.median)} · IQR ${formatScore(construct.scoreDescriptives.q1)}–${formatScore(construct.scoreDescriptives.q3)} · SD ${formatScore(construct.scoreDescriptives.sd)}`}</td>
-                    <td>
-                      {construct.role === "reflective_candidate"
-                        ? construct.reliability.alpha == null
-                          ? construct.reliability.reason ?? "Not computable"
-                          : formatScore(construct.reliability.alpha)
-                        : "Not a reflective scale"}
-                    </td>
-                    <td>{formatCount(construct.itemFlagCount)}</td>
-                    <td>{construct.interpretation}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {scope.constructs
-          .filter((construct) => construct.conceptKey === openConstruct)
-          .map((construct) => (
-            <ConstructDetail key={construct.conceptKey} construct={construct} />
-          ))}
-      </section>
-
-      <section className="analytics-v2-section">
-        <div className="analytics-v2-section__heading">
-          <h3>Construct relationships</h3>
-          <p>Spearman rho on pairwise complete scores. Correlations are not causal.</p>
-        </div>
-        <CorrelationHeatmap constructs={scope.constructs} cells={scope.correlations} />
-        {scope.htmt.length > 0 ? (
-          <div className="analytics-v2-health-htmt">
-            <h4>HTMT screening</h4>
-            <ul>
-              {scope.htmt.map((cell) => (
-                <li key={`${cell.conceptKeyA}:${cell.conceptKeyB}`}>
-                  {`${cell.conceptKeyA} × ${cell.conceptKeyB}: ${
-                    cell.status === "computed"
-                      ? `${formatScore(cell.value)}${cell.value != null && cell.value >= INSTRUMENT_HEALTH_HTMT_REFERENCE ? " · inspect (reference 0.85)" : ""}`
-                      : `Not computable${cell.reason ? ` (${cell.reason})` : ""}`
-                  }`}
-                </li>
+      <div className="analytics-v2-health-toolbar">
+        <div className="analytics-v2-health-controls">
+          <label>
+            <span>Scope</span>
+            <select value={scopeKey} onChange={(event) => setScopeKey(event.target.value)}>
+              {scopeOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
               ))}
-            </ul>
-            <p>HTMT below 0.85 can be shown as a conservative screening reference, never as a standalone validity proof.</p>
+            </select>
+          </label>
+        </div>
+        <div className="analytics-v2-health-toolbar__actions">
+          <p className="analytics-v2-health-generated-at">
+            Generated {formatGeneratedAt(data.generatedAt)}
+          </p>
+          <MethodologyLink />
+          {error ? <p className="analytics-v2-health-error">{error}</p> : null}
+          <button type="button" className="analytics-v2-health-generate" onClick={onRegenerate}>
+            Regenerate
+          </button>
+        </div>
+      </div>
+
+      {collectedDriftN != null ? (
+        <p className="analytics-v2-health-freshness" role="status">
+          {`This analysis was generated ${formatGeneratedAt(data.generatedAt)} with n=${formatCount(data.context.collectedN)}. The survey now has n=${formatCount(collectedDriftN)} collected responses. Regenerate to refresh.`}
+        </p>
+      ) : null}
+
+      <p className="analytics-v2-health-intro">{INSTRUMENT_HEALTH_COPY.pageIntro}</p>
+
+      <section className="analytics-v2-kpi-strip" aria-label="Instrument health context">
+        <article className="analytics-v2-kpi">
+          <span>Included</span>
+          <strong>{formatCount(data.context.includedN)}</strong>
+          <small>{`${formatCount(data.context.readyN)} ready · ${formatCount(data.context.collectedN)} collected`}</small>
+        </article>
+        <article className="analytics-v2-kpi">
+          <span>Coverage</span>
+          <strong>{`${formatCount(data.context.readyN)} / ${formatCount(data.context.collectedN)}`}</strong>
+          <small>{`Mapping gap n=${formatCount(data.integrity.mappingGapN)}`}</small>
+        </article>
+        <article className="analytics-v2-kpi">
+          <span>Integrity</span>
+          <strong className={`analytics-v2-health-status--${data.integrity.status}`}>
+            {integrityLabel(data.integrity.status)}
+          </strong>
+          <small>{`Mismatches ${formatCount(data.integrity.scoringMismatchN)} · invalid ${formatCount(data.integrity.invalidNumericAnswerN + data.integrity.missingRequiredAnswerN)}`}</small>
+        </article>
+        <article className="analytics-v2-kpi">
+          <span>Items</span>
+          <strong>{formatCount(data.context.itemCount)}</strong>
+          <small>
+            {languageCaption(data.context.languages)}
+            {data.context.currentMeasurementHash
+              ? ` · hash ${formatHash(data.context.currentMeasurementHash)}`
+              : ""}
+          </small>
+        </article>
+      </section>
+
+      {scope.constructs.length > 0 ? (
+        <section className="analytics-v2-panel">
+        <header className="analytics-v2-panel__head">
+          <div>
+            <h3>
+              Construct health <InfoTip text={INSTRUMENT_HEALTH_COPY.pageIntro} />
+            </h3>
           </div>
-        ) : null}
-      </section>
-
-      <section className="analytics-v2-section">
-        <div className="analytics-v2-section__heading">
-          <h3>DFC module health</h3>
-          <p>No global alpha is computed for declared flexibility capability.</p>
-        </div>
-        {scope.dfc == null ? (
-          <p>This survey version does not include the DFC module.</p>
-        ) : (
-          <>
-            <div className="analytics-v2-health-table-wrap">
-              <table className="analytics-v2-health-table">
-                <thead>
-                  <tr>
-                    <th>Module</th>
-                    <th>Applicable n</th>
-                    <th>Not applicable n</th>
-                    <th>Score</th>
-                    <th>Missing within applicable</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scope.dfc.modules.map((module) => (
-                    <tr key={module.setKey}>
-                      <td>{module.label}</td>
-                      <td>{`${formatCount(module.applicableN)} (${formatPercent(module.applicableShare)})`}</td>
-                      <td>{formatCount(module.notApplicableN)}</td>
-                      <td>{`Median ${formatScore(module.scoreDescriptives.median)} · IQR ${formatScore(module.scoreDescriptives.q1)}–${formatScore(module.scoreDescriptives.q3)} · SD ${formatScore(module.scoreDescriptives.sd)} · n=${formatCount(module.scoreDescriptives.n)}`}</td>
-                      <td>{formatCount(module.missingWithinApplicableN)}</td>
+        </header>
+        <div className="analytics-v2-health-table-wrap">
+          <table className="analytics-v2-health-table">
+            <thead>
+              <tr>
+                <th>Construct</th>
+                <th>Measurement role</th>
+                <th>Coverage</th>
+                <th>Items</th>
+                <th>Distribution</th>
+                <th>Internal consistency</th>
+                <th>Corrected item-total</th>
+                <th>Distribution signals</th>
+                <th>Item coherence signals</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scope.constructs.map((construct) => {
+                const expanded = openConstruct === construct.conceptKey;
+                return (
+                  <Fragment key={construct.conceptKey}>
+                    <tr className={expanded ? "is-open" : undefined}>
+                      <td>
+                        <button
+                          type="button"
+                          className="analytics-v2-health-link"
+                          aria-expanded={expanded}
+                          onClick={() =>
+                            setOpenConstruct((current) =>
+                              current === construct.conceptKey ? null : construct.conceptKey,
+                            )
+                          }
+                        >
+                          <span className="analytics-v2-health-link__caret" aria-hidden="true">
+                            {expanded ? "▾" : "▸"}
+                          </span>
+                          {construct.label}
+                        </button>
+                      </td>
+                      <td>{construct.roleLabel}</td>
+                      <td>
+                        {construct.role === "conditional_module"
+                          ? `${formatCount(construct.applicableN)} with at least one applicable module`
+                          : `${formatCount(construct.validN)} complete · ${formatCount(construct.applicableN)} applicable`}
+                        {construct.sampleAdequacyLabel ? (
+                          <small>{construct.sampleAdequacyLabel}</small>
+                        ) : null}
+                      </td>
+                      <td>{formatCount(construct.itemCount)}</td>
+                      <td>{`Median ${formatScore(construct.scoreDescriptives.median)} · IQR ${formatScore(construct.scoreDescriptives.q1)}–${formatScore(construct.scoreDescriptives.q3)} · SD ${formatScore(construct.scoreDescriptives.sd)}`}</td>
+                      <td>
+                        {construct.role === "reflective_candidate"
+                          ? formatAlpha(construct.reliability)
+                          : "—"}
+                        {construct.role === "reflective_candidate" &&
+                        construct.reliability.averageInterItemCorrelation != null
+                          ? ` · r ${formatScore(construct.reliability.averageInterItemCorrelation)}`
+                          : ""}
+                      </td>
+                      <td>
+                        {construct.reliability.itemTotalRange
+                          ? `${formatScore(construct.reliability.itemTotalRange.min)}–${formatScore(construct.reliability.itemTotalRange.max)}`
+                          : "—"}
+                      </td>
+                      <td>
+                        {construct.role === "conditional_module"
+                          ? "—"
+                          : `${formatCount(construct.itemsWithDistributionSignals)} of ${formatCount(construct.itemCount)} items`}
+                      </td>
+                      <td>
+                        {construct.role === "conditional_module"
+                          ? "—"
+                          : `${formatCount(construct.itemsWithCoherenceSignals)} of ${formatCount(construct.itemCount)} items`}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Applicable modules per household:{" "}
-              {scope.dfc.applicableModuleCountDistribution
-                .map((entry) => `${entry.modules}: n=${formatCount(entry.n)} (${formatPercent(entry.share)})`)
-                .join(" · ") || "none"}
-            </p>
-          </>
-        )}
-      </section>
-
-      <section className="analytics-v2-section">
-        <div className="analytics-v2-section__heading">
-          <h3>Respondent response-pattern checks</h3>
-          <p>Descriptive signals only. Straightlining is not an automatic exclusion rule. Completion time is not available.</p>
+                    {expanded ? (
+                      <tr className="analytics-v2-health-detail-row">
+                        <td colSpan={9}>
+                          <ConstructDetail construct={construct} />
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+      </section>
+      ) : null}
+
+      {reflectiveConstructs.length >= 2 ? (
+        <section className="analytics-v2-panel">
+          <header className="analytics-v2-panel__head">
+            <div>
+              <h3>
+                Reflective construct associations <InfoTip text={INSTRUMENT_HEALTH_COPY.relationships} />
+              </h3>
+            </div>
+          </header>
+          <CorrelationHeatmap constructs={reflectiveConstructs} cells={scope.correlations} />
+          {scope.htmt.length > 0 ? (
+            <div className="analytics-v2-health-htmt">
+              <h4>
+                HTMT screening <InfoTip text={INSTRUMENT_HEALTH_COPY.htmt} />
+              </h4>
+              <ul>
+                {scope.htmt.map((cell) => (
+                  <li key={`${cell.conceptKeyA}:${cell.conceptKeyB}`}>
+                    {`${cell.conceptKeyA} × ${cell.conceptKeyB}: ${formatHtmtCell(cell)}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {exploratoryConstructs.length > 1 ? (
+        <section className="analytics-v2-panel">
+          <header className="analytics-v2-panel__head">
+            <div>
+              <h3>Exploratory construct associations</h3>
+              <p>{INSTRUMENT_HEALTH_COPY.exploratoryAssociations}</p>
+            </div>
+          </header>
+          <CorrelationHeatmap constructs={exploratoryConstructs} cells={scope.correlations} />
+        </section>
+      ) : null}
+
+      {scope.conditionalModules.length > 0
+        ? scope.conditionalModules.map((group) => (
+            <section className="analytics-v2-panel" key={group.conceptKey}>
+              <header className="analytics-v2-panel__head">
+                <div>
+                  <h3>{`${group.label} modules`}</h3>
+                  <p>
+                    {`No global alpha is computed. ${formatCount(
+                      scope.constructs.find((construct) => construct.conceptKey === group.conceptKey)
+                        ?.applicableN ?? 0,
+                    )} respondents have at least one applicable module. Coverage below is by applicable group.`}
+                  </p>
+                </div>
+              </header>
+              <div className="analytics-v2-health-table-wrap">
+                <table className="analytics-v2-health-table">
+                  <thead>
+                    <tr>
+                      <th>Module</th>
+                      <th>Applicable n</th>
+                      <th>Not applicable n</th>
+                      <th>Score</th>
+                      <th>Missing within applicable</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.modules.map((module) => (
+                      <tr key={module.setKey}>
+                        <td>
+                          {module.label}
+                          {module.sampleAdequacyLabel ? (
+                            <small>{module.sampleAdequacyLabel}</small>
+                          ) : null}
+                        </td>
+                        <td>{`${formatCount(module.applicableN)} (${formatPercent(module.applicableShare)})`}</td>
+                        <td>{formatCount(module.notApplicableN)}</td>
+                        <td>{`Median ${formatScore(module.scoreDescriptives.median)} · IQR ${formatScore(module.scoreDescriptives.q1)}–${formatScore(module.scoreDescriptives.q3)} · SD ${formatScore(module.scoreDescriptives.sd)} · n=${formatCount(module.scoreDescriptives.n)}`}</td>
+                        <td>{formatCount(module.missingWithinApplicableN)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>
+                Applicable modules per household:{" "}
+                {group.applicableModuleCountDistribution
+                  .map((entry) => `${entry.modules}: n=${formatCount(entry.n)} (${formatPercent(entry.share)})`)
+                  .join(" · ") || "none"}
+              </p>
+            </section>
+          ))
+        : null}
+
+      <section className="analytics-v2-panel">
+        <header className="analytics-v2-panel__head">
+          <div>
+            <h3>Response-pattern checks</h3>
+            <p>Descriptive signals only. These are not automatic exclusion rules.</p>
+          </div>
+        </header>
         <div className="analytics-v2-context-grid">
           <article className="analytics-v2-stat-card">
-            <span>Identical rating answers</span>
+            <span>Identical ratings across all items</span>
             <strong>{`${formatCount(scope.responsePatterns.identicalRatingItems.n)} (${formatPercent(scope.responsePatterns.identicalRatingItems.share)})`}</strong>
           </article>
           <article className="analytics-v2-stat-card">
             <span>{`Within-person SD < ${scope.responsePatterns.lowWithinPersonSd.threshold}`}</span>
             <strong>{`${formatCount(scope.responsePatterns.lowWithinPersonSd.n)} (${formatPercent(scope.responsePatterns.lowWithinPersonSd.share)})`}</strong>
           </article>
-          <article className="analytics-v2-stat-card">
-            <span>Longest same-response run</span>
-            <strong>{`Median ${formatScore(scope.responsePatterns.longestSameResponseRun.median, 1)}`}</strong>
-            <small>{`p90 ${formatScore(scope.responsePatterns.longestSameResponseRun.p90, 1)} · max ${formatScore(scope.responsePatterns.longestSameResponseRun.max, 1)} · n=${formatCount(scope.responsePatterns.longestSameResponseRun.n)}`}</small>
-          </article>
         </div>
-        {scope.responsePatterns.straightliningByConstruct.length > 0 ? (
-          <ul className="analytics-v2-list">
-            {scope.responsePatterns.straightliningByConstruct.map((entry) => (
-              <li key={entry.conceptKey}>
-                {`${entry.label}: n=${formatCount(entry.n)} (${formatPercent(entry.share)}) of complete-case n=${formatCount(entry.completeCaseN)}`}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <div className="analytics-v2-health-sequence">
+          <div className="analytics-v2-health-sequence__head">
+            <button
+              type="button"
+              className="analytics-v2-health-sequence__toggle"
+              aria-expanded={sequenceOpen}
+              onClick={() => setSequenceOpen((current) => !current)}
+            >
+              <span className="analytics-v2-health-link__caret" aria-hidden="true">
+                {sequenceOpen ? "▾" : "▸"}
+              </span>
+              Longest identical-answer sequence
+            </button>
+            <InfoTip text={INSTRUMENT_HEALTH_COPY.longestRun} />
+          </div>
+          {sequenceOpen ? (
+            <div className="analytics-v2-health-sequence__body">
+              <div className="analytics-v2-health-mini-grid">
+                <article>
+                  <span>Median streak</span>
+                  <strong>{formatScore(scope.responsePatterns.longestSameResponseRun.median, 1)}</strong>
+                </article>
+                <article>
+                  <span>p90 / max</span>
+                  <strong>{`${formatScore(scope.responsePatterns.longestSameResponseRun.p90, 1)} / ${formatScore(scope.responsePatterns.longestSameResponseRun.max, 1)}`}</strong>
+                </article>
+                <article>
+                  <span>Median share of items seen</span>
+                  <strong>{formatPercent(scope.responsePatterns.longestSameResponseRun.medianShare)}</strong>
+                </article>
+                <article>
+                  <span>Respondents</span>
+                  <strong>{formatCount(scope.responsePatterns.longestSameResponseRun.n)}</strong>
+                </article>
+              </div>
+              {scope.responsePatterns.identicalRatingsByConstruct.length > 0 ? (
+                <div>
+                  <h4>
+                    Identical ratings within a construct{" "}
+                    <InfoTip text={INSTRUMENT_HEALTH_COPY.identicalWithinConstruct} />
+                  </h4>
+                  <div className="analytics-v2-health-table-wrap">
+                    <table className="analytics-v2-health-table">
+                      <thead>
+                        <tr>
+                          <th>Construct</th>
+                          <th>n</th>
+                          <th>Share</th>
+                          <th>Complete-case n</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scope.responsePatterns.identicalRatingsByConstruct.map((entry) => (
+                          <tr key={entry.conceptKey}>
+                            <td>{entry.label}</td>
+                            <td>{formatCount(entry.n)}</td>
+                            <td>{formatPercent(entry.share)}</td>
+                            <td>{formatCount(entry.completeCaseN)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </section>
 
-      <section className="analytics-v2-section">
-        <div className="analytics-v2-section__heading">
-          <h3>Multilingual evidence</h3>
-        </div>
-        {data.multilingual.languageCount <= 1 ? (
-          <p>Only one language is present in the included sample.</p>
-        ) : (
-          <p>
-            Compare scopes above for descriptive differences by language. {data.multilingual.invarianceNote}
-          </p>
-        )}
-        <div className="analytics-v2-health-table-wrap">
-          <table className="analytics-v2-health-table">
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Group(s)</th>
-                <th>CFI</th>
-                <th>TLI</th>
-                <th>RMSEA [CI]</th>
-                <th>SRMR</th>
-                <th>ΔCFI</th>
-                <th>ΔRMSEA</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.multilingual.advancedModels.map((row) => (
-                <tr key={row.model}>
-                  <td>{row.model}</td>
-                  <td>{row.groups}</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>{row.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p>Advanced model not run.</p>
-      </section>
+      {data.multilingual.languageCount > 1 ? (
+        <section className="analytics-v2-panel">
+          <header className="analytics-v2-panel__head">
+            <div>
+              <h3>Multilingual evidence</h3>
+              <p>{`Compare scopes above for descriptive differences by language. ${data.multilingual.invarianceNote}`}</p>
+            </div>
+          </header>
+        </section>
+      ) : null}
 
       {data.debrief ? (
-        <section className="analytics-v2-section">
-          <div className="analytics-v2-section__heading">
-            <h3>Respondent debrief evidence</h3>
-            <p>Open comments are counted, not classified automatically.</p>
-          </div>
+        <section className="analytics-v2-panel">
+          <header className="analytics-v2-panel__head">
+            <div>
+              <h3>
+                Respondent debrief <InfoTip text={INSTRUMENT_HEALTH_COPY.debrief} />
+              </h3>
+              <p>
+                {INSTRUMENT_HEALTH_COPY.debrief} Optional debrief was used for this collection.
+                {data.debrief.currentlyEnabled == null
+                  ? ""
+                  : data.debrief.currentlyEnabled
+                    ? " Currently enabled."
+                    : " Currently disabled."}
+              </p>
+            </div>
+          </header>
           <div className="analytics-v2-context-grid">
             <article className="analytics-v2-stat-card">
               <span>Feedback n</span>
@@ -634,18 +879,30 @@ function GeneratedView({ data }: { data: InstrumentHealthData }) {
   );
 }
 
-function GeneratingOverlay() {
+function GeneratingOverlay({ covering }: { covering: boolean }) {
   return (
-    <div className="analytics-v2-health-overlay" role="status" aria-live="polite">
+    <div
+      className={`analytics-v2-health-overlay${covering ? " is-cover" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
       <span className="analytics-v2-health-spinner" aria-hidden="true" />
       <p>Generating instrument health</p>
-      <small>This uses the full eligible sample for the current instrument version. You can stay on this tab until it finishes.</small>
+      <small>
+        This uses the full eligible sample for the current instrument version. You can stay on this tab
+        until it finishes.
+      </small>
     </div>
   );
 }
 
-export function InstrumentHealthPanel({ surveyId }: InstrumentHealthPanelProps) {
-  const [data, setData] = useState<InstrumentHealthData | null>(null);
+export function InstrumentHealthPanel({ surveyId, currentCollectedN }: InstrumentHealthPanelProps) {
+  const sessionChecked = useSyncExternalStore(subscribeNever, () => true, () => false);
+  const data = useSyncExternalStore(
+    subscribeInstrumentHealthSession,
+    () => readInstrumentHealthSession(surveyId),
+    () => null,
+  );
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -658,7 +915,7 @@ export function InstrumentHealthPanel({ surveyId }: InstrumentHealthPanelProps) 
     setError(null);
     try {
       const next = await generateInstrumentHealthAction(surveyId);
-      setData(next);
+      writeInstrumentHealthSession(surveyId, next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Instrument health could not be generated.");
     } finally {
@@ -666,37 +923,38 @@ export function InstrumentHealthPanel({ surveyId }: InstrumentHealthPanelProps) 
     }
   }
 
-  if (generating) {
-    return <GeneratingOverlay />;
-  }
-
-  if (!data) {
-    return (
-      <section className="analytics-v2-health-empty">
-        <div>
-          <h2>Generate instrument health</h2>
-          <p>
-            This analysis is not loaded with Analytics 2. It uses the full eligible sample for the current
-            measurement hash: ready responses only, never a partial slice.
-          </p>
-        </div>
-        {error ? <p className="analytics-v2-health-error">{error}</p> : null}
-        <button type="button" className="analytics-v2-health-generate" onClick={() => void generate()}>
-          Generate instrument health
-        </button>
-      </section>
-    );
-  }
-
   return (
     <div className="analytics-v2-health-shell">
-      <div className="analytics-v2-health-toolbar">
-        <button type="button" className="analytics-v2-health-generate" onClick={() => void generate()}>
-          Regenerate
-        </button>
-        {error ? <p className="analytics-v2-health-error">{error}</p> : null}
-      </div>
-      <GeneratedView data={data} />
+      {generating ? <GeneratingOverlay covering={data != null} /> : null}
+
+      {!sessionChecked && !generating ? <div className="analytics-v2-health-session-placeholder" /> : null}
+
+      {sessionChecked && !data && !generating ? (
+        <section className="analytics-v2-health-empty">
+          <div>
+            <h2>Generate instrument health</h2>
+            <p>
+              This analysis is not loaded with Analytics 2. It uses the full eligible sample for the
+              current measurement hash: ready responses only, never a partial slice.
+            </p>
+            <MethodologyLink />
+          </div>
+          {error ? <p className="analytics-v2-health-error">{error}</p> : null}
+          <button type="button" className="analytics-v2-health-generate" onClick={() => void generate()}>
+            Generate instrument health
+          </button>
+        </section>
+      ) : null}
+
+      {data ? (
+        <GeneratedView
+          key={data.cacheKey}
+          data={data}
+          currentCollectedN={currentCollectedN}
+          error={error}
+          onRegenerate={() => void generate()}
+        />
+      ) : null}
     </div>
   );
 }

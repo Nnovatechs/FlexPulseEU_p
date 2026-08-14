@@ -4,8 +4,10 @@ import {
   deriveSchemaTargetsFromBehaviouralConceptKeys,
   flexpulseApplicabilityFactors,
   flexpulseBehaviouralModulators,
+  flexpulseBehaviouralSchemaV1,
   flexpulsePrimaryProfileAxes,
   getFlexpulseBehaviouralConcept,
+  resolveFlexpulseAnalysisModel,
 } from "@/features/ontology/flexpulse-behavioural-schema";
 
 describe("flexpulse behavioural schema v1", () => {
@@ -81,5 +83,35 @@ describe("flexpulse behavioural schema v1", () => {
       "flexpulse_behavioural_schema.trust_in_automation",
       "flexpulse_behavioural_schema.manual_override_need",
     ]);
+  });
+
+  it("keeps analysis models on every concept without changing primary axes", () => {
+    expect(
+      flexpulseBehaviouralSchemaV1.every((concept) => concept.analysis_model != null),
+    ).toBe(true);
+    expect(getFlexpulseBehaviouralConcept("awareness_of_energy_systems")?.analysis_model).toMatchObject({
+      measurement_role: "reflective_candidate",
+      reliability_applicable: true,
+    });
+    expect(getFlexpulseBehaviouralConcept("tariff_preference_orientation")?.analysis_model.measurement_role).toBe(
+      "descriptive_composite",
+    );
+    expect(getFlexpulseBehaviouralConcept("declared_flexibility_capability")?.analysis_model).toMatchObject({
+      measurement_role: "conditional_module",
+      reliability_applicable: false,
+    });
+    expect(getFlexpulseBehaviouralConcept("manual_override_need")?.analysis_model.measurement_role).toBe(
+      "descriptive_composite",
+    );
+    expect(getFlexpulseBehaviouralConcept("owned_der_assets")?.analysis_model.measurement_role).toBe(
+      "not_applicable",
+    );
+    expect(
+      resolveFlexpulseAnalysisModel({
+        schemaNamespace: "flexpulse_behavioural_schema",
+        schemaVersion: 1,
+        conceptKey: "trust_in_automation",
+      })?.measurement_role,
+    ).toBe("reflective_candidate");
   });
 });

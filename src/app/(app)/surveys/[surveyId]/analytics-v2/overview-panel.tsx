@@ -94,7 +94,6 @@ function BubblePlot({
             y={plotTop}
             width={plotSize}
             height={plotSize}
-            rx="8"
             className="analytics-v2-bubble-plot__frame"
           />
 
@@ -163,7 +162,11 @@ function BubblePlot({
   );
 }
 
-const COUNTRY_COLOURS = ["#5b9cf6", "#3ab590", "#3ecf7c", "#f5a623", "#e85252"];
+const PULSE_COLOURS = ["#6ea8fe", "#3dcdb4", "#c58b4b", "#b877d9", "#7ad3f7"];
+
+function pulsePosition(value: number) {
+  return `${((Math.min(5, Math.max(1, value)) - 1) / 4) * 100}%`;
+}
 
 function CountryPulsePlot({
   construct,
@@ -174,129 +177,100 @@ function CountryPulsePlot({
 }) {
   const visibleCountries = countries
     .map((country, index) => ({
-      country,
+      code: country.code,
       metric: construct.countries.find((entry) => entry.code === country.code)?.metric ?? null,
-      colour: COUNTRY_COLOURS[index % COUNTRY_COLOURS.length],
+      colour: PULSE_COLOURS[index % PULSE_COLOURS.length],
     }))
     .filter(
       (
         entry,
       ): entry is {
-        country: (typeof countries)[number];
+        code: string;
         metric: NonNullable<(typeof construct.countries)[number]["metric"]>;
         colour: string;
       } => entry.metric != null,
     );
 
-  const scale = (value: number) => 26 + ((value - 1) / 4) * 354;
-  const laneGap = 18;
-  const topLaneY = 18;
-  const overallY = topLaneY;
-  const plotHeight = 44 + visibleCountries.length * laneGap;
+  const rows = [
+    {
+      code: "ALL",
+      colour: "#c5cddb",
+      metric: construct.overall,
+      baseline: true,
+    },
+    ...visibleCountries.map((country) => ({
+      code: country.code,
+      colour: country.colour,
+      metric: country.metric,
+      baseline: false,
+    })),
+  ];
 
   return (
-    <div className="analytics-v2-country-row">
-      <div className="analytics-v2-country-row__label">
-        <strong>{construct.label}</strong>
-        <span>{`Median ${formatScore(construct.overall.median)} · IQR ${formatScore(construct.overall.q1)}-${formatScore(construct.overall.q3)} · n=${construct.overall.applicableN}`}</span>
-      </div>
+    <article className="analytics-v2-pulse">
+      <header className="analytics-v2-pulse__head">
+        <h4>{construct.label}</h4>
+        <dl className="analytics-v2-pulse__kpis">
+          <div>
+            <dt>Median</dt>
+            <dd>{formatScore(construct.overall.median)}</dd>
+          </div>
+          <div>
+            <dt>IQR</dt>
+            <dd>{`${formatScore(construct.overall.q1)}–${formatScore(construct.overall.q3)}`}</dd>
+          </div>
+          <div>
+            <dt>n</dt>
+            <dd>{formatCount(construct.overall.applicableN)}</dd>
+          </div>
+        </dl>
+      </header>
 
-      <svg viewBox={`0 0 410 ${plotHeight}`} className="analytics-v2-country-row__plot" role="img">
-        {[1, 2, 3, 4, 5].map((tick) => (
-          <g key={tick}>
-            <line
-              x1={scale(tick)}
-              x2={scale(tick)}
-              y1={overallY - 8}
-              y2={plotHeight - 20}
-              className="analytics-v2-country-row__tick"
-            />
-            <text x={scale(tick)} y={plotHeight - 6} textAnchor="middle">
+      <div className="analytics-v2-pulse__row analytics-v2-pulse__row--axis" aria-hidden="true">
+        <span />
+        <div className="analytics-v2-pulse__track analytics-v2-pulse__track--axis">
+          {[1, 2, 3, 4, 5].map((tick) => (
+            <span key={tick} className="analytics-v2-pulse__axis-tick" style={{ left: pulsePosition(tick) }}>
               {tick}
-            </text>
-          </g>
-        ))}
-
-        <line
-          x1="26"
-          x2="380"
-          y1={overallY}
-          y2={overallY}
-          className="analytics-v2-country-row__axis"
-        />
-        <line
-          x1={scale(construct.overall.q1)}
-          x2={scale(construct.overall.q3)}
-          y1={overallY}
-          y2={overallY}
-          className="analytics-v2-country-row__range analytics-v2-country-row__range--overall"
-        />
-        <circle
-          cx={scale(construct.overall.median)}
-          cy={overallY}
-          r="5.8"
-          className="analytics-v2-country-row__dot analytics-v2-country-row__dot--overall"
-        >
-          <title>{`Overall sample · median ${formatScore(construct.overall.median)} · IQR ${formatScore(construct.overall.q1)}-${formatScore(construct.overall.q3)} · n=${construct.overall.applicableN}`}</title>
-        </circle>
-
-        {visibleCountries.map((country, index) => {
-          const y = overallY + laneGap * (index + 1);
-          return (
-            <g key={country.country.code}>
-              <line
-                x1="26"
-                x2="380"
-                y1={y}
-                y2={y}
-                className="analytics-v2-country-row__axis analytics-v2-country-row__axis--subtle"
-              />
-              <line
-                x1={scale(country.metric.q1)}
-                x2={scale(country.metric.q3)}
-                y1={y}
-                y2={y}
-                className="analytics-v2-country-row__range"
-                stroke={country.colour}
-              />
-              <circle
-                cx={scale(country.metric.median)}
-                cy={y}
-                r="4.9"
-                className="analytics-v2-country-row__dot"
-                fill={country.colour}
-                stroke={country.colour}
-              >
-                <title>{`${country.country.code} · median ${formatScore(country.metric.median)} · IQR ${formatScore(country.metric.q1)}-${formatScore(country.metric.q3)} · n=${country.metric.applicableN}`}</title>
-              </circle>
-            </g>
-          );
-        })}
-      </svg>
-
-      <div className="analytics-v2-country-row__legend">
-        <span className="analytics-v2-country-row__legend-item is-overall">
-          <i className="analytics-v2-country-row__legend-swatch analytics-v2-country-row__legend-swatch--overall" />
-          Baseline
-        </span>
-        {countries.map((country, index) => (
-          <span
-            key={country.code}
-            className={`analytics-v2-country-row__legend-item${!country.detailAvailable ? " is-muted" : ""}`}
-          >
-            <i
-              className="analytics-v2-country-row__legend-swatch"
-              style={{
-                background: country.detailAvailable
-                  ? COUNTRY_COLOURS[index % COUNTRY_COLOURS.length]
-                  : "#5f687b",
-              }}
-            />
-            {country.detailAvailable ? `${country.code} · n=${country.count}` : `${country.code} · n=${country.count} hidden`}
-          </span>
-        ))}
+            </span>
+          ))}
+        </div>
+        <span className="analytics-v2-pulse__value">Med</span>
+        <span className="analytics-v2-pulse__n">n</span>
       </div>
-    </div>
+
+      {rows.map((row) => {
+        const iqrLeft = pulsePosition(row.metric.q1);
+        const iqrWidth = `${Math.max(((row.metric.q3 - row.metric.q1) / 4) * 100, 1.2)}%`;
+        return (
+          <div
+            key={row.code}
+            className={`analytics-v2-pulse__row${row.baseline ? " is-baseline" : ""}`}
+          >
+            <span className="analytics-v2-pulse__code">{row.code}</span>
+            <div className="analytics-v2-pulse__track">
+              {[2, 3, 4].map((tick) => (
+                <span
+                  key={tick}
+                  className={`analytics-v2-pulse__grid${tick === 4 ? " is-strong" : ""}`}
+                  style={{ left: pulsePosition(tick) }}
+                />
+              ))}
+              <span
+                className="analytics-v2-pulse__iqr"
+                style={{ left: iqrLeft, width: iqrWidth, background: row.colour }}
+              />
+              <span
+                className="analytics-v2-pulse__median"
+                style={{ left: pulsePosition(row.metric.median), background: row.colour }}
+              />
+            </div>
+            <span className="analytics-v2-pulse__value">{formatScore(row.metric.median)}</span>
+            <span className="analytics-v2-pulse__n">{formatCount(row.metric.applicableN)}</span>
+          </div>
+        );
+      })}
+    </article>
   );
 }
 
@@ -398,7 +372,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
               <div className="analytics-v2-opportunity-grid">
                 <BubblePlot view={selectedView} hoveredQuadrant={hoveredQuadrant} />
 
-                <article className="analytics-v2-card">
+                <div className="analytics-v2-matrix-wrap">
                   <h4>Operational groups</h4>
                   <div className="analytics-v2-matrix">
                     <div className="analytics-v2-matrix__corner" />
@@ -458,8 +432,8 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
                           <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
                         </button>
                       ))}
-                  </div>
-                </article>
+                    </div>
+                </div>
               </div>
             )}
           </section>
@@ -472,7 +446,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
 
               <div className="analytics-v2-insights-grid">
                 {data.insights.map((insight) => (
-                  <article key={`${insight.title}-${insight.evidence}`} className="analytics-v2-card analytics-v2-card--accent">
+                  <article key={`${insight.title}-${insight.evidence}`} className="analytics-v2-insight">
                     <h4>{insight.title}</h4>
                     <p>{insight.body}</p>
                     <small>{insight.evidence}</small>
@@ -489,23 +463,39 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
 
             <div className="analytics-v2-construct-list">
               {data.constructs.map((construct) => (
-                <article key={construct.conceptKey} className="analytics-v2-card">
+                <article key={construct.conceptKey} className="analytics-v2-construct">
                   <div className="analytics-v2-construct-row">
                     <div className="analytics-v2-construct-row__summary">
-                      <h4>{construct.label}</h4>
+                      <div className="analytics-v2-construct-row__title">
+                        <h4>{construct.label}</h4>
+                        <span className="analytics-v2-n-badge">{`n=${formatCount(construct.applicableN)}`}</span>
+                      </div>
                       {construct.description ? (
                         <p className="analytics-v2-construct-row__description">
                           {construct.description}
                         </p>
                       ) : null}
-                      <p>{`Median ${formatScore(construct.median)} · IQR ${formatScore(construct.q1)}-${formatScore(construct.q3)}`}</p>
+                      <p className="analytics-v2-construct-row__stats">
+                        {`Median ${formatScore(construct.median)}`}
+                        <span>IQR {formatScore(construct.q1)}–{formatScore(construct.q3)}</span>
+                      </p>
                     </div>
-                    <span className="analytics-v2-n-badge">{`n=${formatCount(construct.applicableN)}`}</span>
                   </div>
 
-                  <div className="analytics-v2-band-list">
+                  <div className="analytics-v2-stack" aria-hidden="true">
+                    {construct.bands.map((band) =>
+                      band.share > 0 ? (
+                        <span
+                          key={band.key}
+                          className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
+                          style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
+                        />
+                      ) : null,
+                    )}
+                  </div>
+                  <div className="analytics-v2-stack__legend">
                     {construct.bands.map((band) => (
-                      <div key={band.key} className={`analytics-v2-band analytics-v2-band--${band.key}`}>
+                      <div key={band.key} className={`analytics-v2-stack__item analytics-v2-stack__item--${band.key}`}>
                         <strong>{band.label}</strong>
                         <span>{`${formatPercent(band.share)} · n=${formatCount(band.count)}`}</span>
                       </div>

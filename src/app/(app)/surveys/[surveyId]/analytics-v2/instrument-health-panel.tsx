@@ -121,11 +121,22 @@ function ConstructDetail({ construct }: { construct: InstrumentHealthConstruct }
         </article>
       </div>
 
-      <div className="analytics-v2-band-list">
+      <div className="analytics-v2-stack" aria-hidden="true">
+        {construct.bands.map((band) =>
+          band.share > 0 ? (
+            <span
+              key={band.key}
+              className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
+              style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="analytics-v2-stack__legend">
         {construct.bands.map((band) => (
-          <div key={band.key} className={`analytics-v2-band analytics-v2-band--${band.key}`}>
-            <span>{band.label}</span>
-            <strong>{`${formatCount(band.count)} · ${formatPercent(band.share)}`}</strong>
+          <div key={band.key} className={`analytics-v2-stack__item analytics-v2-stack__item--${band.key}`}>
+            <strong>{band.label}</strong>
+            <span>{`${formatPercent(band.share)} · n=${formatCount(band.count)}`}</span>
           </div>
         ))}
       </div>
@@ -279,10 +290,10 @@ function heatmapColor(rho: number | null, diagonal: boolean) {
 
   const intensity = Math.min(Math.abs(rho), 1);
   if (rho >= 0) {
-    return `rgba(115, 191, 105, ${0.12 + intensity * 0.55})`;
+    return `rgba(110, 168, 254, ${0.08 + intensity * 0.52})`;
   }
 
-  return `rgba(242, 73, 92, ${0.12 + intensity * 0.55})`;
+  return `rgba(184, 119, 217, ${0.08 + intensity * 0.52})`;
 }
 
 function GeneratedView({ data }: { data: InstrumentHealthData }) {

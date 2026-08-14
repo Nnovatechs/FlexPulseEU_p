@@ -9,7 +9,7 @@ type SurveyAnalyticsV2PageProps = {
 
 export default async function SurveyAnalyticsV2Page({ params }: SurveyAnalyticsV2PageProps) {
   const { surveyId } = await params;
-  const { survey, surveyTitle, overview } = await getSurveyAnalyticsOverviewData(surveyId);
+  const { survey, overview } = await getSurveyAnalyticsOverviewData(surveyId);
 
   return (
     <div className="analytics-shell analytics-shell--v2">
@@ -20,7 +20,7 @@ export default async function SurveyAnalyticsV2Page({ params }: SurveyAnalyticsV
               <Link href={appRoutes.dashboard}>Surveys</Link>
             </span>
             <span className="breadcrumb__item">
-              <Link href={appRoutes.surveyDetail(survey.id)}>{surveyTitle}</Link>
+              <Link href={appRoutes.surveyDetail(survey.id)}>{survey.name}</Link>
             </span>
             <span className="breadcrumb__item">
               <span>Analytics 2</span>
@@ -31,7 +31,7 @@ export default async function SurveyAnalyticsV2Page({ params }: SurveyAnalyticsV
         <div className="analytics-sections-body analytics-sections-body--v2">
           <AnalyticsV2Workbench
             surveyId={survey.id}
-            surveyTitle={surveyTitle}
+            surveyTitle={survey.name}
             overviewData={overview}
           />
         </div>

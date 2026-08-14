@@ -31,12 +31,8 @@ export function AnalyticsV2Workbench({
     <div className="analytics-v2-workbench">
       <header className="analytics-v2-workbench__header">
         <div className="analytics-v2-workbench__title-block">
-          <p className="analytics-content__eyebrow">Experimental workspace</p>
+          <p className="analytics-content__eyebrow">Analytics dashboard</p>
           <h1>{surveyTitle}</h1>
-          <p>
-            A new analytics surface for FlexPulse intelligence. The current analytics dashboard
-            stays untouched while this v2 workspace evolves in parallel.
-          </p>
         </div>
 
         <nav className="analytics-v2-tabbar" aria-label="Analytics 2 sections">

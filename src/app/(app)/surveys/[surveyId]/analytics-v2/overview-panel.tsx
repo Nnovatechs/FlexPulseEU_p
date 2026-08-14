@@ -46,44 +46,65 @@ function countrySummary(countries: SurveyOverviewData["context"]["countries"]) {
   return countries.map((country) => `${country.code} (${country.count})`).join(" · ");
 }
 
+type OpportunityQuadrantKey =
+  SurveyOverviewData["opportunity"]["viewsByDfcKey"][string]["quadrants"][number]["key"];
+
+function getCellQuadrantKey(capability: number, willingness: number): OpportunityQuadrantKey {
+  if (willingness >= 4 && capability >= 4) {
+    return "high_willingness_high_capability";
+  }
+
+  if (willingness >= 4 && capability < 4) {
+    return "high_willingness_limited_capability";
+  }
+
+  if (willingness < 4 && capability >= 4) {
+    return "lower_willingness_high_capability";
+  }
+
+  return "lower_immediate_fit";
+}
+
 function BubblePlot({
   view,
+  hoveredQuadrant,
 }: {
   view: SurveyOverviewData["opportunity"]["viewsByDfcKey"][string];
+  hoveredQuadrant: OpportunityQuadrantKey | null;
 }) {
   const maxCount = Math.max(...view.distributionCells.map((cell) => cell.count), 1);
-
-  const scale = (value: number) => 28 + ((value - 1) / 4) * 264;
-  const yScale = (value: number) => 292 - ((value - 1) / 4) * 264;
+  const plotLeft = 44;
+  const plotTop = 28;
+  const plotSize = 264;
+  const plotCenterX = plotLeft + plotSize / 2;
+  const plotCenterY = plotTop + plotSize / 2;
+  const scale = (value: number) => plotLeft + ((value - 1) / 4) * plotSize;
+  const yScale = (value: number) => plotTop + plotSize - ((value - 1) / 4) * plotSize;
 
   return (
     <div className="analytics-v2-plot-card">
       <div className="analytics-v2-plot-card__header">
-        <div>
-          <h4>{`Willingness x ${view.label === "Overall DFC" ? "Overall DFC" : `${view.label} capability`}`}</h4>
-          <p>Applicable responses only. Bubble size reflects grouped response counts.</p>
-        </div>
-        <div className="analytics-v2-plot-card__meta">
-          <span>{`Applicable n=${formatCount(view.applicableN)}`}</span>
-          <span>{`Not applicable n=${formatCount(view.notApplicableN)}`}</span>
-          {view.missingWillingnessN > 0 ? (
-            <span>{`Missing willingness n=${formatCount(view.missingWillingnessN)}`}</span>
-          ) : null}
-          <span>Point size increases only when exact overlaps repeat.</span>
-        </div>
+        <h4>{`Willingness x ${view.label === "Overall DFC" ? "Overall DFC" : `${view.label} capability`}`}</h4>
       </div>
 
-      <div className="analytics-v2-bubble-plot">
-        <svg viewBox="0 0 320 320" role="img" aria-label={`${view.label} opportunity plot`}>
-          <rect x="28" y="28" width="264" height="264" rx="8" className="analytics-v2-bubble-plot__frame" />
+      <div className={`analytics-v2-bubble-plot${hoveredQuadrant ? " is-highlighting" : ""}`}>
+        <svg viewBox="0 0 336 320" role="img" aria-label={`${view.label} opportunity plot`}>
+          <rect
+            x={plotLeft}
+            y={plotTop}
+            width={plotSize}
+            height={plotSize}
+            rx="8"
+            className="analytics-v2-bubble-plot__frame"
+          />
 
           {[1, 2, 3, 4, 5].map((tick) => (
             <g key={`x-${tick}`}>
               <line
                 x1={scale(tick)}
                 x2={scale(tick)}
-                y1="28"
-                y2="292"
+                y1={plotTop}
+                y2={plotTop + plotSize}
                 className={`analytics-v2-bubble-plot__grid${tick === 4 ? " is-strong" : tick === 2 ? " is-soft" : ""}`}
               />
               <text x={scale(tick)} y="310" textAnchor="middle">
@@ -95,13 +116,13 @@ function BubblePlot({
           {[1, 2, 3, 4, 5].map((tick) => (
             <g key={`y-${tick}`}>
               <line
-                x1="28"
-                x2="292"
+                x1={plotLeft}
+                x2={plotLeft + plotSize}
                 y1={yScale(tick)}
                 y2={yScale(tick)}
                 className={`analytics-v2-bubble-plot__grid${tick === 4 ? " is-strong" : tick === 2 ? " is-soft" : ""}`}
               />
-              <text x="14" y={yScale(tick) + 4} textAnchor="middle">
+              <text x="30" y={yScale(tick) + 4} textAnchor="middle">
                 {tick}
               </text>
             </g>
@@ -109,23 +130,31 @@ function BubblePlot({
 
           {view.distributionCells.map((cell) => {
             const radius = 3.4 + ((cell.count - 1) / Math.max(maxCount - 1, 1)) * 3.8;
+            const quadrantKey = getCellQuadrantKey(cell.x, cell.y);
+            const isLit = hoveredQuadrant === quadrantKey;
             return (
               <circle
                 key={`${cell.x}-${cell.y}`}
                 cx={scale(cell.x)}
                 cy={yScale(cell.y)}
-                r={radius}
-                className="analytics-v2-bubble-plot__bubble"
+                r={isLit ? radius + 1.2 : radius}
+                className={`analytics-v2-bubble-plot__bubble${isLit ? " is-lit" : ""}`}
               >
                 <title>{`${view.xLabel}: ${formatScore(cell.x)} · Willingness: ${formatScore(cell.y)} · n=${cell.count} · ${formatPercent(cell.share)} of applicable responses`}</title>
               </circle>
             );
           })}
 
-          <text x="160" y="18" textAnchor="middle" className="analytics-v2-bubble-plot__axis-title">
+          <text
+            x="12"
+            y={plotCenterY}
+            textAnchor="middle"
+            className="analytics-v2-bubble-plot__axis-title"
+            transform={`rotate(-90 12 ${plotCenterY})`}
+          >
             Flexibility willingness
           </text>
-          <text x="160" y="319" textAnchor="middle" className="analytics-v2-bubble-plot__axis-title">
+          <text x={plotCenterX} y="319" textAnchor="middle" className="analytics-v2-bubble-plot__axis-title">
             {view.xLabel}
           </text>
         </svg>
@@ -273,6 +302,7 @@ function CountryPulsePlot({
 
 export function OverviewPanel({ data }: OverviewPanelProps) {
   const [selectedDfcKey, setSelectedDfcKey] = useState(data.opportunity.defaultDfcKey);
+  const [hoveredQuadrant, setHoveredQuadrant] = useState<OpportunityQuadrantKey | null>(null);
 
   const selectedView = useMemo(
     () =>
@@ -362,10 +392,6 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
               ))}
             </div>
 
-            {selectedView.helperText ? (
-              <p className="analytics-v2-section__note">{selectedView.helperText}</p>
-            ) : null}
-
             {!selectedView.detailAvailable ? (
               <div className="analytics-v2-empty-card analytics-v2-empty-card--inline">
                 <h3>No applicable declared flexibility capability data are available for this sample.</h3>
@@ -376,7 +402,7 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
               </div>
             ) : (
               <div className="analytics-v2-opportunity-grid">
-                <BubblePlot view={selectedView} />
+                <BubblePlot view={selectedView} hoveredQuadrant={hoveredQuadrant} />
 
                 <article className="analytics-v2-card">
                   <h4>Operational groups</h4>
@@ -400,10 +426,18 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
                         ].includes(quadrant.key),
                       )
                       .map((quadrant) => (
-                        <div key={quadrant.key} className="analytics-v2-matrix__cell">
+                        <button
+                          key={quadrant.key}
+                          type="button"
+                          className={`analytics-v2-matrix__cell${hoveredQuadrant === quadrant.key ? " is-hot" : ""}`}
+                          onMouseEnter={() => setHoveredQuadrant(quadrant.key)}
+                          onMouseLeave={() => setHoveredQuadrant(null)}
+                          onFocus={() => setHoveredQuadrant(quadrant.key)}
+                          onBlur={() => setHoveredQuadrant(null)}
+                        >
                           <strong>{quadrant.label}</strong>
                           <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
-                        </div>
+                        </button>
                       ))}
 
                     <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
@@ -417,10 +451,18 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
                         ].includes(quadrant.key),
                       )
                       .map((quadrant) => (
-                        <div key={quadrant.key} className="analytics-v2-matrix__cell">
+                        <button
+                          key={quadrant.key}
+                          type="button"
+                          className={`analytics-v2-matrix__cell${hoveredQuadrant === quadrant.key ? " is-hot" : ""}`}
+                          onMouseEnter={() => setHoveredQuadrant(quadrant.key)}
+                          onMouseLeave={() => setHoveredQuadrant(null)}
+                          onFocus={() => setHoveredQuadrant(quadrant.key)}
+                          onBlur={() => setHoveredQuadrant(null)}
+                        >
                           <strong>{quadrant.label}</strong>
                           <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
-                        </div>
+                        </button>
                       ))}
                   </div>
                 </article>

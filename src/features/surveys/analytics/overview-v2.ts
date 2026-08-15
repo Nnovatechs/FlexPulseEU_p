@@ -1,4 +1,15 @@
-import type { MapperProfileTag, PersistedSurvey } from "@/features/surveys/generator-types";
+import {
+  flexpulsePrimaryProfileAxes,
+  resolveFlexpulseAnalysisModel,
+  resolveFlexpulseBehaviouralConcept,
+} from "@/features/ontology/flexpulse-behavioural-schema";
+import { computeLinearQuantile } from "@/features/surveys/analytics/descriptive-stats";
+import { getScoreDirectionNote } from "@/features/surveys/analytics/instrument-health-semantics";
+import {
+  OVERVIEW_GEOGRAPHY_MIN_N,
+  OVERVIEW_PROFILE_COMPARISON_MIN_N,
+  OVERVIEW_VISUALISATION_MIN_N,
+} from "@/features/surveys/analytics/overview-v2-policy";
 import { getPrimaryProfileFields } from "@/features/surveys/analytics/profile-explorer-utils";
 import {
   getOverviewBandFromScore,
@@ -6,17 +17,21 @@ import {
   getOverviewConstructSemantics,
   type OverviewBandKey,
 } from "@/features/surveys/analytics/overview-semantics";
+import { buildOverviewV2Insights, type OverviewV2Insight } from "@/features/surveys/analytics/overview-v2-insights";
+import {
+  getQuadrantKey,
+  resolveQuadrantProfileView,
+  type QuadrantProfileViewDefinition,
+  type QuadrantSlot,
+} from "@/features/surveys/analytics/overview-view-registry";
+import { getDeclaredFlexibilityCapabilityAnalysisCatalog } from "@/features/surveys/declared-flexibility-capability-module";
+import type { PersistedSurvey } from "@/features/surveys/generator-types";
 import type {
   SurveyAnalyticsFieldDefinition,
   SurveyAnalyticsRecord,
   SurveyAnalyticsSchema,
 } from "@/features/surveys/survey-analytics";
 
-export const OVERVIEW_PRIVACY_MIN_N = 5;
-export const OVERVIEW_COUNTRY_INSIGHT_MIN_N = 20;
-const OPPORTUNITY_DOMINANCE_MIN_GAP = 0.1;
-const CONSTRUCT_CONTRAST_MIN_GAP = 0.1;
-const COUNTRY_MEDIAN_DIFF_MIN = 0.4;
 const PLOT_COORDINATE_DECIMALS = 2;
 
 type ConstructSummary = {
@@ -39,11 +54,51 @@ type ConstructSummaryMetric = ConstructSummary & {
   suppressed: boolean;
 };
 
-type OpportunityQuadrantKey =
-  | "high_willingness_high_capability"
-  | "high_willingness_limited_capability"
-  | "lower_willingness_high_capability"
-  | "lower_immediate_fit";
+export type OverviewGroupAxis = {
+  conceptKey: string;
+  label: string;
+  shortLabel: string;
+  directionNote: string | null;
+  median: number;
+  q1: number;
+  q3: number;
+  n: number;
+};
+
+export type OverviewGroupProfile = {
+  n: number;
+  detailAvailable: boolean;
+  axes: OverviewGroupAxis[];
+};
+
+export type OverviewOpportunityView = {
+  key: string;
+  label: string;
+  xLabel: string;
+  yLabel: string;
+  xCutoff: number;
+  yCutoff: number;
+  helperText?: string;
+  applicableN: number;
+  notApplicableN: number;
+  missingYAxisN: number;
+  detailAvailable: boolean;
+  distributionCells: Array<{
+    x: number;
+    y: number;
+    count: number;
+    share: number;
+    quadrantKey: string;
+  }>;
+  quadrants: Array<{
+    key: string;
+    slot: QuadrantSlot;
+    label: string;
+    count: number;
+    share: number;
+  }>;
+  groupProfiles: Record<string, OverviewGroupProfile>;
+};
 
 export type SurveyOverviewData = {
   context: {
@@ -70,47 +125,19 @@ export type SurveyOverviewData = {
     hasMappingGap: boolean;
   };
   opportunity: {
-    defaultDfcKey: string;
-    dfcOptions: Array<{
+    title: string;
+    defaultOptionKey: string;
+    options: Array<{
       key: string;
       label: string;
       applicableN: number;
       detailAvailable: boolean;
       helperText?: string;
     }>;
-    viewsByDfcKey: Record<
-      string,
-      {
-        key: string;
-        label: string;
-        xLabel: string;
-        yLabel: string;
-        helperText?: string;
-        applicableN: number;
-        notApplicableN: number;
-        missingWillingnessN: number;
-        detailAvailable: boolean;
-        distributionCells: Array<{
-          x: number;
-          y: number;
-          count: number;
-          share: number;
-        }>;
-        quadrants: Array<{
-          key: OpportunityQuadrantKey;
-          label: string;
-          count: number;
-          share: number;
-        }>;
-      }
-    >;
-  };
+    viewsByOptionKey: Record<string, OverviewOpportunityView>;
+  } | null;
   constructs: ConstructSummary[];
-  insights: Array<{
-    title: string;
-    body: string;
-    evidence: string;
-  }>;
+  insights: OverviewV2Insight[];
   countryPulse:
     | {
         countries: Array<{ code: string; count: number; detailAvailable: boolean }>;
@@ -138,48 +165,15 @@ type BuildSurveyOverviewInput = {
   };
 };
 
-type DfcOptionDefinition = {
+type AxisOptionDefinition = {
   key: string;
   label: string;
   facetKey: string | null;
   helperText?: string;
 };
 
-const DFC_LABELS: Record<string, string> = {
-  washing_machine_scheduling: "Washing machine",
-  ev_charging: "EV charging",
-  space_conditioning: "Space conditioning",
-  water_heating: "Water heating",
-  battery_operation: "Battery operation",
-};
-
-const QUADRANT_LABELS: Record<OpportunityQuadrantKey, string> = {
-  high_willingness_high_capability: "Favourable willingness and capability",
-  high_willingness_limited_capability: "Favourable willingness, limited capability",
-  lower_willingness_high_capability: "Favourable capability, lower willingness",
-  lower_immediate_fit: "Lower immediate fit",
-};
-
 function toTitleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function humanizeSnakeCase(value: string) {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => {
-      if (part.toLowerCase() === "ev") {
-        return "EV";
-      }
-
-      return part.charAt(0).toUpperCase() + part.slice(1);
-    })
-    .join(" ");
-}
-
-function formatDfcFacetLabel(facetKey: string) {
-  return DFC_LABELS[facetKey] ?? humanizeSnakeCase(facetKey);
 }
 
 function asNumericValue(value: unknown) {
@@ -199,13 +193,11 @@ function getConceptFacetValue(record: SurveyAnalyticsRecord, conceptKey: string,
   return asNumericValue(record.mapper_output.profile[conceptKey]?.facets?.[facetKey]?.value);
 }
 
-function getConceptTag(record: SurveyAnalyticsRecord, conceptKey: string): MapperProfileTag | null {
-  const tag = record.mapper_output.profile[conceptKey]?.tag;
-  return tag === "low" || tag === "medium" || tag === "high" ? tag : null;
-}
-
-function getScoreBand(record: SurveyAnalyticsRecord, conceptKey: string, score: number): OverviewBandKey {
-  return getConceptTag(record, conceptKey) ?? getOverviewBandFromScore(score);
+function getSchemaRef(survey: PersistedSurvey, schema: SurveyAnalyticsSchema) {
+  return {
+    schemaNamespace: schema.schema_namespace,
+    schemaVersion: survey.definition_json?.survey_meta?.measurement_plan_json?.schema_version ?? 1,
+  };
 }
 
 function groupCounts<T>(values: T[]) {
@@ -216,26 +208,42 @@ function groupCounts<T>(values: T[]) {
   return counts;
 }
 
-export function computeLinearQuantile(sortedValues: number[], percentile: number) {
-  if (sortedValues.length === 0) {
-    return null;
+function describeValues(values: number[]) {
+  const sorted = values.slice().sort((left, right) => left - right);
+  return {
+    n: sorted.length,
+    median: computeLinearQuantile(sorted, 0.5) ?? 0,
+    q1: computeLinearQuantile(sorted, 0.25) ?? 0,
+    q3: computeLinearQuantile(sorted, 0.75) ?? 0,
+  };
+}
+
+function shortAxisLabel(conceptKey: string, label: string) {
+  if (conceptKey === "thermal_comfort_norms") {
+    return "Thermal strictness";
   }
 
-  if (sortedValues.length === 1) {
-    return sortedValues[0];
+  if (label.length <= 16) {
+    return label;
   }
 
-  const position = (sortedValues.length - 1) * percentile;
-  const lowerIndex = Math.floor(position);
-  const upperIndex = Math.ceil(position);
-  const lowerValue = sortedValues[lowerIndex];
-  const upperValue = sortedValues[upperIndex];
+  return label.split(/\s+/).slice(0, 2).join(" ");
+}
 
-  if (lowerIndex === upperIndex) {
-    return lowerValue;
+function facetLabel(
+  conceptKey: string,
+  facetKey: string,
+  schemaRef: { schemaNamespace: string; schemaVersion: number },
+) {
+  const catalogId = resolveFlexpulseAnalysisModel({
+    ...schemaRef,
+    conceptKey,
+  })?.conditional_module_config?.catalog_id;
+  if (catalogId === "declared_flexibility_capability_v1") {
+    return getDeclaredFlexibilityCapabilityAnalysisCatalog().groupLabels[facetKey] ?? facetKey;
   }
 
-  return lowerValue + (upperValue - lowerValue) * (position - lowerIndex);
+  return facetKey.replace(/_/g, " ");
 }
 
 function buildConstructSummary(
@@ -251,7 +259,7 @@ function buildConstructSummary(
 
       return {
         value,
-        band: getScoreBand(record, field.concept_key ?? "", value),
+        band: getOverviewBandFromScore(value),
       };
     })
     .filter((entry): entry is { value: number; band: OverviewBandKey } => entry != null);
@@ -284,339 +292,276 @@ function buildConstructSummary(
   };
 }
 
-function getQuadrantKey(willingness: number, capability: number): OpportunityQuadrantKey {
-  if (willingness >= 4 && capability >= 4) {
-    return "high_willingness_high_capability";
-  }
-
-  if (willingness >= 4 && capability < 4) {
-    return "high_willingness_limited_capability";
-  }
-
-  if (willingness < 4 && capability >= 4) {
-    return "lower_willingness_high_capability";
-  }
-
-  return "lower_immediate_fit";
-}
-
 function normalizePlotCoordinate(value: number) {
   return Math.max(1, Math.min(5, Number(value.toFixed(PLOT_COORDINATE_DECIMALS))));
 }
 
-function buildDfcOptionDefinitions(schema: SurveyAnalyticsSchema): DfcOptionDefinition[] {
+function getConstructFields(schema: SurveyAnalyticsSchema) {
+  const valueFields = schema.fields.filter(
+    (field) =>
+      field.source === "profile" &&
+      field.value_type === "number" &&
+      !field.facet &&
+      field.key.endsWith(".value"),
+  );
+
+  return getPrimaryProfileFields(valueFields).filter((field) => !field.facet);
+}
+
+function presentConceptKeys(schema: SurveyAnalyticsSchema) {
+  return new Set(
+    schema.fields
+      .filter((field) => field.concept_key && field.source === "profile" && !field.facet && field.key.endsWith(".value"))
+      .map((field) => field.concept_key!),
+  );
+}
+
+function buildAxisOptions(
+  view: QuadrantProfileViewDefinition,
+  schema: SurveyAnalyticsSchema,
+  schemaRef: { schemaNamespace: string; schemaVersion: number },
+): AxisOptionDefinition[] {
+  const options: AxisOptionDefinition[] = [
+    {
+      key: view.overallOption.key,
+      label: view.overallOption.label,
+      facetKey: null,
+      helperText: view.overallOption.helperText,
+    },
+  ];
+
+  if (!view.xAxis.includeConditionalFacets) {
+    return options;
+  }
+
   const facetFields = schema.fields.filter(
     (field) =>
-      field.concept_key === "declared_flexibility_capability" &&
+      field.concept_key === view.xAxis.conceptKey &&
       field.value_type === "number" &&
       field.evidence_level === "facet_subscore" &&
       Boolean(field.facet),
   );
 
   return [
-    {
-      key: "overall",
-      label: "Overall DFC",
-      facetKey: null,
-      helperText: "Overall DFC combines the capability modules applicable to each household.",
-    },
+    ...options,
     ...facetFields.map((field) => ({
       key: field.facet!,
-      label: formatDfcFacetLabel(field.facet!),
+      label: facetLabel(view.xAxis.conceptKey, field.facet!, schemaRef),
       facetKey: field.facet!,
     })),
   ];
 }
 
-function buildOpportunityView(option: DfcOptionDefinition, rows: SurveyAnalyticsRecord[]) {
-  const applicableRows: Array<{ willingness: number; capability: number }> = [];
+function comparisonAxisOrder(schemaRef: { schemaNamespace: string; schemaVersion: number }) {
+  return flexpulsePrimaryProfileAxes
+    .filter(
+      (concept) =>
+        concept.namespace === schemaRef.schemaNamespace && concept.schema_version === schemaRef.schemaVersion,
+    )
+    .map((concept) => concept.concept_key);
+}
+
+function isEligibleInsightConcept(
+  conceptKey: string,
+  schemaRef: { schemaNamespace: string; schemaVersion: number },
+  field: SurveyAnalyticsFieldDefinition | undefined,
+) {
+  const concept = resolveFlexpulseBehaviouralConcept({ ...schemaRef, conceptKey });
+  if (concept) {
+    if (concept.output_type !== "number" || concept.analysis_model.score_direction === "not_directional") {
+      return false;
+    }
+
+    return concept.concept_role === "primary_profile_axis" || concept.concept_role === "behavioural_modulator";
+  }
+
+  return (
+    field?.value_type === "number" &&
+    (field.concept_role === "primary_profile_axis" || field.concept_role === "behavioural_modulator")
+  );
+}
+
+function buildGroupProfile(
+  groupRows: SurveyAnalyticsRecord[],
+  view: QuadrantProfileViewDefinition,
+  schema: SurveyAnalyticsSchema,
+  schemaRef: { schemaNamespace: string; schemaVersion: number },
+): OverviewGroupProfile {
+  const n = groupRows.length;
+  if (n < OVERVIEW_PROFILE_COMPARISON_MIN_N) {
+    return { n, detailAvailable: false, axes: [] };
+  }
+
+  const excluded = view.comparison.excludeDefiningAxes
+    ? new Set([view.xAxis.conceptKey, view.yAxis.conceptKey])
+    : new Set<string>();
+  const present = presentConceptKeys(schema);
+  const orderedKeys = comparisonAxisOrder(schemaRef).filter(
+    (conceptKey) => present.has(conceptKey) && !excluded.has(conceptKey),
+  );
+  const fallbackKeys = [...present].filter((conceptKey) => {
+    const field = schema.fields.find(
+      (entry) => entry.concept_key === conceptKey && !entry.facet && entry.key.endsWith(".value"),
+    );
+    return (
+      !excluded.has(conceptKey) &&
+      view.comparison.axisConceptRoles.includes(field?.concept_role ?? "") &&
+      !orderedKeys.includes(conceptKey)
+    );
+  });
+  const axisKeys = [...orderedKeys, ...fallbackKeys].slice(0, view.comparison.maxAxes);
+  const axes: OverviewGroupAxis[] = [];
+
+  for (const conceptKey of axisKeys) {
+    const field = schema.fields.find(
+      (entry) => entry.concept_key === conceptKey && !entry.facet && entry.key.endsWith(".value"),
+    );
+    if (!field || field.value_type !== "number") {
+      continue;
+    }
+
+    const values = groupRows
+      .map((row) => getConceptValue(row, conceptKey))
+      .filter((value): value is number => value != null);
+    if (values.length < OVERVIEW_PROFILE_COMPARISON_MIN_N) {
+      continue;
+    }
+
+    const direction = resolveFlexpulseAnalysisModel({ ...schemaRef, conceptKey })?.score_direction;
+    const concept = resolveFlexpulseBehaviouralConcept({ ...schemaRef, conceptKey });
+    axes.push({
+      conceptKey,
+      label: field.label,
+      shortLabel: shortAxisLabel(conceptKey, concept?.label ?? field.label),
+      directionNote: getScoreDirectionNote(direction),
+      ...describeValues(values),
+    });
+  }
+
+  return {
+    n,
+    detailAvailable: true,
+    axes: axes.length >= 3 ? axes : [],
+  };
+}
+
+function buildOpportunityView(
+  option: AxisOptionDefinition,
+  rows: SurveyAnalyticsRecord[],
+  view: QuadrantProfileViewDefinition,
+  yLabel: string,
+  schema: SurveyAnalyticsSchema,
+  schemaRef: { schemaNamespace: string; schemaVersion: number },
+): OverviewOpportunityView {
+  const applicableRows: Array<{ record: SurveyAnalyticsRecord; x: number; y: number }> = [];
   let notApplicableN = 0;
-  let missingWillingnessN = 0;
+  let missingYAxisN = 0;
 
   for (const record of rows) {
-    const willingness = getConceptValue(record, "flexibility_willingness");
-    const capability =
+    const y = getConceptValue(record, view.yAxis.conceptKey);
+    const x =
       option.facetKey == null
-        ? getConceptValue(record, "declared_flexibility_capability")
-        : getConceptFacetValue(record, "declared_flexibility_capability", option.facetKey);
+        ? getConceptValue(record, view.xAxis.conceptKey)
+        : getConceptFacetValue(record, view.xAxis.conceptKey, option.facetKey);
 
-    if (capability == null) {
+    if (x == null) {
       notApplicableN += 1;
       continue;
     }
 
-    if (willingness == null) {
-      missingWillingnessN += 1;
+    if (y == null) {
+      missingYAxisN += 1;
       continue;
     }
 
-    applicableRows.push({ willingness, capability });
+    applicableRows.push({ record, x, y });
   }
 
   const applicableN = applicableRows.length;
-  const detailAvailable = applicableN >= OVERVIEW_PRIVACY_MIN_N;
-  if (!detailAvailable) {
+  const xLabel = option.facetKey ? `${option.label} capability` : option.label;
+  const emptyProfiles = Object.fromEntries(
+    Object.values(view.quadrantKeys).map((key) => [key, { n: 0, detailAvailable: false, axes: [] }]),
+  ) as Record<string, OverviewGroupProfile>;
+
+  if (applicableN < OVERVIEW_VISUALISATION_MIN_N) {
     return {
       key: option.key,
       label: option.label,
-      xLabel: option.label === "Overall DFC" ? "Overall DFC" : `${option.label} capability`,
-      yLabel: "Flexibility willingness",
+      xLabel,
+      yLabel,
+      xCutoff: view.xAxis.favourableCutoff,
+      yCutoff: view.yAxis.favourableCutoff,
       helperText: option.helperText,
       applicableN,
       notApplicableN,
-      missingWillingnessN,
-      detailAvailable,
+      missingYAxisN,
+      detailAvailable: false,
       distributionCells: [],
       quadrants: [],
+      groupProfiles: emptyProfiles,
     };
   }
 
-  const cellCounts = new Map<string, { x: number; y: number; count: number }>();
-  const quadrantCounts = new Map<OpportunityQuadrantKey, number>();
+  const cellCounts = new Map<string, { x: number; y: number; count: number; quadrantKey: string }>();
+  const quadrantRows = new Map<string, SurveyAnalyticsRecord[]>();
 
   for (const row of applicableRows) {
-    const x = normalizePlotCoordinate(row.capability);
-    const y = normalizePlotCoordinate(row.willingness);
+    const x = normalizePlotCoordinate(row.x);
+    const y = normalizePlotCoordinate(row.y);
+    const quadrantKey = getQuadrantKey(row.x, row.y, view);
     const cellKey = `${x}|${y}`;
     const existingCell = cellCounts.get(cellKey);
-
     if (existingCell) {
       existingCell.count += 1;
     } else {
-      cellCounts.set(cellKey, { x, y, count: 1 });
+      cellCounts.set(cellKey, { x, y, count: 1, quadrantKey });
     }
 
-    const quadrantKey = getQuadrantKey(row.willingness, row.capability);
-    quadrantCounts.set(quadrantKey, (quadrantCounts.get(quadrantKey) ?? 0) + 1);
+    const bucket = quadrantRows.get(quadrantKey) ?? [];
+    bucket.push(row.record);
+    quadrantRows.set(quadrantKey, bucket);
   }
+
+  const quadrants = (Object.keys(view.quadrantKeys) as QuadrantSlot[]).map((slot) => {
+    const key = view.quadrantKeys[slot];
+    const count = quadrantRows.get(key)?.length ?? 0;
+    return {
+      key,
+      slot,
+      label: view.quadrantLabels[slot],
+      count,
+      share: count / applicableN,
+    };
+  });
+
+  const groupProfiles = Object.fromEntries(
+    quadrants.map((quadrant) => [
+      quadrant.key,
+      buildGroupProfile(quadrantRows.get(quadrant.key) ?? [], view, schema, schemaRef),
+    ]),
+  );
 
   return {
     key: option.key,
     label: option.label,
-    xLabel: option.label === "Overall DFC" ? "Overall DFC" : `${option.label} capability`,
-    yLabel: "Flexibility willingness",
+    xLabel,
+    yLabel,
+    xCutoff: view.xAxis.favourableCutoff,
+    yCutoff: view.yAxis.favourableCutoff,
     helperText: option.helperText,
     applicableN,
     notApplicableN,
-    missingWillingnessN,
-    detailAvailable,
+    missingYAxisN,
+    detailAvailable: true,
     distributionCells: Array.from(cellCounts.values())
       .sort((left, right) => right.count - left.count || left.y - right.y || left.x - right.x)
       .map((cell) => ({
         ...cell,
         share: cell.count / applicableN,
       })),
-    quadrants: (
-      [
-        "high_willingness_high_capability",
-        "high_willingness_limited_capability",
-        "lower_willingness_high_capability",
-        "lower_immediate_fit",
-      ] as const
-    ).map((key) => ({
-      key,
-      label: QUADRANT_LABELS[key],
-      count: quadrantCounts.get(key) ?? 0,
-      share: (quadrantCounts.get(key) ?? 0) / applicableN,
-    })),
+    quadrants,
+    groupProfiles,
   };
-}
-
-function getComparableConstructs(constructs: ConstructSummary[]) {
-  return constructs.filter((construct) =>
-    getOverviewConstructSemantics(construct.conceptKey).comparableHighShare,
-  );
-}
-
-function buildOpportunityInsight(opportunityView: SurveyOverviewData["opportunity"]["viewsByDfcKey"][string]) {
-  if (!opportunityView.detailAvailable || opportunityView.quadrants.length === 0) {
-    return null;
-  }
-
-  const [top, second] = opportunityView.quadrants
-    .slice()
-    .sort((left, right) => right.share - left.share || right.count - left.count);
-
-  if (!top) {
-    return null;
-  }
-
-  if (second && top.share - second.share >= OPPORTUNITY_DOMINANCE_MIN_GAP) {
-    return {
-      title: "Largest opportunity group",
-      body: `The largest group combines ${top.label.toLowerCase()} in this sample.`,
-      evidence: `${(top.share * 100).toFixed(0)}% · n=${top.count} of ${opportunityView.applicableN} applicable responses`,
-    };
-  }
-
-  return {
-    title: "Opportunity distribution is spread",
-    body: "No single willingness-by-capability group clearly dominates the full analysable sample.",
-    evidence: `${(top.share * 100).toFixed(0)}% · n=${top.count} in the largest group`,
-  };
-}
-
-function buildConstructContrastInsight(constructs: ConstructSummary[]) {
-  const comparableConstructs = getComparableConstructs(constructs).filter(
-    (construct) => construct.applicableN >= OVERVIEW_PRIVACY_MIN_N,
-  );
-  let bestPair: {
-    left: ConstructSummary;
-    right: ConstructSummary;
-    gap: number;
-  } | null = null;
-
-  for (let index = 0; index < comparableConstructs.length; index += 1) {
-    for (let nextIndex = index + 1; nextIndex < comparableConstructs.length; nextIndex += 1) {
-      const left = comparableConstructs[index];
-      const right = comparableConstructs[nextIndex];
-      const leftHighShare = left.bands.find((band) => band.key === "high")?.share ?? 0;
-      const rightHighShare = right.bands.find((band) => band.key === "high")?.share ?? 0;
-      const gap = Math.abs(leftHighShare - rightHighShare);
-
-      if (!bestPair || gap > bestPair.gap) {
-        bestPair =
-          leftHighShare >= rightHighShare
-            ? { left, right, gap }
-            : { left: right, right: left, gap };
-      }
-    }
-  }
-
-  if (!bestPair || bestPair.gap < CONSTRUCT_CONTRAST_MIN_GAP) {
-    return null;
-  }
-
-  const leftLabel = bestPair.left.bands.find((band) => band.key === "high")?.label ?? "high";
-  return {
-    title: "Construct contrast",
-    body: `${bestPair.left.label} is more ${leftLabel} than ${bestPair.right.label.toLowerCase()} in this sample.`,
-    evidence: `${(bestPair.gap * 100).toFixed(0)} percentage-point gap · n=${bestPair.left.applicableN} vs n=${bestPair.right.applicableN}`,
-  };
-}
-
-function buildMostMixedConstructInsight(constructs: ConstructSummary[]) {
-  const eligible = constructs.filter((construct) => construct.applicableN >= OVERVIEW_PRIVACY_MIN_N);
-  const mixed = eligible
-    .map((construct) => ({
-      construct,
-      dominantShare: Math.max(...construct.bands.map((band) => band.share)),
-    }))
-    .sort((left, right) => left.dominantShare - right.dominantShare)[0];
-
-  if (!mixed) {
-    return null;
-  }
-
-  return {
-    title: "Most mixed construct",
-    body: `${mixed.construct.label} shows the most mixed response pattern across the measured constructs in this sample.`,
-    evidence: `${(mixed.dominantShare * 100).toFixed(0)}% in the largest band · n=${mixed.construct.applicableN}`,
-  };
-}
-
-function buildCountryContrastInsight(
-  countryMetrics: SurveyOverviewData["countryPulse"],
-) {
-  if (!countryMetrics || countryMetrics.countries.length < 2) {
-    return null;
-  }
-
-  let bestHighShareContrast:
-    | {
-        conceptLabel: string;
-        topCountry: string;
-        bottomCountry: string;
-        gap: number;
-        topN: number;
-        bottomN: number;
-        topLabel: string;
-      }
-    | null = null;
-  let bestMedianContrast:
-    | {
-        conceptLabel: string;
-        topCountry: string;
-        bottomCountry: string;
-        gap: number;
-        topN: number;
-        bottomN: number;
-      }
-    | null = null;
-
-  for (const construct of countryMetrics.constructs) {
-    const semantics = getOverviewConstructSemantics(construct.conceptKey);
-    const visibleMetrics = construct.countries
-      .map((country) => ({
-        code: country.code,
-        metric: country.metric,
-      }))
-      .filter(
-        (country): country is { code: string; metric: ConstructSummaryMetric } =>
-          country.metric != null &&
-          !country.metric.suppressed &&
-          country.metric.applicableN >= OVERVIEW_COUNTRY_INSIGHT_MIN_N,
-      );
-
-    for (let index = 0; index < visibleMetrics.length; index += 1) {
-      for (let nextIndex = index + 1; nextIndex < visibleMetrics.length; nextIndex += 1) {
-        const left = visibleMetrics[index];
-        const right = visibleMetrics[nextIndex];
-        const highShareLeft = left.metric.bands.find((band) => band.key === "high")?.share ?? 0;
-        const highShareRight = right.metric.bands.find((band) => band.key === "high")?.share ?? 0;
-        const medianGap = Math.abs(left.metric.median - right.metric.median);
-
-        if (semantics.comparableHighShare) {
-          const gap = Math.abs(highShareLeft - highShareRight);
-          const top = highShareLeft >= highShareRight ? left : right;
-          const bottom = top === left ? right : left;
-
-          if (!bestHighShareContrast || gap > bestHighShareContrast.gap) {
-            bestHighShareContrast = {
-              conceptLabel: construct.label,
-              topCountry: top.code,
-              bottomCountry: bottom.code,
-              gap,
-              topN: top.metric.applicableN,
-              bottomN: bottom.metric.applicableN,
-              topLabel: top.metric.bands.find((band) => band.key === "high")?.label ?? "high",
-            };
-          }
-        }
-
-        const topByMedian = left.metric.median >= right.metric.median ? left : right;
-        const bottomByMedian = topByMedian === left ? right : left;
-        if (!bestMedianContrast || medianGap > bestMedianContrast.gap) {
-          bestMedianContrast = {
-            conceptLabel: construct.label,
-            topCountry: topByMedian.code,
-            bottomCountry: bottomByMedian.code,
-            gap: medianGap,
-            topN: topByMedian.metric.applicableN,
-            bottomN: bottomByMedian.metric.applicableN,
-          };
-        }
-      }
-    }
-  }
-
-  if (bestHighShareContrast && bestHighShareContrast.gap >= CONSTRUCT_CONTRAST_MIN_GAP) {
-    return {
-      title: "Country contrast",
-      body: `${bestHighShareContrast.topCountry} shows a higher share of ${bestHighShareContrast.topLabel} responses in ${bestHighShareContrast.conceptLabel.toLowerCase()} than ${bestHighShareContrast.bottomCountry} in this sample.`,
-      evidence: `${(bestHighShareContrast.gap * 100).toFixed(0)} percentage-point gap · n=${bestHighShareContrast.topN} vs n=${bestHighShareContrast.bottomN}`,
-    };
-  }
-
-  if (bestMedianContrast && bestMedianContrast.gap >= COUNTRY_MEDIAN_DIFF_MIN) {
-    return {
-      title: "Country contrast",
-      body: `${bestMedianContrast.topCountry} reports a higher median in ${bestMedianContrast.conceptLabel.toLowerCase()} than ${bestMedianContrast.bottomCountry} in this sample.`,
-      evidence: `${bestMedianContrast.gap.toFixed(2)} median-point gap · n=${bestMedianContrast.topN} vs n=${bestMedianContrast.bottomN}`,
-    };
-  }
-
-  return null;
 }
 
 function buildCountryPulse(
@@ -629,7 +574,7 @@ function buildCountryPulse(
     .map(([code, count]) => ({
       code,
       count,
-      detailAvailable: count >= OVERVIEW_PRIVACY_MIN_N,
+      detailAvailable: count >= OVERVIEW_GEOGRAPHY_MIN_N,
     }))
     .sort((left, right) => right.count - left.count || left.code.localeCompare(right.code));
 
@@ -656,55 +601,51 @@ function buildCountryPulse(
               rows.filter((row) => getCountryCode(row) === country.code),
             );
 
-            if (!countrySummary || countrySummary.applicableN < OVERVIEW_PRIVACY_MIN_N) {
-              return {
-                code: country.code,
-                metric: null,
-              };
+            if (!countrySummary || countrySummary.applicableN < OVERVIEW_GEOGRAPHY_MIN_N) {
+              return { code: country.code, metric: null };
             }
 
             return {
               code: country.code,
-              metric: {
-                ...countrySummary,
-                suppressed: false,
-              },
+              metric: { ...countrySummary, suppressed: false },
             };
           }),
         };
       })
       .filter(
-        (
-          construct,
-        ): construct is NonNullable<SurveyOverviewData["countryPulse"]>["constructs"][number] =>
+        (construct): construct is NonNullable<SurveyOverviewData["countryPulse"]>["constructs"][number] =>
           construct != null,
       ),
   };
 }
 
-function getConstructFields(schema: SurveyAnalyticsSchema) {
-  const valueFields = schema.fields.filter(
-    (field) =>
-      field.source === "profile" &&
-      field.value_type === "number" &&
-      !field.facet &&
-      field.key.endsWith(".value"),
-  );
-
-  return getPrimaryProfileFields(valueFields).filter((field) => !field.facet);
-}
-
 export function buildSurveyOverviewData(input: BuildSurveyOverviewInput): SurveyOverviewData {
+  const schemaRef = getSchemaRef(input.survey, input.schema);
   const constructFields = getConstructFields(input.schema);
   const constructs = constructFields
     .map((field) => buildConstructSummary(field, input.rows))
     .filter((construct): construct is ConstructSummary => construct != null);
-  const opportunityViews = Object.fromEntries(
-    buildDfcOptionDefinitions(input.schema).map((option) => [
-      option.key,
-      buildOpportunityView(option, input.rows),
-    ]),
-  );
+  const view = resolveQuadrantProfileView({
+    ...schemaRef,
+    presentConceptKeys: presentConceptKeys(input.schema),
+  });
+  const yField = constructFields.find((field) => field.concept_key === view?.yAxis.conceptKey);
+  const opportunityViews = view
+    ? Object.fromEntries(
+        buildAxisOptions(view, input.schema, schemaRef).map((option) => [
+          option.key,
+          buildOpportunityView(
+            option,
+            input.rows,
+            view,
+            yField?.label ?? view.yAxis.conceptKey,
+            input.schema,
+            schemaRef,
+          ),
+        ]),
+      )
+    : null;
+
   const countryCounts = groupCounts(
     input.rows.map(getCountryCode).filter((country): country is string => country != null),
   );
@@ -728,14 +669,31 @@ export function buildSurveyOverviewData(input: BuildSurveyOverviewInput): Survey
         : null;
 
   const countryPulse = buildCountryPulse(constructs, constructFields, input.rows);
-  const insights = [
-    buildOpportunityInsight(opportunityViews.overall),
-    buildCountryContrastInsight(countryPulse),
-    buildConstructContrastInsight(constructs),
-    buildMostMixedConstructInsight(constructs),
-  ]
-    .filter((insight): insight is NonNullable<typeof insight> => insight != null)
-    .slice(0, 3);
+  const overallOpportunity = opportunityViews?.[view?.overallOption.key ?? "overall"] ?? null;
+  const insights = buildOverviewV2Insights({
+    schemaNamespace: schemaRef.schemaNamespace,
+    schemaVersion: schemaRef.schemaVersion,
+    rows: input.rows,
+    constructs,
+    eligibleConceptKeys: constructFields
+      .map((field) => field.concept_key)
+      .filter((conceptKey): conceptKey is string => Boolean(conceptKey))
+      .filter((conceptKey) =>
+        isEligibleInsightConcept(
+          conceptKey,
+          schemaRef,
+          constructFields.find((field) => field.concept_key === conceptKey),
+        ),
+      ),
+    opportunity:
+      view && overallOpportunity && overallOpportunity.applicableN >= OVERVIEW_VISUALISATION_MIN_N
+        ? {
+            view,
+            applicableN: overallOpportunity.applicableN,
+            quadrants: overallOpportunity.quadrants,
+          }
+        : null,
+  });
 
   return {
     context: {
@@ -758,17 +716,21 @@ export function buildSurveyOverviewData(input: BuildSurveyOverviewInput): Survey
       hasAnalysedResponses: input.rows.length > 0,
       hasMappingGap: input.collectedResponseCount > input.rows.length,
     },
-    opportunity: {
-      defaultDfcKey: "overall",
-      dfcOptions: Object.values(opportunityViews).map((view) => ({
-        key: view.key,
-        label: view.label,
-        applicableN: view.applicableN,
-        detailAvailable: view.detailAvailable,
-        helperText: view.helperText,
-      })),
-      viewsByDfcKey: opportunityViews,
-    },
+    opportunity:
+      view && opportunityViews
+        ? {
+            title: view.title,
+            defaultOptionKey: view.overallOption.key,
+            options: Object.values(opportunityViews).map((entry) => ({
+              key: entry.key,
+              label: entry.label,
+              applicableN: entry.applicableN,
+              detailAvailable: entry.detailAvailable,
+              helperText: entry.helperText,
+            })),
+            viewsByOptionKey: opportunityViews,
+          }
+        : null,
     constructs,
     insights,
     countryPulse,

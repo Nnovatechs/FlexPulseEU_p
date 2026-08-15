@@ -1,10 +1,33 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { SurveyOverviewData } from "@/features/surveys/analytics/overview-v2";
+import { useMemo, useState, type CSSProperties } from "react";
+import { OVERVIEW_SECTION_INTROS } from "@/features/surveys/analytics/overview-v2-insights";
+import { InfoTip } from "./info-tip";
+import type {
+  OverviewGroupProfile,
+  OverviewOpportunityView,
+  SurveyOverviewData,
+} from "@/features/surveys/analytics/overview-v2";
+import {
+  OVERVIEW_PROFILE_COMPARISON_MIN_N,
+  OVERVIEW_VISUALISATION_MIN_N,
+} from "@/features/surveys/analytics/overview-v2-policy";
+import type { QuadrantSlot } from "@/features/surveys/analytics/overview-view-registry";
+import {
+  buildRadarGridPolygon,
+  buildRadarPolygon,
+  polarPoint,
+} from "@/features/surveys/analytics/profile-explorer-utils";
 
 type OverviewPanelProps = {
   data: SurveyOverviewData;
+};
+
+const QUADRANT_SERIES: Record<QuadrantSlot, { color: string; fill: string }> = {
+  highHigh: { color: "#6ea8fe", fill: "rgba(110, 168, 254, 0.16)" },
+  highLow: { color: "#3dcdb4", fill: "rgba(61, 205, 180, 0.14)" },
+  lowHigh: { color: "#c58b4b", fill: "rgba(197, 139, 75, 0.16)" },
+  lowLow: { color: "#b877d9", fill: "rgba(184, 119, 217, 0.16)" },
 };
 
 function formatCount(value: number) {
@@ -46,31 +69,19 @@ function countrySummary(countries: SurveyOverviewData["context"]["countries"]) {
   return countries.map((country) => `${country.code} (${country.count})`).join(" · ");
 }
 
-type OpportunityQuadrantKey =
-  SurveyOverviewData["opportunity"]["viewsByDfcKey"][string]["quadrants"][number]["key"];
-
-function getCellQuadrantKey(capability: number, willingness: number): OpportunityQuadrantKey {
-  if (willingness >= 4 && capability >= 4) {
-    return "high_willingness_high_capability";
-  }
-
-  if (willingness >= 4 && capability < 4) {
-    return "high_willingness_limited_capability";
-  }
-
-  if (willingness < 4 && capability >= 4) {
-    return "lower_willingness_high_capability";
-  }
-
-  return "lower_immediate_fit";
+function seriesForQuadrant(view: OverviewOpportunityView, quadrantKey: string) {
+  const slot = view.quadrants.find((quadrant) => quadrant.key === quadrantKey)?.slot ?? "highHigh";
+  return QUADRANT_SERIES[slot];
 }
 
 function BubblePlot({
   view,
   hoveredQuadrant,
+  selectedQuadrants,
 }: {
-  view: SurveyOverviewData["opportunity"]["viewsByDfcKey"][string];
-  hoveredQuadrant: OpportunityQuadrantKey | null;
+  view: OverviewOpportunityView;
+  hoveredQuadrant: string | null;
+  selectedQuadrants: string[];
 }) {
   const maxCount = Math.max(...view.distributionCells.map((cell) => cell.count), 1);
   const plotLeft = 44;
@@ -80,14 +91,15 @@ function BubblePlot({
   const plotCenterY = plotTop + plotSize / 2;
   const scale = (value: number) => plotLeft + ((value - 1) / 4) * plotSize;
   const yScale = (value: number) => plotTop + plotSize - ((value - 1) / 4) * plotSize;
+  const isHighlighting = hoveredQuadrant != null || selectedQuadrants.length > 0;
 
   return (
     <div className="analytics-v2-plot-card">
       <div className="analytics-v2-plot-card__header">
-        <h4>{`Willingness x ${view.label === "Overall DFC" ? "Overall DFC" : `${view.label} capability`}`}</h4>
+        <h4>{`${view.yLabel} x ${view.xLabel}`}</h4>
       </div>
 
-      <div className={`analytics-v2-bubble-plot${hoveredQuadrant ? " is-highlighting" : ""}`}>
+      <div className={`analytics-v2-bubble-plot${isHighlighting ? " is-highlighting" : ""}`}>
         <svg viewBox="0 0 336 320" role="img" aria-label={`${view.label} opportunity plot`}>
           <rect
             x={plotLeft}
@@ -104,7 +116,7 @@ function BubblePlot({
                 x2={scale(tick)}
                 y1={plotTop}
                 y2={plotTop + plotSize}
-                className={`analytics-v2-bubble-plot__grid${tick === 4 ? " is-strong" : tick === 2 ? " is-soft" : ""}`}
+                className={`analytics-v2-bubble-plot__grid${tick === view.xCutoff ? " is-strong" : tick === 2 ? " is-soft" : ""}`}
               />
               <text x={scale(tick)} y="310" textAnchor="middle">
                 {tick}
@@ -119,7 +131,7 @@ function BubblePlot({
                 x2={plotLeft + plotSize}
                 y1={yScale(tick)}
                 y2={yScale(tick)}
-                className={`analytics-v2-bubble-plot__grid${tick === 4 ? " is-strong" : tick === 2 ? " is-soft" : ""}`}
+                className={`analytics-v2-bubble-plot__grid${tick === view.yCutoff ? " is-strong" : tick === 2 ? " is-soft" : ""}`}
               />
               <text x="30" y={yScale(tick) + 4} textAnchor="middle">
                 {tick}
@@ -129,8 +141,9 @@ function BubblePlot({
 
           {view.distributionCells.map((cell) => {
             const radius = 3.4 + ((cell.count - 1) / Math.max(maxCount - 1, 1)) * 3.8;
-            const quadrantKey = getCellQuadrantKey(cell.x, cell.y);
-            const isLit = hoveredQuadrant === quadrantKey;
+            const isLit =
+              selectedQuadrants.includes(cell.quadrantKey) || hoveredQuadrant === cell.quadrantKey;
+            const color = seriesForQuadrant(view, cell.quadrantKey).color;
             return (
               <circle
                 key={`${cell.x}-${cell.y}`}
@@ -138,8 +151,9 @@ function BubblePlot({
                 cy={yScale(cell.y)}
                 r={isLit ? radius + 1.2 : radius}
                 className={`analytics-v2-bubble-plot__bubble${isLit ? " is-lit" : ""}`}
+                style={isLit ? { fill: color } : undefined}
               >
-                <title>{`${view.xLabel}: ${formatScore(cell.x)} · Willingness: ${formatScore(cell.y)} · n=${cell.count} · ${formatPercent(cell.share)} of applicable responses`}</title>
+                <title>{`${view.xLabel}: ${formatScore(cell.x)} · ${view.yLabel}: ${formatScore(cell.y)} · n=${cell.count} · ${formatPercent(cell.share)} of applicable responses`}</title>
               </circle>
             );
           })}
@@ -151,13 +165,152 @@ function BubblePlot({
             className="analytics-v2-bubble-plot__axis-title"
             transform={`rotate(-90 12 ${plotCenterY})`}
           >
-            Flexibility willingness
+            {view.yLabel}
           </text>
           <text x={plotCenterX} y="319" textAnchor="middle" className="analytics-v2-bubble-plot__axis-title">
             {view.xLabel}
           </text>
         </svg>
       </div>
+    </div>
+  );
+}
+
+function OpportunityGroupRadar({
+  view,
+  selectedQuadrants,
+}: {
+  view: OverviewOpportunityView;
+  selectedQuadrants: string[];
+}) {
+  const selectedGroups = selectedQuadrants
+    .map((key) => {
+      const quadrant = view.quadrants.find((entry) => entry.key === key);
+      const profile = view.groupProfiles[key];
+      if (!quadrant || !profile) {
+        return null;
+      }
+
+      return { key, quadrant, profile, series: QUADRANT_SERIES[quadrant.slot] };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        key: string;
+        quadrant: OverviewOpportunityView["quadrants"][number];
+        profile: OverviewGroupProfile;
+        series: (typeof QUADRANT_SERIES)[QuadrantSlot];
+      } => entry != null,
+    );
+
+  const plottable = selectedGroups.filter(
+    (entry) => entry.profile.detailAvailable && entry.profile.axes.length >= 3,
+  );
+  const withheld = selectedGroups.filter((entry) => !entry.profile.detailAvailable);
+  const missingAxes = selectedGroups.filter(
+    (entry) => entry.profile.detailAvailable && entry.profile.axes.length < 3,
+  );
+  const sharedAxes =
+    plottable.length === 0
+      ? []
+      : plottable[0].profile.axes.filter((axis) =>
+          plottable.every((entry) =>
+            entry.profile.axes.some((candidate) => candidate.conceptKey === axis.conceptKey),
+          ),
+        );
+
+  if (plottable.length === 0) {
+    if (withheld.length > 0) {
+      return (
+        <p>
+          {`Group profiles are withheld when n is smaller than ${OVERVIEW_PROFILE_COMPARISON_MIN_N}, because they would expose too many attributes of a few respondents.`}
+        </p>
+      );
+    }
+
+    return <p>Not enough additional profile axes are available for visual comparison.</p>;
+  }
+
+  if (sharedAxes.length < 3) {
+    return <p>Not enough shared profile axes are available for visual comparison.</p>;
+  }
+
+  const cx = 168;
+  const cy = 160;
+  const radius = 108;
+  const axisCount = sharedAxes.length;
+  const accessibleSummary = plottable
+    .map((entry) => {
+      const axisText = sharedAxes
+        .map((axis) => {
+          const value = entry.profile.axes.find((candidate) => candidate.conceptKey === axis.conceptKey);
+          return value
+            ? `${axis.label} median ${formatScore(value.median)} n=${formatCount(value.n)}`
+            : null;
+        })
+        .filter((value): value is string => value != null)
+        .join(", ");
+      return `${entry.quadrant.label} n=${formatCount(entry.profile.n)}: ${axisText}`;
+    })
+    .join(". ");
+
+  return (
+    <div className="analytics-v2-radar">
+      <svg
+        viewBox="0 0 336 320"
+        role="img"
+        aria-label={`Selected operational group profiles. ${accessibleSummary}`}
+      >
+        {[0.2, 0.4, 0.6, 0.8, 1].map((ratio) => (
+          <polygon
+            key={ratio}
+            points={buildRadarGridPolygon(axisCount, cx, cy, radius * ratio)}
+            className="analytics-v2-radar__grid"
+          />
+        ))}
+        {sharedAxes.map((axis, index) => {
+          const angle = -Math.PI / 2 + (index / axisCount) * Math.PI * 2;
+          const end = polarPoint(cx, cy, radius, angle);
+          const labelPoint = polarPoint(cx, cy, radius + 22, angle);
+          return (
+            <g key={axis.conceptKey}>
+              <line x1={cx} y1={cy} x2={end.x} y2={end.y} className="analytics-v2-radar__axis" />
+              <text
+                x={labelPoint.x}
+                y={labelPoint.y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="analytics-v2-radar__label"
+              >
+                {axis.shortLabel}
+              </text>
+              <title>{axis.label}</title>
+            </g>
+          );
+        })}
+        {plottable.map((entry) => {
+          const values = sharedAxes.map((axis) => {
+            const match = entry.profile.axes.find((candidate) => candidate.conceptKey === axis.conceptKey);
+            return match?.median ?? 1;
+          });
+          return (
+            <polygon
+              key={entry.key}
+              points={buildRadarPolygon(values, cx, cy, radius)}
+              className="analytics-v2-radar__series"
+              style={{ fill: entry.series.fill, stroke: entry.series.color }}
+            />
+          );
+        })}
+      </svg>
+      {withheld.length > 0 || missingAxes.length > 0 ? (
+        <p>
+          {withheld.length > 0
+            ? `${withheld.map((entry) => entry.quadrant.label).join(", ")} withheld for small n.`
+            : `${missingAxes.map((entry) => entry.quadrant.label).join(", ")} do not have enough additional profile axes.`}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -274,18 +427,74 @@ function CountryPulsePlot({
   );
 }
 
-export function OverviewPanel({ data }: OverviewPanelProps) {
-  const [selectedDfcKey, setSelectedDfcKey] = useState(data.opportunity.defaultDfcKey);
-  const [hoveredQuadrant, setHoveredQuadrant] = useState<OpportunityQuadrantKey | null>(null);
+function MatrixCell({
+  quadrant,
+  view,
+  hoveredQuadrant,
+  selectedQuadrants,
+  onHover,
+  onToggle,
+}: {
+  quadrant: OverviewOpportunityView["quadrants"][number];
+  view: OverviewOpportunityView;
+  hoveredQuadrant: string | null;
+  selectedQuadrants: string[];
+  onHover: (key: string | null) => void;
+  onToggle: (key: string) => void;
+}) {
+  const selected = selectedQuadrants.includes(quadrant.key);
+  const color = seriesForQuadrant(view, quadrant.key).color;
 
-  const selectedView = useMemo(
-    () =>
-      data.opportunity.viewsByDfcKey[selectedDfcKey] ??
-      data.opportunity.viewsByDfcKey[data.opportunity.defaultDfcKey],
-    [data.opportunity.defaultDfcKey, data.opportunity.viewsByDfcKey, selectedDfcKey],
+  return (
+    <button
+      type="button"
+      className={`analytics-v2-matrix__cell${hoveredQuadrant === quadrant.key ? " is-hot" : ""}${selected ? " is-selected" : ""}`}
+      style={{ "--group-color": color } as CSSProperties}
+      aria-pressed={selected}
+      onMouseEnter={() => onHover(quadrant.key)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(quadrant.key)}
+      onBlur={() => onHover(null)}
+      onClick={() => onToggle(quadrant.key)}
+    >
+      <strong>{quadrant.label}</strong>
+      <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
+    </button>
   );
+}
+
+export function OverviewPanel({ data }: OverviewPanelProps) {
+  const opportunity = data.opportunity;
+  const [selectedOptionKey, setSelectedOptionKey] = useState(opportunity?.defaultOptionKey ?? "");
+  const [hoveredQuadrant, setHoveredQuadrant] = useState<string | null>(null);
+  const [selectedQuadrants, setSelectedQuadrants] = useState<string[]>([]);
+
+  const selectedView = useMemo(() => {
+    if (!opportunity) {
+      return null;
+    }
+
+    return (
+      opportunity.viewsByOptionKey[selectedOptionKey] ??
+      opportunity.viewsByOptionKey[opportunity.defaultOptionKey]
+    );
+  }, [opportunity, selectedOptionKey]);
 
   const dateRange = formatDateRange(data.context.dateRange);
+
+  function selectOption(optionKey: string) {
+    setSelectedOptionKey(optionKey);
+    setSelectedQuadrants([]);
+    setHoveredQuadrant(null);
+  }
+
+  function toggleQuadrant(quadrantKey: string) {
+    setSelectedQuadrants((current) =>
+      current.includes(quadrantKey)
+        ? current.filter((key) => key !== quadrantKey)
+        : [...current, quadrantKey],
+    );
+  }
 
   return (
     <div className="analytics-v2-overview">
@@ -337,122 +546,165 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
         <>
           <section className="analytics-v2-panel">
             <header className="analytics-v2-panel__head">
-              <h3>Flexibility opportunity</h3>
+              <h3>
+                What stands out
+                <InfoTip text={OVERVIEW_SECTION_INTROS.whatStandsOut} />
+              </h3>
+            </header>
+            {data.insights.length > 0 ? (
+              <div className="analytics-v2-insights-grid">
+                {data.insights.map((insight) => (
+                  <article key={`${insight.family}:${insight.title}`} className="analytics-v2-insight">
+                    <h4>{insight.title}</h4>
+                    <p className="analytics-v2-insight__layer">
+                      <span>Statistical signal</span>
+                      {insight.statisticalSignal}
+                    </p>
+                    {insight.meaning ? (
+                      <p className="analytics-v2-insight__layer">
+                        <span>What this may mean</span>
+                        {insight.meaning}
+                      </p>
+                    ) : null}
+                    {insight.decisionHypothesis ? (
+                      <p className="analytics-v2-insight__layer">
+                        <span>Decision hypothesis</span>
+                        {insight.decisionHypothesis}
+                      </p>
+                    ) : null}
+                    {insight.alternativeExplanation ? (
+                      <p className="analytics-v2-insight__layer">
+                        <span>Also consider</span>
+                        {insight.alternativeExplanation}
+                      </p>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="analytics-v2-insight-empty">
+                No standout signals met the selection rules for this sample. Construct distributions
+                are shown below.
+              </p>
+            )}
+          </section>
+
+          {opportunity && selectedView ? (
+            <section className="analytics-v2-panel">
+              <header className="analytics-v2-panel__head">
+                <h3>
+                  {opportunity.title}
+                  <InfoTip text={OVERVIEW_SECTION_INTROS.flexibilityOpportunity} />
+                </h3>
+              </header>
               <div className="analytics-v2-dfc-selector">
-                {data.opportunity.dfcOptions.map((option) => (
+                {opportunity.options.map((option) => (
                   <button
                     key={option.key}
                     type="button"
-                    className={`analytics-v2-dfc-selector__button${selectedDfcKey === option.key ? " is-active" : ""}`}
-                    disabled={!option.detailAvailable}
-                    onClick={() => setSelectedDfcKey(option.key)}
+                    className={`analytics-v2-dfc-selector__button${selectedOptionKey === option.key ? " is-active" : ""}`}
+                    disabled={option.applicableN < OVERVIEW_VISUALISATION_MIN_N}
+                    onClick={() => selectOption(option.key)}
                   >
                     <span>{option.label}</span>
                     <small>{`n=${formatCount(option.applicableN)}`}</small>
                   </button>
                 ))}
               </div>
-            </header>
 
-            {!selectedView.detailAvailable ? (
-              <div className="analytics-v2-empty-card analytics-v2-empty-card--inline">
-                <h3>No applicable declared flexibility capability data are available for this sample.</h3>
-                <p>
-                  This module does not currently meet the privacy threshold for detailed
-                  visualisation. The selector remains visible so you can inspect applicability.
-                </p>
-              </div>
-            ) : (
-              <div className="analytics-v2-opportunity-grid">
-                <BubblePlot view={selectedView} hoveredQuadrant={hoveredQuadrant} />
-
-                <div className="analytics-v2-matrix-wrap">
-                  <h4>Operational groups</h4>
-                  <div className="analytics-v2-matrix">
-                    <div className="analytics-v2-matrix__corner" />
-                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--column">
-                      {"Capability >= 4"}
-                    </div>
-                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--column">
-                      Capability &lt; 4
-                    </div>
-
-                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
-                      Willingness &gt;= 4
-                    </div>
-                    {selectedView.quadrants
-                      .filter((quadrant) =>
-                        [
-                          "high_willingness_high_capability",
-                          "high_willingness_limited_capability",
-                        ].includes(quadrant.key),
-                      )
-                      .map((quadrant) => (
-                        <button
-                          key={quadrant.key}
-                          type="button"
-                          className={`analytics-v2-matrix__cell${hoveredQuadrant === quadrant.key ? " is-hot" : ""}`}
-                          onMouseEnter={() => setHoveredQuadrant(quadrant.key)}
-                          onMouseLeave={() => setHoveredQuadrant(null)}
-                          onFocus={() => setHoveredQuadrant(quadrant.key)}
-                          onBlur={() => setHoveredQuadrant(null)}
-                        >
-                          <strong>{quadrant.label}</strong>
-                          <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
-                        </button>
-                      ))}
-
-                    <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
-                      Willingness &lt; 4
-                    </div>
-                    {selectedView.quadrants
-                      .filter((quadrant) =>
-                        [
-                          "lower_willingness_high_capability",
-                          "lower_immediate_fit",
-                        ].includes(quadrant.key),
-                      )
-                      .map((quadrant) => (
-                        <button
-                          key={quadrant.key}
-                          type="button"
-                          className={`analytics-v2-matrix__cell${hoveredQuadrant === quadrant.key ? " is-hot" : ""}`}
-                          onMouseEnter={() => setHoveredQuadrant(quadrant.key)}
-                          onMouseLeave={() => setHoveredQuadrant(null)}
-                          onFocus={() => setHoveredQuadrant(quadrant.key)}
-                          onBlur={() => setHoveredQuadrant(null)}
-                        >
-                          <strong>{quadrant.label}</strong>
-                          <span>{`${formatPercent(quadrant.share)} · n=${formatCount(quadrant.count)}`}</span>
-                        </button>
-                      ))}
-                    </div>
+              {selectedView.applicableN < OVERVIEW_VISUALISATION_MIN_N ? (
+                <div className="analytics-v2-empty-card analytics-v2-empty-card--inline">
+                  <h3>No applicable capability data are available for this sample.</h3>
+                  <p>
+                    This module has no applicable responses in the current sample. The selector
+                    remains visible so you can inspect applicability.
+                  </p>
                 </div>
-              </div>
-            )}
-          </section>
+              ) : (
+                <div className="analytics-v2-opportunity-grid">
+                  <BubblePlot
+                    view={selectedView}
+                    hoveredQuadrant={hoveredQuadrant}
+                    selectedQuadrants={selectedQuadrants}
+                  />
 
-          {data.insights.length > 0 ? (
-            <section className="analytics-v2-panel">
-              <header className="analytics-v2-panel__head">
-                <h3>What stands out</h3>
-              </header>
+                  <div className="analytics-v2-opportunity-stack">
+                    <div className="analytics-v2-matrix-wrap">
+                      <div className="analytics-v2-matrix-wrap__head">
+                        <h4>Operational groups</h4>
+                        {selectedQuadrants.length > 0 ? (
+                          <button
+                            type="button"
+                            className="analytics-v2-health-generate"
+                            onClick={() => setSelectedQuadrants([])}
+                          >
+                            Clear selection
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="analytics-v2-matrix">
+                        <div className="analytics-v2-matrix__corner" />
+                        <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--column">
+                          {`${selectedView.xLabel} >= ${selectedView.xCutoff}`}
+                        </div>
+                        <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--column">
+                          {`${selectedView.xLabel} < ${selectedView.xCutoff}`}
+                        </div>
 
-              <div className="analytics-v2-insights-grid">
-                {data.insights.map((insight) => (
-                  <article key={`${insight.title}-${insight.evidence}`} className="analytics-v2-insight">
-                    <h4>{insight.title}</h4>
-                    <p className="analytics-v2-insight__evidence">{insight.evidence}</p>
-                    <p className="analytics-v2-insight__body">{insight.body}</p>
-                  </article>
-                ))}
-              </div>
+                        <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
+                          {`${selectedView.yLabel} >= ${selectedView.yCutoff}`}
+                        </div>
+                        {selectedView.quadrants
+                          .filter((quadrant) => quadrant.slot === "highHigh" || quadrant.slot === "highLow")
+                          .map((quadrant) => (
+                            <MatrixCell
+                              key={quadrant.key}
+                              quadrant={quadrant}
+                              view={selectedView}
+                              hoveredQuadrant={hoveredQuadrant}
+                              selectedQuadrants={selectedQuadrants}
+                              onHover={setHoveredQuadrant}
+                              onToggle={toggleQuadrant}
+                            />
+                          ))}
+
+                        <div className="analytics-v2-matrix__axis analytics-v2-matrix__axis--row">
+                          {`${selectedView.yLabel} < ${selectedView.yCutoff}`}
+                        </div>
+                        {selectedView.quadrants
+                          .filter((quadrant) => quadrant.slot === "lowHigh" || quadrant.slot === "lowLow")
+                          .map((quadrant) => (
+                            <MatrixCell
+                              key={quadrant.key}
+                              quadrant={quadrant}
+                              view={selectedView}
+                              hoveredQuadrant={hoveredQuadrant}
+                              selectedQuadrants={selectedQuadrants}
+                              onHover={setHoveredQuadrant}
+                              onToggle={toggleQuadrant}
+                            />
+                          ))}
+                      </div>
+                    </div>
+
+                    {selectedQuadrants.length > 0 ? (
+                      <OpportunityGroupRadar
+                        view={selectedView}
+                        selectedQuadrants={selectedQuadrants}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </section>
           ) : null}
 
           <section className="analytics-v2-panel">
             <header className="analytics-v2-panel__head">
-              <h3>Construct profile</h3>
+              <h3>
+                Construct profile
+                <InfoTip text={OVERVIEW_SECTION_INTROS.constructProfile} />
+              </h3>
             </header>
 
             <div className="analytics-v2-construct-table">
@@ -497,7 +749,10 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
           {data.countryPulse ? (
             <section className="analytics-v2-panel">
               <header className="analytics-v2-panel__head">
-                <h3>Country pulse</h3>
+                <h3>
+                  Country pulse
+                  <InfoTip text={OVERVIEW_SECTION_INTROS.countryPulse} />
+                </h3>
               </header>
 
               <div className="analytics-v2-country-list">

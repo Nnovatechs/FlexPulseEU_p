@@ -1,4 +1,4 @@
-import { computeLinearQuantile } from "@/features/surveys/analytics/overview-v2";
+import { computeLinearQuantile } from "@/features/surveys/analytics/descriptive-stats";
 import type { ItemPolarity } from "@/features/surveys/analytics/instrument-health-semantics";
 import { INSTRUMENT_HEALTH_ALPHA_BOOTSTRAP_REPLICATES } from "@/features/surveys/analytics/instrument-health-semantics";
 

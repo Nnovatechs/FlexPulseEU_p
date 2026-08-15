@@ -1,15 +1,24 @@
 import Link from "next/link";
-import { getSurveyAnalyticsOverviewData } from "@/features/surveys/use-cases";
+import { getSegmentExplorerBootstrap, getSurveyAnalyticsOverviewData } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
 import { AnalyticsV2Workbench } from "./analytics-v2-workbench";
 
 type SurveyAnalyticsV2PageProps = {
   params: Promise<{ surveyId: string }>;
+  searchParams: Promise<{ segment?: string | string[] }>;
 };
 
-export default async function SurveyAnalyticsV2Page({ params }: SurveyAnalyticsV2PageProps) {
+export default async function SurveyAnalyticsV2Page({
+  params,
+  searchParams,
+}: SurveyAnalyticsV2PageProps) {
   const { surveyId } = await params;
-  const { survey, overview } = await getSurveyAnalyticsOverviewData(surveyId);
+  const query = await searchParams;
+  const segmentParam = Array.isArray(query.segment) ? query.segment[0] : query.segment ?? null;
+  const [{ survey, overview }, bootstrap] = await Promise.all([
+    getSurveyAnalyticsOverviewData(surveyId),
+    getSegmentExplorerBootstrap(surveyId),
+  ]);
 
   return (
     <div className="analytics-shell analytics-shell--v2">
@@ -33,6 +42,9 @@ export default async function SurveyAnalyticsV2Page({ params }: SurveyAnalyticsV
             surveyId={survey.id}
             surveyTitle={survey.name}
             overviewData={overview}
+            catalog={bootstrap.catalog}
+            schema={bootstrap.schema}
+            initialSegmentParam={segmentParam}
           />
         </div>
       </div>

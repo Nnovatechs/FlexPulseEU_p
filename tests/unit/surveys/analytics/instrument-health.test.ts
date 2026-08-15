@@ -546,6 +546,12 @@ describe("buildInstrumentHealthData", () => {
 
 describe("analytics v2 instrument health tab", () => {
   it("uses Instrument Health as the last tab label", () => {
+    expect(ANALYTICS_V2_TABS.map((tab) => tab.key)).toEqual([
+      "overview",
+      "segments",
+      "comparison",
+      "diagnostics",
+    ]);
     expect(ANALYTICS_V2_TABS.at(-1)?.label).toBe("Instrument Health");
     expect(ANALYTICS_V2_TABS.at(-1)?.key).toBe("diagnostics");
   });
@@ -556,6 +562,9 @@ describe("analytics v2 instrument health tab", () => {
       "utf8",
     );
     expect(workbench).toContain("currentCollectedN={overviewData.context.collectedResponseCount}");
+    expect(workbench).toContain('useState<AnalyticsV2TabKey>("overview")');
+    expect(workbench).not.toContain("selected-segment");
+    expect(workbench).toContain("SegmentExplorerPanel");
   });
 
   it("keeps DFC selectors in a horizontal row below the section title", () => {

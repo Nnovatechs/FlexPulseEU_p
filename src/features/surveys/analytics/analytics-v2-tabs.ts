@@ -1,7 +1,6 @@
 export type AnalyticsV2TabKey =
   | "overview"
   | "segments"
-  | "selected-segment"
   | "comparison"
   | "diagnostics";
 
@@ -31,40 +30,27 @@ export const ANALYTICS_V2_TABS: AnalyticsV2TabDefinition[] = [
   {
     key: "segments",
     label: "Segment Explorer",
-    eyebrow: "Future Lens",
-    title: "Segment exploration workspace",
+    eyebrow: "Explore",
+    title: "Segment Explorer",
     description:
-      "This tab is reserved for navigating the reference population, cohort filters, and profile slices without committing yet to the old rail-based interaction model.",
+      "Build a transparent filter set, inspect the matching profile, save the definition in this browser, or send it to Comparison.",
     bullets: [
-      "Segment and cohort entry points.",
-      "Population and benchmark switching.",
-      "Drill-down cards for country, audience, and profile distributions.",
-    ],
-  },
-  {
-    key: "selected-segment",
-    label: "Selected Segment",
-    eyebrow: "Future Lens",
-    title: "Focused segment readout",
-    description:
-      "This placeholder will hold the detailed analytical story for one selected group once the v2 interaction model is defined.",
-    bullets: [
-      "Profile signatures and behavioural deltas.",
-      "Comparative readout against the chosen baseline.",
-      "Notes area for future interpretive or strategic takeaways.",
+      "Dynamic filters from the analytics schema.",
+      "AND-only conditions with a readable active set.",
+      "Named segments and a two-slot comparison tray stored locally.",
     ],
   },
   {
     key: "comparison",
     label: "Comparison",
-    eyebrow: "Future Lens",
-    title: "Structured comparison space",
+    eyebrow: "Compare",
+    title: "Comparison tray",
     description:
-      "This area is kept for side-by-side benchmark views, so the v2 dashboard can compare populations without inheriting the current dashboard layout assumptions.",
+      "Hold up to two segment definitions side by side. Full A/B analysis will arrive in a later iteration.",
     bullets: [
-      "A vs B cohort comparison.",
-      "Relative movement across selected constructs.",
-      "Compact evidence framing for sample adequacy and caution signals.",
+      "Add the current explorer segment or a saved definition.",
+      "Whole sample occupies a normal slot when added explicitly.",
+      "Open either slot back in Segment Explorer without losing the other.",
     ],
   },
   {

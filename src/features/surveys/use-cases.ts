@@ -16,6 +16,12 @@ import {
 } from "./survey-analytics";
 import { buildSurveyOverviewData } from "./analytics/overview-v2";
 import { buildInstrumentHealthData } from "./analytics/instrument-health";
+import {
+  buildSegmentCatalog,
+  buildSegmentExplorerSummary,
+  validateSegmentDefinition,
+  type SegmentDefinition,
+} from "./analytics/segments";
 import { loadOwnedInstrumentHealthSource } from "./instrument-health-repository";
 import { loadOwnedSurveyAnalyticsRuntimeSnapshot } from "./survey-analytics-repository";
 import {
@@ -411,6 +417,38 @@ export async function getSurveyAnalyticsOverviewData(surveyId: string) {
       collectedResponseWindow: context.collectedResponseWindow,
     }),
   };
+}
+
+export async function getSegmentExplorerBootstrap(surveyId: string) {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  return {
+    schema: context.schema,
+    catalog: buildSegmentCatalog({
+      survey: context.survey,
+      schema: context.schema,
+      rows: context.rows,
+    }),
+    analysedN: context.rows.length,
+    measurementHash: context.schema.measurement_hash,
+    schemaNamespace: context.schema.schema_namespace,
+  };
+}
+
+export async function runSegmentExplorerSummary(surveyId: string, definition: SegmentDefinition) {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  const validated = validateSegmentDefinition(definition, context.schema, {
+    surveyId: context.survey.id,
+    measurementHash: context.schema.measurement_hash,
+  });
+  if (!validated.ok) {
+    throw new Error(validated.message);
+  }
+
+  return buildSegmentExplorerSummary({
+    schema: context.schema,
+    rows: context.rows,
+    definition: validated.definition,
+  });
 }
 
 export async function generateSurveyInstrumentHealthData(surveyId: string) {

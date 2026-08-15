@@ -6,6 +6,7 @@ import {
 } from "@/features/surveys/analytics/analytics-v2-tabs";
 import {
   buildInstrumentHealthData,
+  buildInstrumentHealthExport,
   instrumentHealthJsonContainsSensitiveField,
   type InstrumentHealthLoadedResponse,
   type InstrumentHealthSource,
@@ -553,6 +554,23 @@ describe("analytics v2 instrument health tab", () => {
       "utf8",
     );
     expect(workbench).toContain("currentCollectedN={overviewData.context.collectedResponseCount}");
+  });
+
+  it("keeps DFC selectors in a horizontal row below the section title", () => {
+    const overview = readFileSync(
+      path.join(process.cwd(), "src/app/(app)/surveys/[surveyId]/analytics-v2/overview-panel.tsx"),
+      "utf8",
+    );
+    const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+    const titleIndex = overview.indexOf("{opportunity.title}");
+    const selectorIndex = overview.indexOf('className="analytics-v2-dfc-selector"');
+    const headerClose = overview.indexOf("</header>", titleIndex);
+
+    expect(titleIndex).toBeGreaterThan(-1);
+    expect(selectorIndex).toBeGreaterThan(headerClose);
+    expect(css).toContain(".analytics-v2-dfc-selector {\n  display: flex;\n  flex-direction: row;");
+    expect(css).toContain(".analytics-v2-panel__head h3");
+    expect(css).toContain("font-size: 1.2rem");
   });
 });
 
@@ -1283,12 +1301,33 @@ describe("instrument health schema-driven analysis", () => {
     expect(panel).not.toContain("Only one language is present in the included sample.");
     expect(panel).not.toContain("Fewer than two reflective candidates");
     expect(panel).toContain("analytics-v2-health-detail-row");
-    expect(panel).toContain("analytics-v2-health-tip__bubble");
+    expect(panel).toContain("<InfoTip");
+    expect(
+      readFileSync(path.join(process.cwd(), "src/app/(app)/surveys/[surveyId]/analytics-v2/info-tip.tsx"), "utf8"),
+    ).toContain("analytics-v2-health-tip__bubble");
     expect(panel).toContain("key={data.cacheKey}");
     expect(panel).toContain("formatGeneratedAt(data.generatedAt)");
     expect(panel).toContain("formatHtmtCell(cell)");
     expect(panel).toContain("useSyncExternalStore");
     expect(panel).not.toContain("setScopeKey(data.defaultScopeKey)");
     expect(panel).not.toContain("setSessionChecked");
+    expect(panel).toContain("Export JSON");
+    expect(panel).toContain("downloadInstrumentHealthExport(data)");
+  });
+
+  it("exports the generated analysis as expanded JSON without sensitive fields", () => {
+    const survey = buildReflectivePairSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, { Q_TRUST_01: 5, Q_TRUST_02: 1, Q_AWARE_01: 5, Q_AWARE_02: 4, Q_AWARE_03: 4 }),
+      ]),
+    );
+    const file = buildInstrumentHealthExport(data);
+    const parsed = JSON.parse(file.body) as typeof data;
+
+    expect(file.filename).toMatch(/^instrument-health-survey-reflective-pair-.*\.json$/);
+    expect(parsed.scopes.overall.constructs.length).toBe(data.scopes.overall.constructs.length);
+    expect(parsed.scopes.overall.constructs[0]?.items.length).toBeGreaterThan(0);
+    expect(instrumentHealthJsonContainsSensitiveField(parsed)).toBe(false);
   });
 });

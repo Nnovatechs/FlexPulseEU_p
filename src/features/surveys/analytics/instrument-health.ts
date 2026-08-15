@@ -1453,3 +1453,17 @@ export function instrumentHealthJsonContainsSensitiveField(payload: unknown) {
     serialized.includes("prolific")
   );
 }
+
+export function buildInstrumentHealthExport(data: InstrumentHealthData) {
+  if (instrumentHealthJsonContainsSensitiveField(data)) {
+    throw new Error("Instrument health export blocked: payload contains a sensitive field.");
+  }
+
+  const surveyId = data.cacheKey.split(":")[0] || "survey";
+  const generated = data.generatedAt.slice(0, 19).replace(/[:T]/g, "-");
+
+  return {
+    filename: `instrument-health-${surveyId}-${generated}.json`,
+    body: JSON.stringify(data, null, 2),
+  };
+}

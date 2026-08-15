@@ -1,20 +1,22 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useMemo, useState, useSyncExternalStore } from "react";
+import { InfoTip } from "./info-tip";
 import { generateInstrumentHealthAction } from "@/features/surveys/instrument-health-actions";
 import {
   readInstrumentHealthSession,
   subscribeInstrumentHealthSession,
   writeInstrumentHealthSession,
 } from "@/features/surveys/analytics/instrument-health-session";
-import type {
-  InstrumentHealthConstruct,
-  InstrumentHealthCorrelationCell,
-  InstrumentHealthData,
-  InstrumentHealthHtmtCell,
-  InstrumentHealthItemAnalysis,
-  InstrumentHealthLikertBin,
-  InstrumentHealthScope,
+import {
+  buildInstrumentHealthExport,
+  type InstrumentHealthConstruct,
+  type InstrumentHealthCorrelationCell,
+  type InstrumentHealthData,
+  type InstrumentHealthHtmtCell,
+  type InstrumentHealthItemAnalysis,
+  type InstrumentHealthLikertBin,
+  type InstrumentHealthScope,
 } from "@/features/surveys/analytics/instrument-health";
 import { INSTRUMENT_HEALTH_COPY } from "@/features/surveys/analytics/instrument-health-semantics";
 import { appRoutes } from "@/lib/config/routes";
@@ -157,54 +159,17 @@ function formatHtmtCell(cell: InstrumentHealthHtmtCell) {
   return `${formatScore(cell.value)} · ${nPart} · reference ${formatScore(cell.reference)}${overlap}${descriptiveLabel}`;
 }
 
-function InfoTip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <button
-      ref={rootRef}
-      type="button"
-      className={`analytics-v2-health-tip${open ? " is-open" : ""}`}
-      aria-label="More information"
-      aria-expanded={open}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setOpen((current) => !current);
-      }}
-    >
-      ?
-      <span className="analytics-v2-health-tip__bubble" role="tooltip">
-        {text}
-      </span>
-    </button>
-  );
+function downloadInstrumentHealthExport(data: InstrumentHealthData) {
+  const file = buildInstrumentHealthExport(data);
+  const blob = new Blob([file.body], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function FlagList({ item }: { item: InstrumentHealthItemAnalysis }) {
@@ -502,6 +467,9 @@ function GeneratedView({
           </p>
           <MethodologyLink />
           {error ? <p className="analytics-v2-health-error">{error}</p> : null}
+          <button type="button" className="analytics-v2-health-generate" onClick={() => downloadInstrumentHealthExport(data)}>
+            Export JSON
+          </button>
           <button type="button" className="analytics-v2-health-generate" onClick={onRegenerate}>
             Regenerate
           </button>
@@ -549,7 +517,7 @@ function GeneratedView({
       {scope.constructs.length > 0 ? (
         <section className="analytics-v2-panel">
         <header className="analytics-v2-panel__head">
-          <div>
+          <div className="analytics-v2-panel__title">
             <h3>
               Construct health <InfoTip text={INSTRUMENT_HEALTH_COPY.pageIntro} />
             </h3>
@@ -648,7 +616,7 @@ function GeneratedView({
       {reflectiveConstructs.length >= 2 ? (
         <section className="analytics-v2-panel">
           <header className="analytics-v2-panel__head">
-            <div>
+            <div className="analytics-v2-panel__title">
               <h3>
                 Reflective construct associations <InfoTip text={INSTRUMENT_HEALTH_COPY.relationships} />
               </h3>
@@ -675,7 +643,7 @@ function GeneratedView({
       {exploratoryConstructs.length > 1 ? (
         <section className="analytics-v2-panel">
           <header className="analytics-v2-panel__head">
-            <div>
+            <div className="analytics-v2-panel__title">
               <h3>Exploratory construct associations</h3>
               <p>{INSTRUMENT_HEALTH_COPY.exploratoryAssociations}</p>
             </div>
@@ -688,7 +656,7 @@ function GeneratedView({
         ? scope.conditionalModules.map((group) => (
             <section className="analytics-v2-panel" key={group.conceptKey}>
               <header className="analytics-v2-panel__head">
-                <div>
+                <div className="analytics-v2-panel__title">
                   <h3>{`${group.label} modules`}</h3>
                   <p>
                     {`No global alpha is computed. ${formatCount(
@@ -739,7 +707,7 @@ function GeneratedView({
 
       <section className="analytics-v2-panel">
         <header className="analytics-v2-panel__head">
-          <div>
+          <div className="analytics-v2-panel__title">
             <h3>Response-pattern checks</h3>
             <p>Descriptive signals only. These are not automatic exclusion rules.</p>
           </div>
@@ -827,7 +795,7 @@ function GeneratedView({
       {data.multilingual.languageCount > 1 ? (
         <section className="analytics-v2-panel">
           <header className="analytics-v2-panel__head">
-            <div>
+            <div className="analytics-v2-panel__title">
               <h3>Multilingual evidence</h3>
               <p>{`Compare scopes above for descriptive differences by language. ${data.multilingual.invarianceNote}`}</p>
             </div>
@@ -838,7 +806,7 @@ function GeneratedView({
       {data.debrief ? (
         <section className="analytics-v2-panel">
           <header className="analytics-v2-panel__head">
-            <div>
+            <div className="analytics-v2-panel__title">
               <h3>
                 Respondent debrief <InfoTip text={INSTRUMENT_HEALTH_COPY.debrief} />
               </h3>

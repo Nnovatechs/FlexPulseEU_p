@@ -19,6 +19,7 @@ import {
   resolveInstrumentConcept,
   type InstrumentHealthItemFlag,
   type InstrumentHealthSampleAdequacy,
+  type InstrumentConceptRole,
   type InstrumentHealthSchemaRef,
   type InstrumentMeasurementRole,
   type InstrumentScoreDirection,
@@ -100,12 +101,28 @@ export type InstrumentHealthReliability = {
   omegaOrdinal: "not_computed";
 };
 
+export type InstrumentHealthConstructGroupKey =
+  | "primary_profile_axis"
+  | "behavioural_modulator"
+  | "conditional_module"
+  | "other";
+
+export type InstrumentHealthAssociationMode = "core" | "core_and_supporting";
+
+export const INSTRUMENT_HEALTH_CONSTRUCT_GROUP_LABELS: Record<InstrumentHealthConstructGroupKey, string> = {
+  primary_profile_axis: "Primary profile axes",
+  behavioural_modulator: "Supporting factors",
+  conditional_module: "Conditional modules",
+  other: "Other concepts",
+};
+
 export type InstrumentHealthConstruct = {
   conceptKey: string;
   label: string;
   description: string | null;
   role: InstrumentMeasurementRole;
   roleLabel: string;
+  conceptRole: InstrumentConceptRole | null;
   validN: number;
   applicableN: number;
   itemCount: number;
@@ -217,6 +234,54 @@ export type InstrumentHealthScope = {
   }>;
   responsePatterns: InstrumentHealthResponsePatterns;
 };
+
+export function getInstrumentHealthConstructGroup(
+  construct: Pick<InstrumentHealthConstruct, "role" | "conceptRole">,
+): InstrumentHealthConstructGroupKey {
+  if (construct.role === "conditional_module") {
+    return "conditional_module";
+  }
+
+  if (construct.conceptRole === "primary_profile_axis") {
+    return "primary_profile_axis";
+  }
+
+  if (construct.conceptRole === "behavioural_modulator") {
+    return "behavioural_modulator";
+  }
+
+  return "other";
+}
+
+export function groupInstrumentHealthConstructs(constructs: InstrumentHealthConstruct[]) {
+  const order: InstrumentHealthConstructGroupKey[] = [
+    "primary_profile_axis",
+    "behavioural_modulator",
+    "conditional_module",
+    "other",
+  ];
+
+  return order
+    .map((key) => ({
+      key,
+      label: INSTRUMENT_HEALTH_CONSTRUCT_GROUP_LABELS[key],
+      constructs: constructs.filter((construct) => getInstrumentHealthConstructGroup(construct) === key),
+    }))
+    .filter((group) => group.constructs.length > 0);
+}
+
+export function associationConstructs(
+  constructs: InstrumentHealthConstruct[],
+  mode: InstrumentHealthAssociationMode,
+) {
+  return constructs.filter((construct) => {
+    if (construct.conceptRole === "primary_profile_axis") {
+      return true;
+    }
+
+    return mode === "core_and_supporting" && construct.conceptRole === "behavioural_modulator";
+  });
+}
 
 export type InstrumentHealthDebrief = {
   feedbackN: number;
@@ -576,8 +641,8 @@ function buildReliability(input: {
       alphaCi95: null,
       completeCaseN,
       itemCount,
-      averageInterItemCorrelation: average,
-      itemTotalRange,
+      averageInterItemCorrelation: interpretive ? average : null,
+      itemTotalRange: interpretive ? itemTotalRange : null,
       omegaOrdinal: "not_computed",
     };
   }
@@ -595,8 +660,8 @@ function buildReliability(input: {
     alphaCi95: ci,
     completeCaseN,
     itemCount,
-    averageInterItemCorrelation: average,
-    itemTotalRange,
+    averageInterItemCorrelation: interpretive ? average : null,
+    itemTotalRange: interpretive ? itemTotalRange : null,
     omegaOrdinal: "not_computed",
   };
 }
@@ -750,6 +815,7 @@ function buildConstruct(
     description: ontology?.description ?? null,
     role,
     roleLabel: getMeasurementRoleLabel(role),
+    conceptRole: ontology?.concept_role ?? null,
     validN: completeCases.length,
     applicableN: scores.length,
     itemCount: ratingItems.length,

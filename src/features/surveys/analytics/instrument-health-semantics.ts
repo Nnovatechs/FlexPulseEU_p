@@ -3,6 +3,7 @@ import {
   resolveFlexpulseAnalysisModel,
   resolveFlexpulseBehaviouralConcept,
   type FlexpulseAnalysisModel,
+  type FlexpulseConceptRole,
   type FlexpulseMeasurementRole,
   type FlexpulseScoreDirection,
 } from "@/features/ontology/flexpulse-behavioural-schema";
@@ -12,7 +13,7 @@ import {
   type ConditionalModuleAnalysisCatalog,
 } from "@/features/surveys/declared-flexibility-capability-module";
 
-export const INSTRUMENT_HEALTH_ANALYSIS_VERSION = "instrument-health-v4";
+export const INSTRUMENT_HEALTH_ANALYSIS_VERSION = "instrument-health-v5";
 export const INSTRUMENT_HEALTH_METHODOLOGY_VERSION = "v1";
 export const INSTRUMENT_HEALTH_ALPHA_BOOTSTRAP_REPLICATES = 1000;
 export const INSTRUMENT_HEALTH_SCORE_TOLERANCE = 1e-9;
@@ -42,6 +43,7 @@ export const INSTRUMENT_HEALTH_LOW_DIFFERENTIATION_SD =
   INSTRUMENT_HEALTH_POLICY_V1.lowWithinPersonSdBelow;
 
 export type InstrumentMeasurementRole = FlexpulseMeasurementRole;
+export type InstrumentConceptRole = FlexpulseConceptRole;
 export type InstrumentScoreDirection = FlexpulseScoreDirection;
 export type InstrumentAnalysisModel = FlexpulseAnalysisModel;
 export type ItemPolarity = "positive" | "negative" | "neutral";
@@ -201,15 +203,17 @@ export const INSTRUMENT_HEALTH_COPY = {
   pageIntro:
     "Instrument Health brings together scoring integrity, response distributions, item coherence and construct relationships for the current survey version.",
   relationships:
-    "Spearman’s rho shows whether respondents with higher scores on one construct also tend to have higher or lower scores on another. Positive values indicate movement in the same direction; negative values indicate movement in opposite directions.",
+    "Spearman’s rho describes whether respondents with higher scores on one construct also tend to have higher or lower scores on another. It is a descriptive association, not a causal effect, a recommendation, or a health failure.",
   htmt:
-    "HTMT screens possible overlap between reflective candidate constructs. The complete-case n of each pair is always shown. Values at or above 0.85 are highlighted as an overlap signal only when that n is at least 30; below that, the estimate stays visible as descriptive only.",
+    "HTMT screens possible overlap between reflective candidate constructs only. The complete-case n of each pair is always shown. Values at or above 0.85 are highlighted as an overlap signal only when that n is at least 30; below that, the estimate stays visible as descriptive only.",
   longestRun:
     "For each respondent this is the longest streak of consecutive rating questions given the same answer. It is shown as a count and as a share of the Likert questions that person actually saw, because conditional modules can change how many items appear.",
   identicalWithinConstruct:
     "The proportion of respondents who selected the same rating for every item in a construct.",
   debrief:
     "Optional post-survey feedback collected from respondents. These results describe perceived clarity and ease of completion; they are not part of construct scoring.",
+  constructAssociations:
+    "Associations among the constructs measured in this survey. Core axes are the primary profile axes present in the measurement plan. Supporting factors are behavioural modulators. High correlations with modulators are not treated as overlap or a health failure.",
   exploratoryAssociations:
     "Associations among descriptive composites and conditional modules are exploratory. Conditional modules can be formed from different applicable items per respondent.",
   methodologyLink: "How this analysis works",

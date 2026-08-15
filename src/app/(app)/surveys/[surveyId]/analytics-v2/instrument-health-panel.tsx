@@ -9,7 +9,10 @@ import {
   writeInstrumentHealthSession,
 } from "@/features/surveys/analytics/instrument-health-session";
 import {
+  associationConstructs,
   buildInstrumentHealthExport,
+  groupInstrumentHealthConstructs,
+  type InstrumentHealthAssociationMode,
   type InstrumentHealthConstruct,
   type InstrumentHealthCorrelationCell,
   type InstrumentHealthData,
@@ -342,7 +345,7 @@ function CorrelationHeatmap({
   );
 
   return (
-    <div className="analytics-v2-health-table-wrap">
+    <div className="analytics-v2-health-table-wrap analytics-v2-health-table-wrap--matrix">
       <table className="analytics-v2-health-heatmap">
         <thead>
           <tr>
@@ -367,7 +370,7 @@ function CorrelationHeatmap({
                     "higher_is_stricter";
                 const titleParts = [
                   cell
-                    ? `Pearson r=${formatScore(cell.pearsonR)} · n=${formatCount(cell.n)}`
+                    ? `Spearman ρ=${formatScore(cell.spearmanRho)} · Pearson r=${formatScore(cell.pearsonR)} · paired n=${formatCount(cell.n)}`
                     : "",
                   involvesStricter
                     ? "A negative association with a stricter-direction construct means higher strictness tends to accompany lower scores on the other construct."
@@ -425,13 +428,15 @@ function GeneratedView({
   const [scopeKey, setScopeKey] = useState(data.defaultScopeKey);
   const [openConstruct, setOpenConstruct] = useState<string | null>(null);
   const [sequenceOpen, setSequenceOpen] = useState(false);
+  const [associationMode, setAssociationMode] = useState<InstrumentHealthAssociationMode>("core");
   const scope: InstrumentHealthScope = data.scopes[scopeKey] ?? data.scopes[data.defaultScopeKey];
-  const reflectiveConstructs = scope.constructs.filter(
-    (construct) => construct.role === "reflective_candidate",
-  );
-  const exploratoryConstructs = scope.constructs.filter(
-    (construct) => construct.role !== "reflective_candidate",
-  );
+  const constructGroups = groupInstrumentHealthConstructs(scope.constructs);
+  const coreAssociationConstructs = associationConstructs(scope.constructs, "core");
+  const supportingAssociationConstructs = associationConstructs(scope.constructs, "core_and_supporting");
+  const visibleAssociationConstructs = associationConstructs(scope.constructs, associationMode);
+  const canShowCoreAssociations = coreAssociationConstructs.length >= 2;
+  const canShowSupportingAssociations = supportingAssociationConstructs.length >= 2;
+  const showAssociationToggle = canShowCoreAssociations && supportingAssociationConstructs.length > coreAssociationConstructs.length;
   const collectedDriftN =
     currentCollectedN != null && currentCollectedN !== data.context.collectedN
       ? currentCollectedN
@@ -539,116 +544,146 @@ function GeneratedView({
               </tr>
             </thead>
             <tbody>
-              {scope.constructs.map((construct) => {
-                const expanded = openConstruct === construct.conceptKey;
-                return (
-                  <Fragment key={construct.conceptKey}>
-                    <tr className={expanded ? "is-open" : undefined}>
-                      <td>
-                        <button
-                          type="button"
-                          className="analytics-v2-health-link"
-                          aria-expanded={expanded}
-                          onClick={() =>
-                            setOpenConstruct((current) =>
-                              current === construct.conceptKey ? null : construct.conceptKey,
-                            )
-                          }
-                        >
-                          <span className="analytics-v2-health-link__caret" aria-hidden="true">
-                            {expanded ? "▾" : "▸"}
-                          </span>
-                          {construct.label}
-                        </button>
-                      </td>
-                      <td>{construct.roleLabel}</td>
-                      <td>
-                        {construct.role === "conditional_module"
-                          ? `${formatCount(construct.applicableN)} with at least one applicable module`
-                          : `${formatCount(construct.validN)} complete · ${formatCount(construct.applicableN)} applicable`}
-                        {construct.sampleAdequacyLabel ? (
-                          <small>{construct.sampleAdequacyLabel}</small>
+              {constructGroups.map((group) => (
+                <Fragment key={group.key}>
+                  <tr className="analytics-v2-health-group">
+                    <th colSpan={9}>{group.label}</th>
+                  </tr>
+                  {group.constructs.map((construct) => {
+                    const expanded = openConstruct === construct.conceptKey;
+                    const supporting = group.key === "behavioural_modulator";
+                    return (
+                      <Fragment key={construct.conceptKey}>
+                        <tr className={expanded ? "is-open" : undefined}>
+                          <td>
+                            <button
+                              type="button"
+                              className={`analytics-v2-health-link${supporting ? " is-supporting" : ""}`}
+                              aria-expanded={expanded}
+                              onClick={() =>
+                                setOpenConstruct((current) =>
+                                  current === construct.conceptKey ? null : construct.conceptKey,
+                                )
+                              }
+                            >
+                              <span className="analytics-v2-health-link__caret" aria-hidden="true">
+                                {expanded ? "▾" : "▸"}
+                              </span>
+                              {construct.label}
+                            </button>
+                          </td>
+                          <td>{construct.roleLabel}</td>
+                          <td>
+                            {construct.role === "conditional_module"
+                              ? `${formatCount(construct.applicableN)} with at least one applicable module`
+                              : `${formatCount(construct.validN)} complete · ${formatCount(construct.applicableN)} applicable`}
+                            {construct.sampleAdequacyLabel ? (
+                              <small>{construct.sampleAdequacyLabel}</small>
+                            ) : null}
+                          </td>
+                          <td>{formatCount(construct.itemCount)}</td>
+                          <td>{`Median ${formatScore(construct.scoreDescriptives.median)} · IQR ${formatScore(construct.scoreDescriptives.q1)}–${formatScore(construct.scoreDescriptives.q3)} · SD ${formatScore(construct.scoreDescriptives.sd)}`}</td>
+                          <td>
+                            {construct.role === "reflective_candidate"
+                              ? formatAlpha(construct.reliability)
+                              : "—"}
+                            {construct.role === "reflective_candidate" &&
+                            construct.reliability.averageInterItemCorrelation != null
+                              ? ` · r ${formatScore(construct.reliability.averageInterItemCorrelation)}`
+                              : ""}
+                          </td>
+                          <td>
+                            {construct.role === "reflective_candidate" && construct.reliability.itemTotalRange
+                              ? `${formatScore(construct.reliability.itemTotalRange.min)}–${formatScore(construct.reliability.itemTotalRange.max)}`
+                              : "—"}
+                          </td>
+                          <td>
+                            {construct.role === "conditional_module"
+                              ? "—"
+                              : `${formatCount(construct.itemsWithDistributionSignals)} of ${formatCount(construct.itemCount)} items`}
+                          </td>
+                          <td>
+                            {construct.role === "reflective_candidate"
+                              ? `${formatCount(construct.itemsWithCoherenceSignals)} of ${formatCount(construct.itemCount)} items`
+                              : "—"}
+                          </td>
+                        </tr>
+                        {expanded ? (
+                          <tr className="analytics-v2-health-detail-row">
+                            <td colSpan={9}>
+                              <ConstructDetail construct={construct} />
+                            </td>
+                          </tr>
                         ) : null}
-                      </td>
-                      <td>{formatCount(construct.itemCount)}</td>
-                      <td>{`Median ${formatScore(construct.scoreDescriptives.median)} · IQR ${formatScore(construct.scoreDescriptives.q1)}–${formatScore(construct.scoreDescriptives.q3)} · SD ${formatScore(construct.scoreDescriptives.sd)}`}</td>
-                      <td>
-                        {construct.role === "reflective_candidate"
-                          ? formatAlpha(construct.reliability)
-                          : "—"}
-                        {construct.role === "reflective_candidate" &&
-                        construct.reliability.averageInterItemCorrelation != null
-                          ? ` · r ${formatScore(construct.reliability.averageInterItemCorrelation)}`
-                          : ""}
-                      </td>
-                      <td>
-                        {construct.reliability.itemTotalRange
-                          ? `${formatScore(construct.reliability.itemTotalRange.min)}–${formatScore(construct.reliability.itemTotalRange.max)}`
-                          : "—"}
-                      </td>
-                      <td>
-                        {construct.role === "conditional_module"
-                          ? "—"
-                          : `${formatCount(construct.itemsWithDistributionSignals)} of ${formatCount(construct.itemCount)} items`}
-                      </td>
-                      <td>
-                        {construct.role === "conditional_module"
-                          ? "—"
-                          : `${formatCount(construct.itemsWithCoherenceSignals)} of ${formatCount(construct.itemCount)} items`}
-                      </td>
-                    </tr>
-                    {expanded ? (
-                      <tr className="analytics-v2-health-detail-row">
-                        <td colSpan={9}>
-                          <ConstructDetail construct={construct} />
-                        </td>
-                      </tr>
-                    ) : null}
-                  </Fragment>
-                );
-              })}
+                      </Fragment>
+                    );
+                  })}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
       </section>
       ) : null}
 
-      {reflectiveConstructs.length >= 2 ? (
+      {canShowCoreAssociations || canShowSupportingAssociations ? (
         <section className="analytics-v2-panel">
           <header className="analytics-v2-panel__head">
             <div className="analytics-v2-panel__title">
               <h3>
-                Reflective construct associations <InfoTip text={INSTRUMENT_HEALTH_COPY.relationships} />
+                Construct associations <InfoTip text={INSTRUMENT_HEALTH_COPY.constructAssociations} />
               </h3>
             </div>
           </header>
-          <CorrelationHeatmap constructs={reflectiveConstructs} cells={scope.correlations} />
-          {scope.htmt.length > 0 ? (
-            <div className="analytics-v2-health-htmt">
-              <h4>
-                HTMT screening <InfoTip text={INSTRUMENT_HEALTH_COPY.htmt} />
-              </h4>
-              <ul>
-                {scope.htmt.map((cell) => (
-                  <li key={`${cell.conceptKeyA}:${cell.conceptKeyB}`}>
-                    {`${cell.conceptKeyA} × ${cell.conceptKeyB}: ${formatHtmtCell(cell)}`}
-                  </li>
-                ))}
-              </ul>
+          {showAssociationToggle ? (
+            <div className="analytics-v2-dfc-selector" role="tablist" aria-label="Association set">
+              <button
+                type="button"
+                className={`analytics-v2-dfc-selector__button${associationMode === "core" ? " is-active" : ""}`}
+                onClick={() => setAssociationMode("core")}
+              >
+                <span>Core axes</span>
+                <small>{`n constructs=${formatCount(coreAssociationConstructs.length)}`}</small>
+              </button>
+              <button
+                type="button"
+                className={`analytics-v2-dfc-selector__button${associationMode === "core_and_supporting" ? " is-active" : ""}`}
+                onClick={() => setAssociationMode("core_and_supporting")}
+              >
+                <span>Core axes + supporting factors</span>
+                <small>{`n constructs=${formatCount(supportingAssociationConstructs.length)}`}</small>
+              </button>
             </div>
           ) : null}
+          <CorrelationHeatmap
+            constructs={
+              associationMode === "core" && canShowCoreAssociations
+                ? coreAssociationConstructs
+                : visibleAssociationConstructs.length >= 2
+                  ? visibleAssociationConstructs
+                  : supportingAssociationConstructs
+            }
+            cells={scope.correlations}
+          />
         </section>
       ) : null}
 
-      {exploratoryConstructs.length > 1 ? (
+      {scope.htmt.length > 0 ? (
         <section className="analytics-v2-panel">
           <header className="analytics-v2-panel__head">
             <div className="analytics-v2-panel__title">
-              <h3>Exploratory construct associations</h3>
-              <p>{INSTRUMENT_HEALTH_COPY.exploratoryAssociations}</p>
+              <h3>
+                HTMT screening <InfoTip text={INSTRUMENT_HEALTH_COPY.htmt} />
+              </h3>
             </div>
           </header>
-          <CorrelationHeatmap constructs={exploratoryConstructs} cells={scope.correlations} />
+          <ul className="analytics-v2-health-htmt">
+            {scope.htmt.map((cell) => (
+              <li key={`${cell.conceptKeyA}:${cell.conceptKeyB}`}>
+                {`${cell.conceptKeyA} × ${cell.conceptKeyB}: ${formatHtmtCell(cell)}`}
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

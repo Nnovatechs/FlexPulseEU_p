@@ -6196,6 +6196,25 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   overflow-x: auto;
 }
 
+.analytics-v2-health-table-wrap--matrix {
+  max-height: min(36rem, 70vh);
+  overflow: auto;
+}
+
+.analytics-v2-health-group th {
+  padding: 0.85rem 0.6rem 0.4rem;
+  color: var(--an-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--an-surface-alt);
+  border-bottom: 1px solid var(--an-border);
+}
+
+.analytics-v2-health-link.is-supporting {
+  padding-left: 0.85rem;
+}
+
 .analytics-v2-health-table,
 .analytics-v2-health-heatmap {
   width: 100%;
@@ -6216,6 +6235,22 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: 0.68rem;
+}
+
+.analytics-v2-health-heatmap th,
+.analytics-v2-health-heatmap td {
+  min-width: 5.5rem;
+}
+
+.analytics-v2-health-heatmap th:first-child,
+.analytics-v2-health-heatmap td:first-child,
+.analytics-v2-health-heatmap tbody th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 8.5rem;
+  max-width: 11rem;
+  background: var(--an-surface);
 }
 
 .analytics-v2-health-table td,

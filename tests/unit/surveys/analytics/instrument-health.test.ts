@@ -5,8 +5,10 @@ import {
   ANALYTICS_V2_TABS,
 } from "@/features/surveys/analytics/analytics-v2-tabs";
 import {
+  associationConstructs,
   buildInstrumentHealthData,
   buildInstrumentHealthExport,
+  groupInstrumentHealthConstructs,
   instrumentHealthJsonContainsSensitiveField,
   type InstrumentHealthLoadedResponse,
   type InstrumentHealthSource,
@@ -678,6 +680,157 @@ function buildModulatorSurvey(): PersistedSurvey {
   };
 }
 
+function buildSingleModulatorSurvey(): PersistedSurvey {
+  const definition = createInitialSurveyDefinition("English", ["English"]);
+  definition.questions = [likertQuestion("Q_OVERRIDE_01", 1)];
+  definition.translations.English.questions = {
+    Q_OVERRIDE_01: { title: "I need to be able to stop automation." },
+  };
+  definition.survey_meta.measurement_plan_json = {
+    schema_version: 1,
+    schema_namespace: "flexpulse_behavioural_schema",
+    concepts: [
+      {
+        concept_key: "manual_override_need",
+        evidence_source: "survey_questions",
+        measurement_type: "single_item_direct",
+        output_type: "number",
+        aggregation_rule: "identity",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 1,
+        question_keys: ["Q_OVERRIDE_01"],
+        required_question_keys: ["Q_OVERRIDE_01"],
+        question_intents: [likertIntent("Q_OVERRIDE_01", "OVERRIDE_01", "immediate_intervention_need")],
+      },
+    ],
+  };
+  const mappingContract = createInitialMappingContract();
+  mappingContract.mappings = [
+    numericMapping("Q_OVERRIDE_01", "flexpulse_behavioural_schema.manual_override_need"),
+  ];
+  return {
+    id: "survey-single-modulator",
+    name: "Single modulator",
+    status: "published",
+    created_by: "owner-1",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    published_at: "2026-01-01T00:00:00.000Z",
+    default_language: "English",
+    supported_languages: ["English"],
+    definition_json: definition,
+    mapping_contract_json: mappingContract,
+    mapping_compiled_json: compileMappingContract(mappingContract),
+    mapping_hash: CURRENT_MAPPING,
+    measurement_hash: CURRENT_HASH,
+  };
+}
+
+function buildAxisWithModulatorsSurvey(): PersistedSurvey {
+  const definition = createInitialSurveyDefinition("English", ["English", "Spanish"]);
+  definition.questions = [
+    likertQuestion("Q_TRUST_01", 1),
+    likertQuestion("Q_TRUST_02", 2),
+    likertQuestion("Q_SAVE_01", 3),
+    likertQuestion("Q_SAVE_02", 4),
+    { ...likertQuestion("Q_OVERRIDE_01", 5), required: false },
+    likertQuestion("Q_EVENT_01", 6),
+  ];
+  definition.translations.English.questions = {
+    Q_TRUST_01: { title: "I trust automation." },
+    Q_TRUST_02: { title: "I dislike automation acting alone." },
+    Q_SAVE_01: { title: "Saving money matters." },
+    Q_SAVE_02: { title: "A lower bill is not a reason to change habits." },
+    Q_OVERRIDE_01: { title: "I need to be able to stop automation." },
+    Q_EVENT_01: { title: "Repeated events remain acceptable." },
+  };
+  definition.survey_meta.measurement_plan_json = {
+    schema_version: 1,
+    schema_namespace: "flexpulse_behavioural_schema",
+    concepts: [
+      {
+        concept_key: "trust_in_automation",
+        evidence_source: "survey_questions",
+        measurement_type: "multi_item_likert_median",
+        output_type: "number",
+        aggregation_rule: "mean",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 2,
+        question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+        required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+        question_intents: [
+          likertIntent("Q_TRUST_01", "TRUST_01", "reliability"),
+          likertIntent("Q_TRUST_02", "TRUST_02", "autonomy_discomfort", "negative"),
+        ],
+      },
+      {
+        concept_key: "savings_motivation",
+        evidence_source: "survey_questions",
+        measurement_type: "multi_item_likert_mean",
+        output_type: "number",
+        aggregation_rule: "mean",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 2,
+        question_keys: ["Q_SAVE_01", "Q_SAVE_02"],
+        required_question_keys: ["Q_SAVE_01", "Q_SAVE_02"],
+        question_intents: [
+          likertIntent("Q_SAVE_01", "SAVE_01", "financial_salience"),
+          likertIntent("Q_SAVE_02", "SAVE_02", "reward_responsiveness", "negative"),
+        ],
+      },
+      {
+        concept_key: "manual_override_need",
+        evidence_source: "survey_questions",
+        measurement_type: "single_item_direct",
+        output_type: "number",
+        aggregation_rule: "identity",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 1,
+        question_keys: ["Q_OVERRIDE_01"],
+        required_question_keys: ["Q_OVERRIDE_01"],
+        question_intents: [likertIntent("Q_OVERRIDE_01", "OVERRIDE_01", "immediate_intervention_need")],
+      },
+      {
+        concept_key: "event_frequency_tolerance",
+        evidence_source: "survey_questions",
+        measurement_type: "single_item_direct",
+        output_type: "number",
+        aggregation_rule: "identity",
+        threshold_profile: "likert_1_5_low_mid_high",
+        minimum_answer_count: 1,
+        question_keys: ["Q_EVENT_01"],
+        required_question_keys: ["Q_EVENT_01"],
+        question_intents: [likertIntent("Q_EVENT_01", "EVENT_01", "repeat_acceptability")],
+      },
+    ],
+  };
+  const mappingContract = createInitialMappingContract();
+  mappingContract.mappings = [
+    numericMapping("Q_TRUST_01", "flexpulse_behavioural_schema.trust_in_automation"),
+    numericMapping("Q_TRUST_02", "flexpulse_behavioural_schema.trust_in_automation"),
+    numericMapping("Q_SAVE_01", "flexpulse_behavioural_schema.savings_motivation"),
+    numericMapping("Q_SAVE_02", "flexpulse_behavioural_schema.savings_motivation"),
+    { ...numericMapping("Q_OVERRIDE_01", "flexpulse_behavioural_schema.manual_override_need"), required_for_mapping: false },
+    numericMapping("Q_EVENT_01", "flexpulse_behavioural_schema.event_frequency_tolerance"),
+  ];
+  return {
+    id: "survey-axes-modulators",
+    name: "Axes with modulators",
+    status: "published",
+    created_by: "owner-1",
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    published_at: "2026-01-01T00:00:00.000Z",
+    default_language: "English",
+    supported_languages: ["English", "Spanish"],
+    definition_json: definition,
+    mapping_contract_json: mappingContract,
+    mapping_compiled_json: compileMappingContract(mappingContract),
+    mapping_hash: CURRENT_MAPPING,
+    measurement_hash: CURRENT_HASH,
+  };
+}
+
 function buildReflectivePairSurvey(): PersistedSurvey {
   const definition = createInitialSurveyDefinition("English", ["English"]);
   definition.questions = [
@@ -890,6 +1043,40 @@ function buildDfcSurvey(): PersistedSurvey {
   };
 }
 
+function buildTrustAndDfcSurvey(): PersistedSurvey {
+  const survey = buildDfcSurvey();
+  const definition = survey.definition_json;
+  definition.questions.unshift(likertQuestion("Q_TRUST_01", 0), likertQuestion("Q_TRUST_02", 0));
+  definition.translations.English.questions = {
+    ...definition.translations.English.questions,
+    Q_TRUST_01: { title: "I trust automation." },
+    Q_TRUST_02: { title: "I dislike automation acting alone." },
+  };
+  definition.survey_meta.measurement_plan_json?.concepts.unshift({
+    concept_key: "trust_in_automation",
+    evidence_source: "survey_questions",
+    measurement_type: "multi_item_likert_median",
+    output_type: "number",
+    aggregation_rule: "mean",
+    threshold_profile: "likert_1_5_low_mid_high",
+    minimum_answer_count: 2,
+    question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+    required_question_keys: ["Q_TRUST_01", "Q_TRUST_02"],
+    question_intents: [
+      likertIntent("Q_TRUST_01", "TRUST_01", "reliability"),
+      likertIntent("Q_TRUST_02", "TRUST_02", "autonomy_discomfort", "negative"),
+    ],
+  });
+  survey.mapping_contract_json.mappings.unshift(
+    numericMapping("Q_TRUST_01", "flexpulse_behavioural_schema.trust_in_automation"),
+    numericMapping("Q_TRUST_02", "flexpulse_behavioural_schema.trust_in_automation"),
+  );
+  survey.mapping_compiled_json = compileMappingContract(survey.mapping_contract_json);
+  survey.id = "survey-trust-dfc";
+  survey.name = "Trust and DFC";
+  return survey;
+}
+
 describe("instrument health schema-driven analysis", () => {
   it("keeps Energy Flexibility numeric calculations for trust and tariff", () => {
     const survey = buildSurvey();
@@ -936,9 +1123,16 @@ describe("instrument health schema-driven analysis", () => {
 
     expect(savings?.role).toBe("descriptive_composite");
     expect(override?.role).toBe("descriptive_composite");
+    expect(savings?.conceptRole).toBe("behavioural_modulator");
+    expect(override?.conceptRole).toBe("behavioural_modulator");
     expect(savings?.reliability.alpha).toBeNull();
     expect(override?.reliability.alpha).toBeNull();
+    expect(savings?.reliability.itemTotalRange).toBeNull();
     expect(override?.itemCount).toBe(1);
+    expect(data.scopes.overall.htmt).toEqual([]);
+    expect(groupInstrumentHealthConstructs(data.scopes.overall.constructs).map((group) => group.key)).toEqual([
+      "behavioural_modulator",
+    ]);
   });
 
   it("computes reflective statistics without listing the concept in the dashboard", () => {
@@ -1313,6 +1507,12 @@ describe("instrument health schema-driven analysis", () => {
     expect(panel).not.toContain("setSessionChecked");
     expect(panel).toContain("Export JSON");
     expect(panel).toContain("downloadInstrumentHealthExport(data)");
+    expect(panel).toContain("Construct associations");
+    expect(panel).toContain("Core axes + supporting factors");
+    expect(panel).toContain("groupInstrumentHealthConstructs");
+    expect(panel).toContain("is-supporting");
+    expect(panel).not.toContain("Reflective construct associations");
+    expect(panel).not.toContain("Exploratory construct associations");
   });
 
   it("exports the generated analysis as expanded JSON without sensitive fields", () => {
@@ -1329,5 +1529,296 @@ describe("instrument health schema-driven analysis", () => {
     expect(parsed.scopes.overall.constructs.length).toBe(data.scopes.overall.constructs.length);
     expect(parsed.scopes.overall.constructs[0]?.items.length).toBeGreaterThan(0);
     expect(instrumentHealthJsonContainsSensitiveField(parsed)).toBe(false);
+  });
+});
+
+describe("instrument health behavioural modulators", () => {
+  it("keeps Construct Health working without an empty supporting-factors group", () => {
+    const survey = buildReflectivePairSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, { Q_TRUST_01: 5, Q_TRUST_02: 1, Q_AWARE_01: 5, Q_AWARE_02: 4, Q_AWARE_03: 4 }),
+      ]),
+    );
+    const groups = groupInstrumentHealthConstructs(data.scopes.overall.constructs);
+
+    expect(groups.map((group) => group.key)).toEqual(["primary_profile_axis"]);
+    expect(data.scopes.overall.constructs.every((construct) => construct.conceptRole === "primary_profile_axis")).toBe(
+      true,
+    );
+    expect(associationConstructs(data.scopes.overall.constructs, "core_and_supporting")).toHaveLength(2);
+  });
+
+  it("shows a single-item modulator as a supporting factor without alpha or HTMT", () => {
+    const survey = buildSingleModulatorSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [mappedResponse(survey, { Q_OVERRIDE_01: 4 })]),
+    );
+    const override = data.scopes.overall.constructs.find(
+      (construct) => construct.conceptKey === "manual_override_need",
+    );
+    const groups = groupInstrumentHealthConstructs(data.scopes.overall.constructs);
+
+    expect(override?.conceptRole).toBe("behavioural_modulator");
+    expect(override?.role).toBe("descriptive_composite");
+    expect(override?.itemCount).toBe(1);
+    expect(override?.items[0]?.facet).toBe("immediate_intervention_need");
+    expect(override?.reliability.alpha).toBeNull();
+    expect(override?.items[0]?.correctedItemTotal).toBeNull();
+    expect(data.scopes.overall.htmt).toEqual([]);
+    expect(groups).toEqual([
+      expect.objectContaining({
+        key: "behavioural_modulator",
+        constructs: [expect.objectContaining({ conceptKey: "manual_override_need" })],
+      }),
+    ]);
+  });
+
+  it("keeps measurement-plan order and item distributions for several modulators", () => {
+    const survey = buildModulatorSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, { Q_SAVE_01: 5, Q_SAVE_02: 4, Q_OVERRIDE_01: 5 }),
+        mappedResponse(survey, { Q_SAVE_01: 2, Q_SAVE_02: 1, Q_OVERRIDE_01: 3 }),
+      ]),
+    );
+
+    expect(data.scopes.overall.constructs.map((construct) => construct.conceptKey)).toEqual([
+      "savings_motivation",
+      "manual_override_need",
+    ]);
+    expect(data.scopes.overall.constructs.find((construct) => construct.conceptKey === "savings_motivation")?.items).toEqual(
+      [
+        expect.objectContaining({ questionKey: "Q_SAVE_01", descriptives: expect.objectContaining({ mean: 3.5 }) }),
+        expect.objectContaining({ questionKey: "Q_SAVE_02", descriptives: expect.objectContaining({ mean: 2.5 }) }),
+      ],
+    );
+  });
+
+  it("aligns the canonical modulator score without reversing the respondent-facing item distribution", () => {
+    const survey = buildAxisWithModulatorsSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, {
+          Q_TRUST_01: 5,
+          Q_TRUST_02: 1,
+          Q_SAVE_01: 5,
+          Q_SAVE_02: 5,
+          Q_OVERRIDE_01: 4,
+          Q_EVENT_01: 3,
+        }),
+      ]),
+    );
+    const savings = data.scopes.overall.constructs.find((construct) => construct.conceptKey === "savings_motivation");
+    const negativeItem = savings?.items.find((item) => item.questionKey === "Q_SAVE_02");
+
+    expect(negativeItem?.polarity).toBe("negative");
+    expect(negativeItem?.reverseScored).toBe(true);
+    expect(negativeItem?.descriptives.mean).toBe(5);
+    expect(savings?.scoreDescriptives.mean).toBe(3);
+  });
+
+  it("uses applicable n for modulator scores and paired correlation n", () => {
+    const survey = buildAxisWithModulatorsSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, {
+          Q_TRUST_01: 5,
+          Q_TRUST_02: 1,
+          Q_SAVE_01: 5,
+          Q_SAVE_02: 1,
+          Q_OVERRIDE_01: 5,
+          Q_EVENT_01: 4,
+        }),
+        mappedResponse(survey, {
+          Q_TRUST_01: 2,
+          Q_TRUST_02: 4,
+          Q_SAVE_01: 2,
+          Q_SAVE_02: 4,
+          Q_EVENT_01: 2,
+        }),
+      ]),
+    );
+    const override = data.scopes.overall.constructs.find(
+      (construct) => construct.conceptKey === "manual_override_need",
+    );
+    const pair = data.scopes.overall.correlations.find(
+      (cell) =>
+        cell.rowConceptKey === "savings_motivation" && cell.columnConceptKey === "manual_override_need",
+    );
+
+    expect(override?.applicableN).toBe(1);
+    expect(pair?.n).toBe(1);
+    expect(pair?.overlapFlag).toBe(false);
+  });
+
+  it("exposes axis-by-modulator and modulator-by-modulator association cells", () => {
+    const survey = buildAxisWithModulatorsSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, {
+          Q_TRUST_01: 5,
+          Q_TRUST_02: 1,
+          Q_SAVE_01: 5,
+          Q_SAVE_02: 1,
+          Q_OVERRIDE_01: 5,
+          Q_EVENT_01: 4,
+        }),
+        mappedResponse(survey, {
+          Q_TRUST_01: 2,
+          Q_TRUST_02: 4,
+          Q_SAVE_01: 2,
+          Q_SAVE_02: 4,
+          Q_OVERRIDE_01: 2,
+          Q_EVENT_01: 2,
+        }),
+      ]),
+    );
+    const groups = groupInstrumentHealthConstructs(data.scopes.overall.constructs);
+    const core = associationConstructs(data.scopes.overall.constructs, "core");
+    const withSupporting = associationConstructs(data.scopes.overall.constructs, "core_and_supporting");
+
+    expect(groups.map((group) => group.key)).toEqual(["primary_profile_axis", "behavioural_modulator"]);
+    expect(core.map((construct) => construct.conceptKey)).toEqual(["trust_in_automation"]);
+    expect(withSupporting.map((construct) => construct.conceptKey)).toEqual([
+      "trust_in_automation",
+      "savings_motivation",
+      "manual_override_need",
+      "event_frequency_tolerance",
+    ]);
+    expect(
+      data.scopes.overall.correlations.some(
+        (cell) =>
+          cell.rowConceptKey === "trust_in_automation" && cell.columnConceptKey === "savings_motivation",
+      ),
+    ).toBe(true);
+    expect(
+      data.scopes.overall.correlations.some(
+        (cell) =>
+          cell.rowConceptKey === "savings_motivation" && cell.columnConceptKey === "event_frequency_tolerance",
+      ),
+    ).toBe(true);
+    expect(data.scopes.overall.htmt).toEqual([]);
+  });
+
+  it("does not show concepts that the survey does not measure", () => {
+    const survey = buildSingleModulatorSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [mappedResponse(survey, { Q_OVERRIDE_01: 3 })]),
+    );
+
+    expect(data.scopes.overall.constructs.map((construct) => construct.conceptKey)).toEqual([
+      "manual_override_need",
+    ]);
+    expect(data.scopes.overall.constructs.some((construct) => construct.conceptKey === "trust_in_automation")).toBe(
+      false,
+    );
+    expect(data.scopes.overall.constructs.some((construct) => construct.conceptKey === "flexibility_willingness")).toBe(
+      false,
+    );
+  });
+
+  it("respects language scopes for modulators", () => {
+    const survey = buildAxisWithModulatorsSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, {
+          Q_TRUST_01: 5,
+          Q_TRUST_02: 1,
+          Q_SAVE_01: 5,
+          Q_SAVE_02: 1,
+          Q_OVERRIDE_01: 5,
+          Q_EVENT_01: 4,
+        }),
+        mappedResponse(
+          survey,
+          {
+            Q_TRUST_01: 2,
+            Q_TRUST_02: 4,
+            Q_SAVE_01: 2,
+            Q_SAVE_02: 4,
+            Q_OVERRIDE_01: 2,
+            Q_EVENT_01: 2,
+          },
+          { submittedLanguage: "Spanish" },
+        ),
+      ]),
+    );
+    const english = data.scopes["language:English"]?.constructs.find(
+      (construct) => construct.conceptKey === "manual_override_need",
+    );
+    const spanish = data.scopes["language:Spanish"]?.constructs.find(
+      (construct) => construct.conceptKey === "manual_override_need",
+    );
+
+    expect(data.scopes["language:English"]?.n).toBe(1);
+    expect(data.scopes["language:Spanish"]?.n).toBe(1);
+    expect(english?.applicableN).toBe(1);
+    expect(spanish?.applicableN).toBe(1);
+    expect(english?.scoreDescriptives.median).toBe(5);
+    expect(spanish?.scoreDescriptives.median).toBe(2);
+  });
+
+  it("includes DFC in core associations and pairs only applicable capability scores", () => {
+    const survey = buildTrustAndDfcSurvey();
+    const data = buildInstrumentHealthData(
+      buildSource(survey, [
+        mappedResponse(survey, {
+          Q_TRUST_01: 5,
+          Q_TRUST_02: 1,
+          Q_OWNED_DER_ASSETS_01: ["ev"],
+          Q_DFC_EV_CHARGING_OPERATIONAL_CONTROL: 4,
+          Q_DFC_EV_CHARGING_TEMPORAL_SLACK: 4,
+          Q_DFC_EV_CHARGING_SERVICE_PRESERVATION: 5,
+          Q_DFC_EV_CHARGING_HOUSEHOLD_COORDINATION: 3,
+        }),
+        mappedResponse(survey, {
+          Q_TRUST_01: 2,
+          Q_TRUST_02: 4,
+          Q_OWNED_DER_ASSETS_01: ["ev"],
+          Q_DFC_EV_CHARGING_OPERATIONAL_CONTROL: 2,
+          Q_DFC_EV_CHARGING_TEMPORAL_SLACK: 2,
+          Q_DFC_EV_CHARGING_SERVICE_PRESERVATION: 2,
+          Q_DFC_EV_CHARGING_HOUSEHOLD_COORDINATION: 2,
+        }),
+        mappedResponse(survey, {
+          Q_TRUST_01: 3,
+          Q_TRUST_02: 3,
+          Q_OWNED_DER_ASSETS_01: ["battery_storage"],
+        }),
+      ]),
+    );
+    const dfc = data.scopes.overall.constructs.find(
+      (construct) => construct.conceptKey === "declared_flexibility_capability",
+    );
+    const trust = data.scopes.overall.constructs.find(
+      (construct) => construct.conceptKey === "trust_in_automation",
+    );
+    const groups = groupInstrumentHealthConstructs(data.scopes.overall.constructs);
+    const core = associationConstructs(data.scopes.overall.constructs, "core");
+    const pair = data.scopes.overall.correlations.find(
+      (cell) =>
+        cell.rowConceptKey === "trust_in_automation" &&
+        cell.columnConceptKey === "declared_flexibility_capability",
+    );
+    const applicableEv = data.scopes.overall.conditionalModules[0]?.modules.find(
+      (module) => module.setKey === "ev_charging",
+    );
+
+    expect(dfc?.conceptRole).toBe("primary_profile_axis");
+    expect(dfc?.role).toBe("conditional_module");
+    expect(groups.find((group) => group.key === "conditional_module")?.constructs.map((construct) => construct.conceptKey)).toEqual([
+      "declared_flexibility_capability",
+    ]);
+    expect(core.map((construct) => construct.conceptKey)).toEqual([
+      "trust_in_automation",
+      "declared_flexibility_capability",
+    ]);
+    expect(trust?.applicableN).toBe(3);
+    expect(dfc?.applicableN).toBe(2);
+    expect(applicableEv?.applicableN).toBe(2);
+    expect(pair?.n).toBe(2);
+    expect(pair?.spearmanRho).not.toBeNull();
+    expect(pair?.overlapFlag).toBe(false);
   });
 });

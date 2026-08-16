@@ -556,28 +556,30 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
                 {data.insights.map((insight) => (
                   <article key={`${insight.family}:${insight.title}`} className="analytics-v2-insight">
                     <h4>{insight.title}</h4>
-                    <p className="analytics-v2-insight__layer">
-                      <span>Statistical signal</span>
-                      {insight.statisticalSignal}
-                    </p>
-                    {insight.meaning ? (
+                    <div className="analytics-v2-insight__layers">
                       <p className="analytics-v2-insight__layer">
-                        <span>What this may mean</span>
-                        {insight.meaning}
+                        <span>Statistical signal</span>
+                        {insight.statisticalSignal}
                       </p>
-                    ) : null}
-                    {insight.decisionHypothesis ? (
-                      <p className="analytics-v2-insight__layer">
-                        <span>Decision hypothesis</span>
-                        {insight.decisionHypothesis}
-                      </p>
-                    ) : null}
-                    {insight.alternativeExplanation ? (
-                      <p className="analytics-v2-insight__layer">
-                        <span>Also consider</span>
-                        {insight.alternativeExplanation}
-                      </p>
-                    ) : null}
+                      {insight.meaning ? (
+                        <p className="analytics-v2-insight__layer">
+                          <span>What this may mean</span>
+                          {insight.meaning}
+                        </p>
+                      ) : null}
+                      {insight.decisionHypothesis ? (
+                        <p className="analytics-v2-insight__layer">
+                          <span>Decision hypothesis</span>
+                          {insight.decisionHypothesis}
+                        </p>
+                      ) : null}
+                      {insight.alternativeExplanation ? (
+                        <p className="analytics-v2-insight__layer">
+                          <span>Also consider</span>
+                          {insight.alternativeExplanation}
+                        </p>
+                      ) : null}
+                    </div>
                   </article>
                 ))}
               </div>
@@ -717,7 +719,10 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
               </div>
               {data.constructs.map((construct) => (
                 <div key={construct.conceptKey} className="analytics-v2-construct-table__row">
-                  <strong title={construct.description ?? undefined}>{construct.label}</strong>
+                  <strong>
+                    {construct.label}
+                    {construct.description ? <InfoTip text={construct.description} /> : null}
+                  </strong>
                   <span className="analytics-v2-construct-table__num">{formatScore(construct.median)}</span>
                   <span className="analytics-v2-construct-table__iqr">
                     {formatScore(construct.q1)}–{formatScore(construct.q3)}

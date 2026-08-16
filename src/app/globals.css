@@ -5583,8 +5583,8 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .analytics-v2-insight {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.15rem 1.1rem 0.2rem 0;
+  gap: 0.85rem;
+  padding: 0.15rem 1.15rem 0.2rem 0;
   border-right: 1px solid var(--an-border);
 }
 
@@ -5594,30 +5594,39 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .analytics-v2-insight:not(:first-child) {
-  padding-left: 1.1rem;
+  padding-left: 1.15rem;
 }
 
 .analytics-v2-insight h4 {
   margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.35;
+  font-size: 1.18rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.22;
   color: var(--an-text-strong);
+}
+
+.analytics-v2-insight__layers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
 }
 
 .analytics-v2-insight__layer {
   margin: 0;
-  color: var(--an-text);
-  font-size: 0.8rem;
+  color: var(--an-muted-strong);
+  font-size: 0.75rem;
   line-height: 1.45;
+  font-weight: 400;
 }
 
 .analytics-v2-insight__layer span {
   display: block;
-  margin-bottom: 0.18rem;
-  color: var(--an-muted);
-  font-size: 0.68rem;
+  margin-bottom: 0.22rem;
+  color: var(--an-text-strong);
+  font-size: 0.62rem;
   font-weight: 650;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -5714,6 +5723,7 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 .analytics-v2-construct-table {
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
 .analytics-v2-construct-table__head,
@@ -5754,6 +5764,10 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
 }
 
 .analytics-v2-construct-table__row > strong {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.1rem;
   color: var(--an-text-strong);
   font-size: 0.86rem;
   font-weight: 600;

@@ -1,4 +1,5 @@
 export * from "./catalog";
+export * from "./commit";
 export * from "./compiler";
 export * from "./conditions";
 export * from "./labels";

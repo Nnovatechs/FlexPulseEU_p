@@ -3,26 +3,36 @@ import {
   addToComparisonTray,
   buildSegmentCatalog,
   buildSegmentExplorerSummary,
+  commitSegmentDefinition,
   compileSegmentDefinition,
   decodeSegmentDefinition,
   emptySegmentDefinition,
   encodeSegmentDefinition,
+  formatVisibleDate,
   getAssetValueLabel,
   getBandLabel,
   getConceptDescription,
   getEvidenceLabel,
+  getFieldBand,
+  getFieldRange,
+  getScoreDirectionNote,
   isWholeSampleDefinition,
   savedSegmentsStorageKey,
   comparisonTrayStorageKey,
   MULTI_ITEM_FACET_SCORE_LABEL,
+  NEUTRAL_BAND_LABELS,
   readComparisonTray,
   readSavedSegments,
   removeComparisonSlot,
   saveNamedSegment,
+  scoreControlMode,
   segmentDefinitionsEqual,
+  setEquality,
   setNumericRange,
   SINGLE_ITEM_SIGNAL_LABEL,
+  toggleMembership,
   toggleSemanticBand,
+  utcInclusiveDateBounds,
   validateSegmentDefinition,
   writeComparisonTray,
   type SegmentDefinition,
@@ -453,6 +463,18 @@ describe("segment catalog", () => {
     expect(capability?.conditionalModules[0]?.label).toBe("EV charging");
     expect(catalog.assets?.values.map((value) => value.value)).toEqual(["ev"]);
     expect(catalog.assets?.values.map((value) => value.label)).toEqual(["Electric vehicle"]);
+    expect(trust?.overall?.bandLabels).toEqual({
+      high: "Confidence",
+      medium: "Unclear confidence",
+      low: "Distrust",
+    });
+    expect(trust?.facets[0]?.bandLabels.high).toBe("Confidence");
+    expect(trust?.supportingFactors[0]?.overall.bandLabels).toEqual(NEUTRAL_BAND_LABELS);
+    expect(capability?.conditionalModules[0]?.bandLabels).toEqual({
+      high: "Favourable",
+      medium: "Limited",
+      low: "Low declared capability",
+    });
   });
 
   it("keeps a dimension when only a supporting factor is measured", () => {
@@ -671,14 +693,14 @@ describe("segment summary, storage and comparison", () => {
         schemaVersion: 1,
         fields: [],
       }),
-    ).toBe("stricter");
+    ).toBe("Stricter");
     expect(
       getBandLabel("trust_in_automation", "high", {
         schemaNamespace: "flexpulse_behavioural_schema",
         schemaVersion: 1,
         fields: [],
       }),
-    ).toBe("high");
+    ).toBe("Confidence");
     expect(getAssetValueLabel("ev")).toBe("Electric vehicle");
     expect(getAssetValueLabel("pv_system")).toBe("Solar photovoltaic system");
     expect(
@@ -688,6 +710,173 @@ describe("segment summary, storage and comparison", () => {
         fields: [],
       }),
     ).toMatch(/automated household energy control/i);
+  });
+});
+
+describe("segment band labels", () => {
+  const context = {
+    schemaNamespace: "flexpulse_behavioural_schema",
+    schemaVersion: 1,
+    fields: [],
+  };
+
+  it("uses construct-specific labels for higher_is_more and higher_is_stricter axes", () => {
+    expect(getScoreDirectionNote("flexibility_willingness", context)).toBeNull();
+    expect(getBandLabel("flexibility_willingness", "high", context)).toBe("Favourable");
+    expect(getBandLabel("flexibility_willingness", "medium", context)).toBe("Not clearly favourable");
+    expect(getBandLabel("flexibility_willingness", "low", context)).toBe("Unfavourable");
+    expect(getScoreDirectionNote("thermal_comfort_norms", context)).toMatch(/stricter/i);
+    expect(getBandLabel("thermal_comfort_norms", "high", context)).toBe("Stricter");
+    expect(getBandLabel("thermal_comfort_norms", "medium", context)).toBe("Intermediate");
+    expect(getBandLabel("thermal_comfort_norms", "low", context)).toBe("More permissive thermal norms");
+    expect(getBandLabel("trust_in_automation", "high", context)).toBe("Confidence");
+    expect(getBandLabel("awareness_of_energy_systems", "high", context)).toBe("High familiarity");
+  });
+
+  it("falls back to neutral band labels for unknown concepts", () => {
+    expect(getBandLabel("unknown_future_construct", "high", context)).toBe("Upper band");
+    expect(getBandLabel("unknown_future_construct", "medium", context)).toBe("Intermediate band");
+    expect(getBandLabel("unknown_future_construct", "low", context)).toBe("Lower band");
+  });
+});
+
+describe("segment score control mode", () => {
+  const field = "profile.trust_in_automation.value";
+
+  it("follows the active definition and keeps the user mode when the condition is cleared", () => {
+    const withBand = toggleSemanticBand(definition(), field, "high");
+    const withRange = setNumericRange(withBand, field, 2, 3);
+    expect(withRange.conditions.filter((condition) => condition.field === field)).toHaveLength(1);
+    expect(scoreControlMode("band", getFieldBand(withRange, field), getFieldRange(withRange, field))).toBe("range");
+    expect(scoreControlMode("range", getFieldBand(withBand, field), getFieldRange(withBand, field))).toBe("band");
+    const cleared = setNumericRange(withRange, field, 1, 5);
+    expect(getFieldBand(cleared, field)).toBeNull();
+    expect(getFieldRange(cleared, field)).toBeNull();
+    expect(scoreControlMode("range", getFieldBand(cleared, field), getFieldRange(cleared, field))).toBe("range");
+  });
+});
+
+describe("segment inclusive date bounds", () => {
+  const survey = buildSurvey([trustConcept], { weather: true });
+  const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 4 });
+  const rows = [
+    { ...record("start", mapperOutput({ trust: 3 })), responded_at: "2026-08-16T00:00:00.000Z" },
+    { ...record("noon", mapperOutput({ trust: 3 })), responded_at: "2026-08-16T12:00:00.000Z" },
+    { ...record("end", mapperOutput({ trust: 3 })), responded_at: "2026-08-16T23:59:59.999Z" },
+    { ...record("next", mapperOutput({ trust: 3 })), responded_at: "2026-08-17T00:00:00.000Z" },
+    { ...record("later", mapperOutput({ trust: 3 })), responded_at: "2026-08-18T09:00:00.000Z" },
+  ];
+
+  it("includes the whole final UTC day and excludes the next midnight", () => {
+    expect(utcInclusiveDateBounds("2026-08-16", "2026-08-16")).toEqual({
+      startInclusive: "2026-08-16T00:00:00.000Z",
+      endExclusive: "2026-08-17T00:00:00.000Z",
+    });
+    const sameDay = applySurveyAnalyticsFilters({
+      schema,
+      rows,
+      filters: compileSegmentDefinition(
+        definition([{ kind: "date_range", field: "response.responded_at", min: "2026-08-16", max: "2026-08-16" }]),
+      ),
+    }).map((row) => row.response_id);
+    expect(sameDay).toEqual(["start", "noon", "end"]);
+
+    const span = applySurveyAnalyticsFilters({
+      schema,
+      rows,
+      filters: compileSegmentDefinition(
+        definition([{ kind: "date_range", field: "response.responded_at", min: "2026-08-16", max: "2026-08-18" }]),
+      ),
+    }).map((row) => row.response_id);
+    expect(span).toEqual(["start", "noon", "end", "next", "later"]);
+  });
+
+  it("keeps the chosen dates in the URL and chips", () => {
+    const source = definition([
+      { kind: "date_range", field: "response.responded_at", min: "2026-08-16", max: "2026-08-16" },
+    ]);
+    const decoded = decodeSegmentDefinition(encodeSegmentDefinition(source));
+    expect(decoded.ok).toBe(true);
+    if (decoded.ok) {
+      expect(decoded.definition.conditions).toEqual(source.conditions);
+    }
+    expect(formatVisibleDate("2026-08-16")).toBe("16 Aug 2026");
+    expect(buildSegmentExplorerSummary({ schema, rows, definition: source }).readableConditions[0]?.detail).toBe(
+      "16 Aug 2026 → 16 Aug 2026",
+    );
+  });
+});
+
+describe("segment commit limit", () => {
+  const survey = buildSurvey([trustConcept, assetsConcept, dfcConcept], { weather: true });
+  const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 1 });
+  const field = "profile.owned_der_assets.value";
+
+  function filled(extra: SegmentDefinition["conditions"] = []) {
+    return definition([
+      ...Array.from({ length: 16 - extra.length }, (_, index) => ({
+        kind: "contains" as const,
+        field,
+        value: `asset-${index}`,
+      })),
+      ...extra,
+    ]);
+  }
+
+  it("accepts the 16th condition and rejects a 17th from every filter family", () => {
+    const atLimit = filled();
+    expect(commitSegmentDefinition({ next: atLimit, schema }).ok).toBe(true);
+    expect(
+      commitSegmentDefinition({
+        next: definition([...atLimit.conditions, { kind: "contains", field, value: "extra" }]),
+        schema,
+      }).ok,
+    ).toBe(false);
+
+    const families: SegmentDefinition["conditions"] = [
+      { kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" },
+      { kind: "eq", field: "context.country_code", value: "ES" },
+      { kind: "eq", field: "context.survey_language", value: "English" },
+      { kind: "date_range", field: "response.responded_at", min: "2026-08-16", max: "2026-08-16" },
+      { kind: "numeric_range", field: "context.climate.temp_outdoor_c", min: 10, max: 20 },
+      { kind: "applicability", field: "profile.declared_flexibility_capability.facets.ev_charging.value", applicable: true },
+    ];
+    for (const condition of families) {
+      expect(
+        commitSegmentDefinition({
+          next: definition([...atLimit.conditions, condition]),
+          schema,
+        }).ok,
+      ).toBe(false);
+    }
+  });
+
+  it("allows edits, band/range swaps and replace-after-remove at the limit", () => {
+    const withBand = filled([
+      { kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" },
+    ]);
+    const replaced = setNumericRange(withBand, "profile.trust_in_automation.value", 2, 3);
+    expect(commitSegmentDefinition({ next: replaced, schema }).ok).toBe(true);
+    expect(replaced.conditions).toHaveLength(16);
+
+    const edited = setEquality(filled([{ kind: "eq", field: "context.country_code", value: "ES" }]), "context.country_code", "FR");
+    expect(commitSegmentDefinition({ next: edited, schema }).ok).toBe(true);
+
+    const removed = toggleMembership(filled(), field, "asset-0", "contains");
+    expect(removed.conditions).toHaveLength(15);
+    const added = toggleMembership(removed, field, "replacement", "contains");
+    expect(commitSegmentDefinition({ next: added, schema }).ok).toBe(true);
+    expect(added.conditions).toHaveLength(16);
+  });
+
+  it("does not apply an invalid URL payload", () => {
+    expect(decodeSegmentDefinition("%%%not-base64%%%").ok).toBe(false);
+    expect(
+      commitSegmentDefinition({
+        next: definition([{ kind: "eq", field: "profile.missing.value", value: "x" }]),
+        schema,
+      }).ok,
+    ).toBe(false);
   });
 });
 

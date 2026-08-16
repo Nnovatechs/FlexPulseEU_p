@@ -143,6 +143,20 @@ export function resetSegmentDefinition(definition: SegmentDefinition) {
   return emptySegmentDefinition(definition);
 }
 
+export function scoreControlMode(
+  preferred: "band" | "range",
+  band: SegmentBandKey | null,
+  range: { min: number; max: number } | null,
+): "band" | "range" {
+  if (range) {
+    return "range";
+  }
+  if (band) {
+    return "band";
+  }
+  return preferred;
+}
+
 export function getFieldBand(definition: SegmentDefinition, field: string): SegmentBandKey | null {
   const condition = definition.conditions.find(
     (entry) => entry.field === field && entry.kind === "semantic_band",

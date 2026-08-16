@@ -90,6 +90,7 @@ export type SegmentCatalogScoreField = {
   directionNote: string | null;
   scaleMin: number;
   scaleMax: number;
+  bandLabels: Record<SegmentBandKey, string>;
 };
 
 export type SegmentCatalogFacetField = SegmentCatalogScoreField & {
@@ -109,8 +110,10 @@ export type SegmentCatalogConditionalModule = {
   field: string;
   setKey: string;
   label: string;
+  conceptKey: string;
   scaleMin: number;
   scaleMax: number;
+  bandLabels: Record<SegmentBandKey, string>;
 };
 
 export type SegmentCatalogDimension = {

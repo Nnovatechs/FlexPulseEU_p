@@ -4,17 +4,25 @@ import {
 } from "@/features/ontology/flexpulse-behavioural-schema";
 import { getCanonicalDerAssetOptionLabel } from "@/features/surveys/asset-option-labels";
 import { getConditionalModuleCatalog } from "@/features/surveys/analytics/instrument-health-semantics";
+import {
+  getOverviewBandLabel,
+  hasOverviewConstructSemantics,
+} from "@/features/surveys/analytics/overview-semantics";
 import type { SurveyAnalyticsFieldDefinition } from "@/features/surveys/survey-analytics";
 import type { SegmentBandKey } from "./types";
 
 export const SINGLE_ITEM_SIGNAL_LABEL = "Single-item signal";
 export const MULTI_ITEM_FACET_SCORE_LABEL = "Multi-item facet score";
 
-const GENERIC_BAND_LABELS: Record<SegmentBandKey, string> = {
-  high: "high",
-  medium: "intermediate",
-  low: "low",
+export const NEUTRAL_BAND_LABELS: Record<SegmentBandKey, string> = {
+  high: "Upper band",
+  medium: "Intermediate band",
+  low: "Lower band",
 };
+
+function presentBandLabel(label: string) {
+  return label.replace(/^\p{L}/u, (letter) => letter.toUpperCase());
+}
 
 export type SegmentLabelContext = {
   schemaNamespace: string;
@@ -125,12 +133,43 @@ export function getBandLabel(
   band: SegmentBandKey,
   context: SegmentLabelContext,
 ) {
+  if (hasOverviewConstructSemantics(conceptKey)) {
+    return presentBandLabel(getOverviewBandLabel(conceptKey, band));
+  }
+
   const analysisModel = resolveFlexpulseAnalysisModel({
     schemaNamespace: context.schemaNamespace,
     schemaVersion: context.schemaVersion,
     conceptKey,
   });
-  return analysisModel?.band_labels?.[band] ?? GENERIC_BAND_LABELS[band];
+  if (analysisModel?.band_labels?.[band]) {
+    return presentBandLabel(analysisModel.band_labels[band]);
+  }
+
+  return NEUTRAL_BAND_LABELS[band];
+}
+
+export function getBandLabels(conceptKey: string, context: SegmentLabelContext) {
+  return {
+    high: getBandLabel(conceptKey, "high", context),
+    medium: getBandLabel(conceptKey, "medium", context),
+    low: getBandLabel(conceptKey, "low", context),
+  };
+}
+
+export function formatVisibleDate(value: string) {
+  const day = value.slice(0, 10);
+  const parsed = Date.parse(`${day}T00:00:00.000Z`);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(parsed));
 }
 
 export function getEvidenceLabel(evidenceLevel: "interpretive_signal" | "facet_subscore") {

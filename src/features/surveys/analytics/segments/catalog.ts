@@ -7,6 +7,7 @@ import {
 } from "@/features/surveys/survey-analytics";
 import {
   getAssetValueLabel,
+  getBandLabels,
   getChoiceValueLabel,
   getConceptLabel,
   getDimensionLabel,
@@ -94,6 +95,7 @@ function toScoreField(
     directionNote: getScoreDirectionNote(field.concept_key, context),
     scaleMin: 1,
     scaleMax: 5,
+    bandLabels: getBandLabels(field.concept_key, context),
   };
 }
 
@@ -115,6 +117,7 @@ function toFacetField(
     evidenceLabel: getEvidenceLabel(field.evidence_level),
     scaleMin: 1,
     scaleMax: 5,
+    bandLabels: getBandLabels(field.concept_key, context),
   };
 }
 
@@ -237,8 +240,10 @@ export function buildSegmentCatalog(input: {
         field: field.key,
         setKey: field.facet as string,
         label: getFacetLabel(conceptKey, field.facet as string, context),
+        conceptKey,
         scaleMin: 1,
         scaleMax: 5,
+        bandLabels: getBandLabels(conceptKey, context),
       }));
     group.conditionalModules = modules;
     group.facets = [];

@@ -19,6 +19,7 @@ import {
   segmentDefinitionsEqual,
   resetSegmentDefinition,
   saveNamedSegment,
+  scoreControlMode,
   subscribeSegmentStorage,
   setApplicability,
   setDateRange,
@@ -190,14 +191,15 @@ function ScoreControls({
   onChange,
   disabled,
 }: {
-  field: Pick<SegmentCatalogScoreField, "field" | "scaleMin" | "scaleMax">;
+  field: Pick<SegmentCatalogScoreField, "field" | "scaleMin" | "scaleMax" | "bandLabels">;
   definition: SegmentDefinition;
   onChange: (definition: SegmentDefinition) => void;
   disabled?: boolean;
 }) {
   const band = getFieldBand(definition, field.field);
   const range = getFieldRange(definition, field.field);
-  const [mode, setMode] = useState<"band" | "range">(range ? "range" : "band");
+  const [preferredMode, setPreferredMode] = useState<"band" | "range">("band");
+  const mode = scoreControlMode(preferredMode, band, range);
 
   return (
     <div className="analytics-v2-seg-score">
@@ -207,7 +209,7 @@ function ScoreControls({
           className={mode === "band" ? "is-active" : undefined}
           disabled={disabled}
           onClick={() => {
-            setMode("band");
+            setPreferredMode("band");
             if (range) {
               onChange(clearScoreCondition(definition, field.field));
             }
@@ -220,7 +222,7 @@ function ScoreControls({
           className={mode === "range" ? "is-active" : undefined}
           disabled={disabled}
           onClick={() => {
-            setMode("range");
+            setPreferredMode("range");
             if (band) {
               onChange(clearScoreCondition(definition, field.field));
             }
@@ -239,7 +241,7 @@ function ScoreControls({
               disabled={disabled}
               onClick={() => onChange(toggleSemanticBand(definition, field.field, value))}
             >
-              {value}
+              {field.bandLabels[value]}
             </button>
           ))}
         </div>
@@ -427,6 +429,11 @@ export function SegmentExplorerPanel({
               )}
               {definition.conditions.length > 0 ? (
                 <small className="analytics-v2-seg-toolbar__hint">Click a chip to remove that filter.</small>
+              ) : null}
+              {atLimit ? (
+                <small className="analytics-v2-seg-toolbar__hint">
+                  This segment has reached the {MAX_SEGMENT_CONDITIONS}-condition limit. Remove a filter to add another.
+                </small>
               ) : null}
             </div>
             <div className="analytics-v2-seg-toolbar__bar">

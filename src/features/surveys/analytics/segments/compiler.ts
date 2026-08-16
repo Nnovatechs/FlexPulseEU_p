@@ -35,9 +35,37 @@ export function compileSegmentCondition(condition: SegmentCondition): SurveyAnal
           value: null,
         },
       ];
-    case "date_range":
-      return [{ field: condition.field, op: "between", value: [condition.min, condition.max] }];
+    case "date_range": {
+      const bounds = utcInclusiveDateBounds(condition.min, condition.max);
+      return [
+        { field: condition.field, op: "gte", value: bounds.startInclusive },
+        { field: condition.field, op: "lt", value: bounds.endExclusive },
+      ];
+    }
   }
+}
+
+export function utcInclusiveDateBounds(min: string, max: string) {
+  return {
+    startInclusive: toUtcDayStartIso(min),
+    endExclusive: toUtcNextDayStartIso(max),
+  };
+}
+
+function toUtcDayStartIso(value: string) {
+  const day = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    return value;
+  }
+  return `${day}T00:00:00.000Z`;
+}
+
+function toUtcNextDayStartIso(value: string) {
+  const start = Date.parse(toUtcDayStartIso(value));
+  if (Number.isNaN(start)) {
+    return value;
+  }
+  return new Date(start + 24 * 60 * 60 * 1000).toISOString();
 }
 
 export function compileSegmentDefinition(definition: SegmentDefinition): SurveyAnalyticsFilter[] {

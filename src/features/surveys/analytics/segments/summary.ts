@@ -7,6 +7,7 @@ import {
 } from "@/features/surveys/survey-analytics";
 import { compileSegmentDefinition } from "./compiler";
 import {
+  formatVisibleDate,
   getAssetValueLabel,
   getBandLabel,
   getChoiceValueLabel,
@@ -61,7 +62,10 @@ function describeCondition(condition: SegmentCondition, context: SegmentLabelCon
     case "applicability":
       return { label, detail: condition.applicable ? "Applicable" : "Not applicable" };
     case "date_range":
-      return { label, detail: `${condition.min} to ${condition.max}` };
+      return {
+        label,
+        detail: `${formatVisibleDate(condition.min)} → ${formatVisibleDate(condition.max)}`,
+      };
   }
 }
 

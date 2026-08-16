@@ -92,6 +92,10 @@ export function getOverviewConstructSemantics(conceptKey: string) {
   return CONSTRUCT_SEMANTICS[conceptKey] ?? DEFAULT_CONSTRUCT_SEMANTICS;
 }
 
+export function hasOverviewConstructSemantics(conceptKey: string) {
+  return Object.prototype.hasOwnProperty.call(CONSTRUCT_SEMANTICS, conceptKey);
+}
+
 export function getOverviewBandLabel(conceptKey: string, band: OverviewBandKey) {
   return getOverviewConstructSemantics(conceptKey).labels[band];
 }

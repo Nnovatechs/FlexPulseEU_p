@@ -8,6 +8,7 @@ import {
 } from "@/features/surveys/analytics/analytics-v2-tabs";
 import {
   SEGMENT_URL_PARAM,
+  commitSegmentDefinition,
   comparisonTrayCount,
   decodeSegmentDefinition,
   emptyComparisonTray,
@@ -122,10 +123,17 @@ export function AnalyticsV2Workbench({
   }, [resolveParam]);
 
   const handleDefinitionChange = (next: SegmentDefinition) => {
-    setDefinition(next);
+    const committed = commitSegmentDefinition({ next, schema });
+    if (!committed.ok) {
+      setNotice(committed.message);
+      return;
+    }
+    setDefinition(committed.definition);
     setNotice(null);
-    setPreloaded(!isWholeSampleDefinition(next));
-    replaceSegmentParam(isWholeSampleDefinition(next) ? null : encodeSegmentDefinition(next));
+    setPreloaded(!isWholeSampleDefinition(committed.definition));
+    replaceSegmentParam(
+      isWholeSampleDefinition(committed.definition) ? null : encodeSegmentDefinition(committed.definition),
+    );
   };
 
   const handleOpenInExplorer = (next: SegmentDefinition) => {

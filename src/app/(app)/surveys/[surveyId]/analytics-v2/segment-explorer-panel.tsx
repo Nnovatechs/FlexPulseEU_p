@@ -578,8 +578,6 @@ export function SegmentExplorerPanel({
             </div>
           </div>
 
-          <div className="analytics-v2-seg-builder-layout">
-            <div className="analytics-v2-seg-builder-main">
           <nav className="analytics-v2-seg-systems" aria-label="Filter systems">
             {systems.map((system) => {
               const count = countForFields(definition, system.fields);
@@ -597,6 +595,8 @@ export function SegmentExplorerPanel({
             })}
           </nav>
 
+          <div className="analytics-v2-seg-builder-layout">
+            <div className="analytics-v2-seg-builder-main">
           <div
             ref={systemBodyRef}
             className="analytics-v2-seg-system-body"
@@ -851,13 +851,7 @@ export function SegmentExplorerPanel({
             </div>
 
             <aside className="analytics-v2-seg-live-sample" aria-live="polite">
-              <h4>Current sample</h4>
-              <p>
-                {displayedSampleStatus === "updating"
-                  ? "Updating from the current filters."
-                  : "Live from the current filters, before the full analysis."}
-              </p>
-              <div className="analytics-v2-kpi-strip analytics-v2-seg-kpis analytics-v2-seg-live-sample__kpis">
+              <div className="analytics-v2-kpi-strip analytics-v2-seg-kpis">
                 <article className="analytics-v2-kpi">
                   <span>Matched</span>
                   <strong>{formatCount(displayedSample.matchedN)}</strong>
@@ -874,6 +868,20 @@ export function SegmentExplorerPanel({
                   <small>Disjoint complement</small>
                 </article>
               </div>
+              <small>
+                {displayedSampleStatus === "updating"
+                  ? "Updating from the current filters."
+                  : "Live from the current filters, before the full analysis."}
+              </small>
+              <button
+                type="button"
+                className="analytics-v2-seg-analyse"
+                disabled={!canAnalyse}
+                aria-busy={analysisStatus === "loading"}
+                onClick={handleAnalyse}
+              >
+                {analyseLabel}
+              </button>
             </aside>
           </div>
         </section>

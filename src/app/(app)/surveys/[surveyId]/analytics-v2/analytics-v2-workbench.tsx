@@ -158,14 +158,19 @@ export function AnalyticsV2Workbench({
           {ANALYTICS_V2_TABS.map((tab) => {
             const isActive = activeTab === tab.key;
             const label =
-              tab.key === "comparison" ? `Comparison ${comparisonTrayCount(tray)}/2` : tab.label;
+              tab.key === "comparison" ? `Compare ${comparisonTrayCount(tray)}/2` : tab.label;
             return (
               <button
                 key={tab.key}
                 type="button"
                 className={`analytics-v2-tabbar__tab${isActive ? " is-active" : ""}`}
                 aria-pressed={isActive}
-                onClick={() => setActiveTab(tab.key)}
+                aria-current={isActive ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setActiveTab(tab.key);
+                }}
               >
                 {label}
                 {tab.key === "segments" && preloaded ? (
@@ -177,11 +182,17 @@ export function AnalyticsV2Workbench({
         </nav>
       </header>
 
-      <div hidden={activeTab !== "overview"}>
+      <div
+        hidden={activeTab !== "overview"}
+        className={activeTab === "overview" ? undefined : "analytics-v2-tab-panel--inactive"}
+      >
         <OverviewPanel data={overviewData} />
       </div>
 
-      <div hidden={activeTab !== "segments"}>
+      <div
+        hidden={activeTab !== "segments"}
+        className={activeTab === "segments" ? undefined : "analytics-v2-tab-panel--inactive"}
+      >
         <SegmentExplorerPanel
           surveyId={surveyId}
           catalog={catalog}
@@ -194,8 +205,15 @@ export function AnalyticsV2Workbench({
         />
       </div>
 
-      <div hidden={activeTab !== "comparison"}>
+      <div
+        hidden={activeTab !== "comparison"}
+        className={activeTab === "comparison" ? undefined : "analytics-v2-tab-panel--inactive"}
+        id="analytics-v2-compare-panel"
+      >
         <ComparisonPanel
+          surveyId={surveyId}
+          catalog={catalog}
+          schema={schema}
           tray={tray}
           storageReady
           onTrayChange={persistTray}
@@ -203,7 +221,10 @@ export function AnalyticsV2Workbench({
         />
       </div>
 
-      <div hidden={activeTab !== "diagnostics"}>
+      <div
+        hidden={activeTab !== "diagnostics"}
+        className={activeTab === "diagnostics" ? undefined : "analytics-v2-tab-panel--inactive"}
+      >
         <InstrumentHealthPanel
           surveyId={surveyId}
           currentCollectedN={overviewData.context.collectedResponseCount}

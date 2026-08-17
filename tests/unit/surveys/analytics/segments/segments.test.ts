@@ -17,6 +17,7 @@ import {
   encodeSegmentDefinition,
   formatVisibleDate,
   getAnalyseActionLabel,
+  previewSegmentSample,
   getAssetValueLabel,
   getBandLabel,
   getConceptDescription,
@@ -623,6 +624,20 @@ describe("segment summary, storage and comparison", () => {
     expect(JSON.stringify(summary)).not.toContain("answers_json");
     expect(JSON.stringify(summary)).not.toContain("mapper_output");
     expect(summary.axes[0]?.bands).toHaveLength(3);
+  });
+
+  it("previews matched, share and outside without running the full analysis", () => {
+    const whole = previewSegmentSample({ schema, rows, definition: definition() });
+    expect(whole).toEqual({ matchedN: 3, analysedN: 3, outsideN: 0, share: 1 });
+    const high = previewSegmentSample({
+      schema,
+      rows,
+      definition: toggleSemanticBand(definition(), "profile.trust_in_automation.value", "high"),
+    });
+    expect(high.matchedN).toBe(1);
+    expect(high.outsideN).toBe(2);
+    expect(high.share).toBeCloseTo(1 / 3);
+    expect(JSON.stringify(high)).not.toContain("response_id");
   });
 
   it("marks defining conditions and narrows when a condition is added", () => {

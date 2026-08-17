@@ -33,7 +33,7 @@ export const ANALYTICS_V2_TABS: AnalyticsV2TabDefinition[] = [
     eyebrow: "Explore",
     title: "Segment Explorer",
     description:
-      "Build a transparent filter set, inspect the matching profile, save the definition in this browser, or send it to Comparison.",
+      "Build a transparent filter set, inspect the matching profile, save the definition in this browser, or send it to Compare.",
     bullets: [
       "Dynamic filters from the analytics schema.",
       "AND-only conditions with a readable active set.",
@@ -42,15 +42,15 @@ export const ANALYTICS_V2_TABS: AnalyticsV2TabDefinition[] = [
   },
   {
     key: "comparison",
-    label: "Comparison",
+    label: "Compare",
     eyebrow: "Compare",
-    title: "Comparison tray",
+    title: "Compare segments",
     description:
-      "Hold up to two segment definitions side by side. Full A/B analysis will arrive in a later iteration.",
+      "Generate a difference-first reading of two previously analysed segment definitions. The view ranks the largest score and composition contrasts without repeating full profiles.",
     bullets: [
-      "Add the current explorer segment or a saved definition.",
-      "Whole sample occupies a normal slot when added explicitly.",
-      "Open either slot back in Segment Explorer without losing the other.",
+      "Compare two tray slots after they have been analysed in Segment Explorer.",
+      "Largest differences first, with effect sizes only for disjoint samples.",
+      "Export the generated aggregate comparison when it is still current.",
     ],
   },
   {

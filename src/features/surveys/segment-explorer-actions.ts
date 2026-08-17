@@ -1,7 +1,7 @@
 "use server";
 
-import { runSegmentExplorerSummary } from "./use-cases";
-import type { SegmentAnalysisResult, SegmentDefinition } from "./analytics/segments";
+import { runSegmentExplorerSummary, runSegmentSamplePreview } from "./use-cases";
+import type { SegmentAnalysisResult, SegmentDefinition, SegmentSamplePreview } from "./analytics/segments";
 
 export async function runSegmentExplorerAction(
   surveyId: string,
@@ -13,4 +13,16 @@ export async function runSegmentExplorerAction(
   }
 
   return runSegmentExplorerSummary(trimmedSurveyId, definition);
+}
+
+export async function previewSegmentSampleAction(
+  surveyId: string,
+  definition: SegmentDefinition,
+): Promise<SegmentSamplePreview> {
+  const trimmedSurveyId = surveyId.trim();
+  if (!trimmedSurveyId) {
+    throw new Error("Survey ID is required.");
+  }
+
+  return runSegmentSamplePreview(trimmedSurveyId, definition);
 }

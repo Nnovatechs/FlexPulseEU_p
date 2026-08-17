@@ -861,8 +861,16 @@ export function SegmentAnalysisPanel({
           >
             Export segment analysis
           </button>
-          <button type="button" className="button button--ghost" onClick={onOpenComparison}>
-            Comparison {comparisonCount}/2
+          <button
+            type="button"
+            className="button button--ghost"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onOpenComparison();
+            }}
+          >
+            Compare {comparisonCount}/2
           </button>
         </div>
       </div>

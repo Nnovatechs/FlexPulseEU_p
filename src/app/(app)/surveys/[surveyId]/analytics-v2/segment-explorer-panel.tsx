@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { runSegmentExplorerAction } from "@/features/surveys/segment-explorer-actions";
+import { previewSegmentSampleAction, runSegmentExplorerAction } from "@/features/surveys/segment-explorer-actions";
 import {
   MAX_SEGMENT_CONDITIONS,
   addToComparisonTray,
@@ -19,6 +19,7 @@ import {
   getFieldRange,
   getMembershipValues,
   isSegmentAnalysisStale,
+  isWholeSampleDefinition,
   removeConditionAt,
   resetSegmentDefinition,
   saveNamedSegment,
@@ -39,6 +40,7 @@ import {
   type SegmentCatalogScoreField,
   type SegmentAnalysisResult,
   type SegmentDefinition,
+  type SegmentSamplePreview,
 } from "@/features/surveys/analytics/segments";
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
 import { InfoTip } from "./info-tip";
@@ -79,6 +81,27 @@ function dimensionFields(dimension: SegmentCatalogDimension) {
 }
 
 const RANGE_COMMIT_DELAY_MS = 400;
+const SAMPLE_PREVIEW_DELAY_MS = 280;
+
+function formatCount(value: number) {
+  return new Intl.NumberFormat("en-GB").format(value);
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (value == null || Number.isNaN(value)) {
+    return "n/a";
+  }
+  return `${Math.round(value * 100)}%`;
+}
+
+function emptySamplePreview(analysedN: number): SegmentSamplePreview {
+  return {
+    matchedN: analysedN,
+    outsideN: 0,
+    analysedN,
+    share: analysedN === 0 ? null : 1,
+  };
+}
 
 function DebouncedRangeInputs({
   min,
@@ -290,6 +313,9 @@ export function SegmentExplorerPanel({
   const [saveName, setSaveName] = useState("");
   const [localNotice, setLocalNotice] = useState<string | null>(null);
   const [openNested, setOpenNested] = useState<Record<string, boolean>>({});
+  const [liveSample, setLiveSample] = useState<SegmentSamplePreview>(() => emptySamplePreview(catalog.analysedN));
+  const [liveSampleStatus, setLiveSampleStatus] = useState<"ready" | "updating">("ready");
+  const sampleRequestRef = useRef(0);
   const systems = useMemo(() => {
     const items: Array<{ key: SystemKey; label: string; fields: string[] }> = catalog.dimensions.map(
       (dimension) => ({
@@ -350,6 +376,41 @@ export function SegmentExplorerPanel({
     setSystemBodyMinHeight((current) => Math.max(current, nextHeight));
   }, [selectedKey, definition.conditions, openNested, selectedDimension]);
 
+  useEffect(() => {
+    if (isWholeSampleDefinition(definition)) {
+      return;
+    }
+
+    const requestId = sampleRequestRef.current + 1;
+    sampleRequestRef.current = requestId;
+    const timer = window.setTimeout(() => {
+      setLiveSampleStatus("updating");
+      void previewSegmentSampleAction(surveyId, definition)
+        .then((next) => {
+          if (sampleRequestRef.current !== requestId) {
+            return;
+          }
+          setLiveSample(next);
+          setLiveSampleStatus("ready");
+        })
+        .catch(() => {
+          if (sampleRequestRef.current !== requestId) {
+            return;
+          }
+          setLiveSampleStatus("ready");
+        });
+    }, SAMPLE_PREVIEW_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [definition, surveyId]);
+
+  const displayedSample = isWholeSampleDefinition(definition)
+    ? emptySamplePreview(catalog.analysedN)
+    : liveSample;
+  const displayedSampleStatus = isWholeSampleDefinition(definition) ? "ready" : liveSampleStatus;
+
   const handleAnalyse = () => {
     const requestId = analysisRequestRef.current + 1;
     analysisRequestRef.current = requestId;
@@ -379,22 +440,30 @@ export function SegmentExplorerPanel({
     onTrayChange(next);
   };
 
-  const handleAddToComparison = (replaceSlot?: 0 | 1) => {
-    if (!analysedDefinition) {
+  const handleAddToComparison = (replaceSlot?: 0 | 1, source: "draft" | "analysed" = "analysed") => {
+    const target = source === "draft" ? definition : analysedDefinition;
+    if (!target) {
       return;
     }
-    const result = addToComparisonTray(tray, analysedDefinition, replaceSlot);
+    const result = addToComparisonTray(tray, target, replaceSlot);
     if (!result.ok) {
       setLocalNotice(
         result.reason === "duplicate"
-          ? "That exact definition is already in Comparison."
-          : "Comparison already holds two segments. Choose which slot to replace.",
+          ? "That exact definition is already in Compare."
+          : "Compare already holds two segments. Choose which slot to replace.",
       );
       return;
     }
     persistTray(result.tray);
     setLocalNotice(null);
   };
+
+  const handleOpenComparison = () => {
+    onOpenComparison();
+  };
+
+  const trayCount = comparisonTrayCount(tray);
+  const comparisonFull = trayCount === 2;
 
   return (
     <div className="analytics-v2-segment">
@@ -483,8 +552,34 @@ export function SegmentExplorerPanel({
             <div className="analytics-v2-panel__title">
               <h3>Segment Builder</h3>
             </div>
+            <div className="analytics-v2-seg-result-actions">
+              {comparisonFull ? (
+                <span className="analytics-v2-seg-replace">
+                  Replace
+                  <button type="button" className="analytics-v2-seg-chip" onClick={() => handleAddToComparison(0, "draft")}>
+                    A
+                  </button>
+                  <button type="button" className="analytics-v2-seg-chip" onClick={() => handleAddToComparison(1, "draft")}>
+                    B
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  onClick={() => handleAddToComparison(undefined, "draft")}
+                >
+                  Add to Compare
+                </button>
+              )}
+              <button type="button" className="button button--ghost" onClick={handleOpenComparison}>
+                Open Compare {trayCount}/2
+              </button>
+            </div>
           </div>
 
+          <div className="analytics-v2-seg-builder-layout">
+            <div className="analytics-v2-seg-builder-main">
           <nav className="analytics-v2-seg-systems" aria-label="Filter systems">
             {systems.map((system) => {
               const count = countForFields(definition, system.fields);
@@ -753,6 +848,34 @@ export function SegmentExplorerPanel({
                 })
               : null}
           </div>
+            </div>
+
+            <aside className="analytics-v2-seg-live-sample" aria-live="polite">
+              <h4>Current sample</h4>
+              <p>
+                {displayedSampleStatus === "updating"
+                  ? "Updating from the current filters."
+                  : "Live from the current filters, before the full analysis."}
+              </p>
+              <div className="analytics-v2-kpi-strip analytics-v2-seg-kpis analytics-v2-seg-live-sample__kpis">
+                <article className="analytics-v2-kpi">
+                  <span>Matched</span>
+                  <strong>{formatCount(displayedSample.matchedN)}</strong>
+                  <small>of {formatCount(displayedSample.analysedN)} analysed</small>
+                </article>
+                <article className="analytics-v2-kpi">
+                  <span>Share</span>
+                  <strong>{formatPercent(displayedSample.share)}</strong>
+                  <small>Current filters</small>
+                </article>
+                <article className="analytics-v2-kpi">
+                  <span>Outside</span>
+                  <strong>{formatCount(displayedSample.outsideN)}</strong>
+                  <small>Disjoint complement</small>
+                </article>
+              </div>
+            </aside>
+          </div>
         </section>
 
         <div className="analytics-v2-seg-analyse-bar">
@@ -772,10 +895,10 @@ export function SegmentExplorerPanel({
           status={analysisStatus}
           dirty={stale}
           schema={schema}
-          comparisonCount={comparisonTrayCount(tray)}
-          comparisonFull={comparisonTrayCount(tray) === 2}
+          comparisonCount={trayCount}
+          comparisonFull={comparisonFull}
           onAddToComparison={handleAddToComparison}
-          onOpenComparison={onOpenComparison}
+          onOpenComparison={handleOpenComparison}
           draftDefinition={definition}
           onExploreSubgroup={(field, band) => onDefinitionChange(toggleSemanticBand(definition, field, band))}
         />

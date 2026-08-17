@@ -19,6 +19,8 @@ import { buildInstrumentHealthData } from "./analytics/instrument-health";
 import {
   buildSegmentAnalysis,
   buildSegmentCatalog,
+  buildSegmentComparison,
+  previewSegmentSample,
   validateSegmentDefinition,
   type SegmentDefinition,
 } from "./analytics/segments";
@@ -448,6 +450,50 @@ export async function runSegmentExplorerSummary(surveyId: string, definition: Se
     schema: context.schema,
     rows: context.rows,
     definition: validated.definition,
+  });
+}
+
+export async function runSegmentSamplePreview(surveyId: string, definition: SegmentDefinition) {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  const validated = validateSegmentDefinition(definition, context.schema, {
+    surveyId: context.survey.id,
+    measurementHash: context.schema.measurement_hash,
+  });
+  if (!validated.ok) {
+    throw new Error(validated.message);
+  }
+
+  return previewSegmentSample({
+    schema: context.schema,
+    rows: context.rows,
+    definition: validated.definition,
+  });
+}
+
+export async function runSegmentComparison(
+  surveyId: string,
+  definitionA: SegmentDefinition,
+  definitionB: SegmentDefinition,
+) {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  const expected = {
+    surveyId: context.survey.id,
+    measurementHash: context.schema.measurement_hash,
+  };
+  const validatedA = validateSegmentDefinition(definitionA, context.schema, expected);
+  if (!validatedA.ok) {
+    throw new Error(validatedA.message);
+  }
+  const validatedB = validateSegmentDefinition(definitionB, context.schema, expected);
+  if (!validatedB.ok) {
+    throw new Error(validatedB.message);
+  }
+
+  return buildSegmentComparison({
+    schema: context.schema,
+    rows: context.rows,
+    definitionA: validatedA.definition,
+    definitionB: validatedB.definition,
   });
 }
 

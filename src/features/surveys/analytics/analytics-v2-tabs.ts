@@ -46,9 +46,9 @@ export const ANALYTICS_V2_TABS: AnalyticsV2TabDefinition[] = [
     eyebrow: "Compare",
     title: "Compare segments",
     description:
-      "Generate a difference-first reading of two previously analysed segment definitions. The view ranks the largest score and composition contrasts without repeating full profiles.",
+      "Generate a difference-first reading of two segment definitions created in Segment Explorer. The view ranks the largest score and composition contrasts without repeating full profiles.",
     bullets: [
-      "Compare two tray slots after they have been analysed in Segment Explorer.",
+      "Compare two tray slots from Segment Explorer.",
       "Largest differences first, with effect sizes only for disjoint samples.",
       "Export the generated aggregate comparison when it is still current.",
     ],

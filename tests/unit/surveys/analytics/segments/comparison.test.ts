@@ -335,8 +335,121 @@ describe("segment comparison", () => {
     expect(result.compositionDifferences.every((row) => !row.field.startsWith("geo."))).toBe(true);
     expect(result.compositionDifferences.every((row) => !row.field.startsWith("context.location."))).toBe(true);
     expect(result.compositionDifferences.every((row) => row.field !== "context.country_code")).toBe(true);
+    expect(result.geography).toEqual([]);
+  });
+
+  it("can show country in geography when country does not define the segments", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 10 });
+    const madrid: NormalizedLocationLevel[] = [
+      { kind: "country", code: "ES", label: "Spain", providerId: null, centroidLat: null, centroidLon: null },
+    ];
+    const paris: NormalizedLocationLevel[] = [
+      { kind: "country", code: "FR", label: "France", providerId: null, centroidLat: null, centroidLon: null },
+    ];
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`a${index}`, mapperOutput({ trust: 5, country: "ES" }), madrid),
+      ),
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`b${index}`, mapperOutput({ trust: 1, country: "FR" }), paris),
+      ),
+    ];
+    const result = buildSegmentComparison({ schema, rows, definitionA: highTrust, definitionB: lowTrust });
     expect(result.geography.every((row) => row.field === "context.country_code")).toBe(true);
     expect(result.geography.some((row) => row.value === "ES")).toBe(true);
+  });
+
+  it("ranks a 1/7 score row after n>=5 rows", () => {
+    const survey = buildSurvey([thermalConcept, overrideConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 14 });
+    const rows = [
+      record(`a0`, mapperOutput({ thermal: 5, override: 1, country: "ES" })),
+      ...Array.from({ length: 6 }, (_, index) => record(`a${index + 1}`, mapperOutput({ thermal: 5, country: "ES" }))),
+      ...Array.from({ length: 7 }, (_, index) => record(`b${index}`, mapperOutput({ thermal: 1, override: 5, country: "FR" }))),
+    ];
+    const result = buildSegmentComparison({
+      schema,
+      rows,
+      definitionA: spain,
+      definitionB: definition([{ kind: "eq", field: "context.country_code", value: "FR" }]),
+    });
+    const thermal = result.scoreDifferences.find((row) => row.conceptKey === "thermal_comfort_norms");
+    const override = result.scoreDifferences.find((row) => row.conceptKey === "manual_override_need");
+    expect(thermal?.applicableNA).toBe(7);
+    expect(thermal?.applicableNB).toBe(7);
+    expect(override?.applicableNA).toBe(1);
+    expect(override?.applicableNB).toBe(7);
+    expect(result.scoreDifferences.indexOf(thermal!)).toBeLessThan(result.scoreDifferences.indexOf(override!));
+  });
+
+  it("does not generate an insight from a small-n score row", () => {
+    const survey = buildSurvey([thermalConcept, overrideConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 14 });
+    const rows = [
+      record(`a0`, mapperOutput({ thermal: 3, override: 1, country: "ES" })),
+      ...Array.from({ length: 6 }, (_, index) => record(`a${index + 1}`, mapperOutput({ thermal: 3, country: "ES" }))),
+      ...Array.from({ length: 7 }, (_, index) => record(`b${index}`, mapperOutput({ thermal: 3, override: 5, country: "FR" }))),
+    ];
+    const result = buildSegmentComparison({
+      schema,
+      rows,
+      definitionA: spain,
+      definitionB: definition([{ kind: "eq", field: "context.country_code", value: "FR" }]),
+    });
+    expect(result.scoreDifferences.some((row) => row.conceptKey === "manual_override_need" && row.applicableNA === 1)).toBe(
+      true,
+    );
+    expect(result.insights.every((item) => !item.conceptKeys.includes("manual_override_need"))).toBe(true);
+  });
+
+  it("emits at most one insight for a construct and its facets", () => {
+    const survey = buildSurvey([trustConcept, thermalConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 10 });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) => record(`a${index}`, mapperOutput({ trust: 5, thermal: 3, country: "ES" }))),
+      ...Array.from({ length: 5 }, (_, index) => record(`b${index}`, mapperOutput({ trust: 1, thermal: 3, country: "FR" }))),
+    ];
+    const result = buildSegmentComparison({
+      schema,
+      rows,
+      definitionA: spain,
+      definitionB: definition([{ kind: "eq", field: "context.country_code", value: "FR" }]),
+    });
+    expect(result.scoreDifferences.filter((row) => row.conceptKey === "trust_in_automation").length).toBeGreaterThan(1);
+    expect(result.insights.filter((item) => item.conceptKeys.includes("trust_in_automation"))).toHaveLength(1);
+  });
+
+  it("omits a category used as a filter from composition differences", () => {
+    const survey = buildSurvey([trustConcept, assetsConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 10 });
+    const hasEv = definition([{ kind: "contains", field: "profile.owned_der_assets.value", value: "ev" }]);
+    const hasHeatPump = definition([{ kind: "contains", field: "profile.owned_der_assets.value", value: "heat_pump" }]);
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) => record(`a${index}`, mapperOutput({ trust: 5, assets: ["ev"], country: "ES" }))),
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`b${index}`, mapperOutput({ trust: 1, assets: ["heat_pump"], country: "FR" })),
+      ),
+    ];
+    const result = buildSegmentComparison({ schema, rows, definitionA: hasEv, definitionB: hasHeatPump });
+    expect(result.compositionDifferences.every((row) => !row.field.includes("owned_der_assets"))).toBe(true);
+  });
+
+  it("omits exact 0 pp composition rows", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 10 });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) => record(`a${index}`, mapperOutput({ trust: 5, country: "ES" }))),
+      ...Array.from({ length: 5 }, (_, index) => record(`b${index}`, mapperOutput({ trust: 1, country: "FR" }))),
+    ];
+    const result = buildSegmentComparison({
+      schema,
+      rows,
+      definitionA: spain,
+      definitionB: definition([{ kind: "eq", field: "context.country_code", value: "FR" }]),
+    });
+    expect(result.compositionDifferences.every((row) => row.deltaPercentagePoints !== 0)).toBe(true);
+    expect(result.compositionDifferences.every((row) => !row.field.includes("survey_language"))).toBe(true);
   });
 
   it("does not generate a comparison when A and B select the same responses", () => {

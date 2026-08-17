@@ -14,6 +14,7 @@ import {
   comparisonTrayCount,
   describeReadableConditions,
   getCompareActionLabel,
+  hasSemanticComparisonN,
   isSegmentComparisonStale,
   isWholeSampleDefinition,
   removeComparisonSlot,
@@ -257,6 +258,13 @@ function downloadComparisonExport(result: SegmentComparisonResult, schema: Surve
   URL.revokeObjectURL(url);
 }
 
+function formatCliffs(row: { applicableNA: number; applicableNB: number; cliffsDelta: number | null }) {
+  if (!hasSemanticComparisonN(row.applicableNA, row.applicableNB)) {
+    return "Descriptive only";
+  }
+  return row.cliffsDelta == null ? "n/a" : row.cliffsDelta.toFixed(2);
+}
+
 function scoreDirection(row: ComparisonScoreDifference) {
   if (row.medianDelta === 0) {
     return "Same median";
@@ -342,11 +350,11 @@ export function ComparisonPanel({
           <div className="analytics-v2-panel__title">
             <h3>
               Compare {count}/2
-              <InfoTip text="Compare two segment definitions previously analysed in Segment Explorer. Generate explicitly. The result ranks the largest differences; it does not repeat full profiles." />
+              <InfoTip text="Compare two segment definitions created in Segment Explorer. Generate explicitly. The result ranks the largest differences; it does not repeat full profiles." />
             </h3>
             <p>
               {storageReady
-                ? "Add two analysed segments from Segment Explorer, then generate the comparison."
+                ? "Add two segment definitions created in Segment Explorer, then generate the comparison."
                 : "Loading the comparison tray…"}
             </p>
           </div>
@@ -446,7 +454,7 @@ export function ComparisonPanel({
 
         {status === "idle" && !result ? (
           <p className="analytics-v2-seg-empty">
-            Place two previously analysed segments in the tray, then generate the comparison.
+            Place two segment definitions created in Segment Explorer in the tray, then generate the comparison.
           </p>
         ) : null}
         {status === "loading" && !result ? <p className="analytics-v2-seg-empty">Generating the comparison…</p> : null}
@@ -484,7 +492,7 @@ export function ComparisonPanel({
                 <div className="analytics-v2-seg-analysis-block">
                   <h4>
                     Largest differences
-                    <InfoTip text="Score differences are ranked by absolute Cliff’s delta when the samples are disjoint, with median difference as the tie-break. Composition differences are ranked separately by absolute percentage-point gap." />
+                    <InfoTip text="Score differences with at least five applicable responses on both sides are listed first, ranked by absolute Cliff’s delta when the samples are disjoint, with median difference as the tie-break. Smaller-n rows stay available via Show all. Composition differences are ranked separately by absolute percentage-point gap." />
                   </h4>
                   <h5>Score differences</h5>
                   <RankedTable
@@ -498,7 +506,7 @@ export function ComparisonPanel({
                       {
                         key: "cliffs",
                         header: "Cliff’s δ",
-                        render: (row) => (row.cliffsDelta == null ? "n/a" : row.cliffsDelta.toFixed(2)),
+                        render: (row) => formatCliffs(row),
                       },
                       {
                         key: "n",
@@ -529,8 +537,8 @@ export function ComparisonPanel({
                 {result.definitionDifferences.length > 0 ? (
                   <div className="analytics-v2-seg-analysis-block">
                     <h4>
-                      Definition differences
-                      <InfoTip text="These variables were used to construct Segment A or Segment B. The difference exists by design and is not treated as a discovered finding." />
+                      Definition-linked differences
+                      <InfoTip text="These dimensions were used directly in the segment filters or belong to the same filtered construct. Their differences are expected from the segment definition and are not treated as new findings." />
                     </h4>
                     <RankedTable
                       items={result.definitionDifferences}
@@ -590,7 +598,7 @@ export function ComparisonPanel({
                         {
                           key: "cliffs",
                           header: "Cliff’s δ",
-                          render: (row) => (row.cliffsDelta == null ? "n/a" : row.cliffsDelta.toFixed(2)),
+                          render: (row) => formatCliffs(row),
                         },
                       ]}
                     />

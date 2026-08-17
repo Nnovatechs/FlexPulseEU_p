@@ -21,6 +21,7 @@ import {
   getFacetLabel,
   getFieldLabel,
   getScoreDirectionNote,
+  SINGLE_ITEM_SIGNAL_LABEL,
   type SegmentLabelContext,
 } from "./labels";
 import { isUsableWeatherQuality } from "./presentation";
@@ -54,8 +55,50 @@ const EXCLUDED_CATEGORY_FIELDS = new Set([
   "context.location.best_granularity",
 ]);
 
-const INDEPENDENT_CHECK =
-  "A predefined comparison, another sample, or independent evidence would be needed before treating this as a stable contrast.";
+function scoreInsightCopy(row: ComparisonScoreDifference, side: "A" | "B") {
+  const observed = `Segment ${side} reports a higher ${row.label.toLowerCase()} than the other segment (Δ median ${row.medianDelta.toFixed(2)}, δ=${row.cliffsDelta?.toFixed(2)}, n=${row.applicableNA}/${row.applicableNB}).`;
+  const direction = row.directionNote ? ` ${row.directionNote}` : "";
+  if (row.kind === "primary_axis") {
+    return {
+      observed,
+      potentialReading: `${row.label} is one of the main declared contrasts between these segments.${direction} Its facets can show where the gap concentrates.`,
+      worthExamining: "Inspect the facet rows of this axis before treating the overall contrast as uniform.",
+    };
+  }
+  if (row.kind === "facet") {
+    const signal =
+      row.evidenceLabel === SINGLE_ITEM_SIGNAL_LABEL || row.evidenceLevel === "interpretive_signal"
+        ? ` ${SINGLE_ITEM_SIGNAL_LABEL}.`
+        : row.evidenceLabel
+          ? ` ${row.evidenceLabel}.`
+          : "";
+    return {
+      observed,
+      potentialReading: `The contrast concentrates on this aspect of the axis.${signal}${direction}`,
+      worthExamining: "Read it as a concentrated part of the parent axis, not as a standalone cause.",
+    };
+  }
+  if (row.kind === "capability_module") {
+    return {
+      observed,
+      potentialReading: `${row.label} only describes households for which this module is applicable.${direction}`,
+      worthExamining: "Do not generalise this module contrast to respondents outside its applicable population.",
+    };
+  }
+  return {
+    observed,
+    potentialReading: `${row.label} helps characterise the groups.${direction} It is not a demonstrated causal mechanism.`,
+    worthExamining: "Use it as context for the groups, not as an explanation of later behaviour.",
+  };
+}
+
+function compositionInsightCopy(row: ComparisonCompositionDifference) {
+  return {
+    observed: `${row.valueLabel} appears in ${Math.round((row.shareA ?? 0) * 100)}% of Segment A versus ${Math.round((row.shareB ?? 0) * 100)}% of Segment B (n=${row.applicableNA}/${row.applicableNB}).`,
+    potentialReading: "This is a difference in declared composition, not demonstrated behaviour or capability.",
+    worthExamining: "Check whether the segment filters already make this mix expected.",
+  };
+}
 
 const ASSET_COMPOSITION_GAP_PP = 15;
 const SCORE_INSIGHT_MIN_CLIFFS = 0.15;
@@ -240,6 +283,11 @@ function buildScoreRow(input: {
 }
 
 function compareScoreRows(left: ComparisonScoreDifference, right: ComparisonScoreDifference) {
+  const leftStable = hasSemanticComparisonN(left.applicableNA, left.applicableNB);
+  const rightStable = hasSemanticComparisonN(right.applicableNA, right.applicableNB);
+  if (leftStable !== rightStable) {
+    return leftStable ? -1 : 1;
+  }
   const leftCliffs = Math.abs(left.cliffsDelta ?? 0);
   const rightCliffs = Math.abs(right.cliffsDelta ?? 0);
   if (rightCliffs !== leftCliffs) {
@@ -601,7 +649,15 @@ function buildInsights(input: {
         hasSemanticComparisonN(row.applicableNA, row.applicableNB) &&
         Math.abs(row.medianDelta) > 0,
     );
-    for (const row of descriptiveScores.slice(0, 2)) {
+    const usedConcepts = new Set<string>();
+    for (const row of descriptiveScores) {
+      if (insights.length >= 3) {
+        break;
+      }
+      if (usedConcepts.has(row.conceptKey)) {
+        continue;
+      }
+      usedConcepts.add(row.conceptKey);
       const side = row.medianDelta >= 0 ? "A" : "B";
       insights.push({
         kind: "descriptive",
@@ -623,6 +679,7 @@ function buildInsights(input: {
   }
 
   const insights: ComparisonInsight[] = [];
+  const usedConcepts = new Set<string>();
   const scoreHits = input.scores.filter(
     (row) =>
       !row.definitionDifference &&
@@ -634,12 +691,17 @@ function buildInsights(input: {
     if (insights.length >= 3) {
       break;
     }
+    if (usedConcepts.has(row.conceptKey)) {
+      continue;
+    }
+    usedConcepts.add(row.conceptKey);
     const side = (row.medianDelta ?? 0) >= 0 ? "A" : "B";
+    const copy = scoreInsightCopy(row, side);
     insights.push({
       kind: "score_difference",
-      observedPattern: `Segment ${side} reports a higher ${row.label.toLowerCase()} than the other segment (Δ median ${row.medianDelta.toFixed(2)}, δ=${row.cliffsDelta?.toFixed(2)}, n=${row.applicableNA}/${row.applicableNB}).`,
-      potentialReading: `${row.label} is associated with the contrast between these segments, but the difference is descriptive and may reflect other shared conditions.`,
-      worthExamining: INDEPENDENT_CHECK,
+      observedPattern: copy.observed,
+      potentialReading: copy.potentialReading,
+      worthExamining: copy.worthExamining,
       conceptKeys: [row.conceptKey],
       evidence: {
         selectedN: row.applicableNA,
@@ -652,12 +714,14 @@ function buildInsights(input: {
     });
   }
 
+  const usedFields = new Set<string>();
   const compositionHits = input.composition.filter(
     (row) =>
       !row.definitionDifference &&
       row.family !== "geography" &&
       row.disclosure === "visible" &&
       row.deltaPercentagePoints != null &&
+      row.deltaPercentagePoints !== 0 &&
       Math.abs(row.deltaPercentagePoints) >= COMPOSITION_INSIGHT_MIN_PP &&
       hasSemanticComparisonN(row.applicableNA, row.applicableNB),
   );
@@ -665,11 +729,16 @@ function buildInsights(input: {
     if (insights.length >= 3) {
       break;
     }
+    if (usedFields.has(row.field)) {
+      continue;
+    }
+    usedFields.add(row.field);
+    const copy = compositionInsightCopy(row);
     insights.push({
       kind: "composition_difference",
-      observedPattern: `${row.valueLabel} appears in ${Math.round((row.shareA ?? 0) * 100)}% of Segment A versus ${Math.round((row.shareB ?? 0) * 100)}% of Segment B (n=${row.applicableNA}/${row.applicableNB}).`,
-      potentialReading: "The groups differ in declared composition, but composition is not the same as capability or later behaviour.",
-      worthExamining: INDEPENDENT_CHECK,
+      observedPattern: copy.observed,
+      potentialReading: copy.potentialReading,
+      worthExamining: copy.worthExamining,
       conceptKeys: [],
       evidence: {
         selectedN: row.applicableNA,
@@ -789,7 +858,9 @@ export function buildSegmentComparison(input: {
   const definitionDifferences = scoreCandidates.filter((row) => row.definitionDifference).sort(compareScoreRows);
   const compositionDifferences = blockedReason
     ? []
-    : buildCompositionRows(input.schema, rowsA, rowsB, definitions, context);
+    : buildCompositionRows(input.schema, rowsA, rowsB, definitions, context).filter(
+        (row) => !row.definitionDifference && row.deltaPercentagePoints !== 0,
+      );
   const assetCompositionDiffers = compositionDifferences.some(
     (row) =>
       row.family === "asset" &&
@@ -822,7 +893,10 @@ export function buildSegmentComparison(input: {
           },
         ];
       });
-  const geography = blockedReason ? [] : buildGeography(input.schema, rowsA, rowsB, input.rows, context);
+  const countryDefines = definitions.some((definition) =>
+    definition.conditions.some((condition) => condition.field === "context.country_code"),
+  );
+  const geography = blockedReason || countryDefines ? [] : buildGeography(input.schema, rowsA, rowsB, input.rows, context);
   const weather = blockedReason ? [] : buildWeather(input.schema, rowsA, rowsB);
 
   return {

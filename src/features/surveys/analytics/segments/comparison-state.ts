@@ -76,3 +76,13 @@ export function canExportSegmentComparison(
 ) {
   return status === "ready" && !stale && result != null && result.blockedReason == null;
 }
+
+export function getComparisonContextVisibility(result: Pick<SegmentComparisonResult, "geography" | "weather">) {
+  const hasGeographyContext = result.geography.length > 0;
+  const hasWeatherContext = result.weather.length > 0;
+  return {
+    hasGeographyContext,
+    hasWeatherContext,
+    hasContext: hasGeographyContext || hasWeatherContext,
+  };
+}

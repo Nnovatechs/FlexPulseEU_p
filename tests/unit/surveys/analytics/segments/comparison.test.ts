@@ -6,6 +6,7 @@ import {
   buildSegmentComparisonExport,
   canExportSegmentComparison,
   canGenerateSegmentComparison,
+  getComparisonContextVisibility,
   isSegmentComparisonStale,
   SEGMENT_COMPARISON_EXPORT_VERSION,
   SEGMENT_SEMANTIC_MIN_N,
@@ -633,5 +634,52 @@ describe("segment comparison", () => {
     expect(canGenerateSegmentComparison({ ...generated, trayB: lowTrust })).toBe(true);
     expect(isSegmentComparisonStale({ ...generated, analysedN: 12 })).toBe(true);
     expect(canGenerateSegmentComparison({ ...generated, trayA: null })).toBe(false);
+  });
+
+  it("shows the geography subsection only when geography rows exist", () => {
+    expect(
+      getComparisonContextVisibility({
+        geography: [{ field: "context.country_code" } as never],
+        weather: [],
+      }),
+    ).toEqual({
+      hasGeographyContext: true,
+      hasWeatherContext: false,
+      hasContext: true,
+    });
+  });
+
+  it("shows the weather subsection only when weather series exist", () => {
+    expect(
+      getComparisonContextVisibility({
+        geography: [],
+        weather: [{ field: "weather.temperature" } as never],
+      }),
+    ).toEqual({
+      hasGeographyContext: false,
+      hasWeatherContext: true,
+      hasContext: true,
+    });
+  });
+
+  it("shows both geography and weather subsections when both have data", () => {
+    expect(
+      getComparisonContextVisibility({
+        geography: [{ field: "context.country_code" } as never],
+        weather: [{ field: "weather.temperature" } as never],
+      }),
+    ).toEqual({
+      hasGeographyContext: true,
+      hasWeatherContext: true,
+      hasContext: true,
+    });
+  });
+
+  it("hides the geography and weather panel when neither context is available", () => {
+    expect(getComparisonContextVisibility({ geography: [], weather: [] })).toEqual({
+      hasGeographyContext: false,
+      hasWeatherContext: false,
+      hasContext: false,
+    });
   });
 });

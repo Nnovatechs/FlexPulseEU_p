@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { runSegmentComparisonAction } from "@/features/surveys/segment-comparison-actions";
 import {
   buildRadarGridPolygon,
@@ -12,6 +12,7 @@ import {
   canExportSegmentComparison,
   canGenerateSegmentComparison,
   comparisonTrayCount,
+  getComparisonContextVisibility,
   describeReadableConditions,
   getCompareActionLabel,
   hasSemanticComparisonN,
@@ -29,6 +30,7 @@ import {
   type SegmentDefinition,
 } from "@/features/surveys/analytics/segments";
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
+import { CompositionDifferencePlot, PairedScoreDifferencePlot } from "./comparison-plots";
 import { InfoTip } from "./info-tip";
 
 type ComparisonPanelProps = {
@@ -203,47 +205,74 @@ function CompareRadar({ axes }: { axes: SegmentComparisonResult["profileAxes"] }
   );
 }
 
-function InsightsBlock({ items }: { items: ComparisonInsight[] }) {
-  if (items.length === 0) {
-    return null;
-  }
+function CompareSection({
+  title,
+  tip,
+  children,
+}: {
+  title: string;
+  tip: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="analytics-v2-seg-analysis-block">
-      <h4>
-        Semantic comparison insights
-        <InfoTip text="At most three evidence-linked readings from the largest non-defining differences. They are not causal effects. Full comparative readings need disjoint samples and at least five applicable responses on each side." />
-      </h4>
-      <div className="analytics-v2-seg-insight-list">
-        {items.map((item) => (
-          <article key={`${item.kind}:${item.conceptKeys.join(",")}:${item.observedPattern}`} className="analytics-v2-seg-insight">
-            <p>
-              <strong>Observed.</strong> {item.observedPattern}
-            </p>
-            {item.kind !== "none" && item.kind !== "descriptive" && item.potentialReading ? (
+    <section className="analytics-v2-panel analytics-v2-compare-section">
+      <header className="analytics-v2-panel__head">
+        <h3>
+          {title}
+          <InfoTip text={tip} />
+        </h3>
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function InsightsBlock({ items }: { items: ComparisonInsight[] }) {
+  return (
+    <CompareSection
+      title="Semantic comparison insights"
+      tip="At most three evidence-linked readings from the largest non-defining differences. They are not causal effects. Full comparative readings need disjoint samples and at least five applicable responses on each side."
+    >
+      {items.length === 0 ? (
+        <p className="analytics-v2-insight-empty">
+          No comparison insights met the selection rules for these segments.
+        </p>
+      ) : (
+        <div className="analytics-v2-seg-insight-list">
+          {items.map((item) => (
+            <article
+              key={`${item.kind}:${item.conceptKeys.join(",")}:${item.observedPattern}`}
+              className="analytics-v2-seg-insight"
+            >
               <p>
-                <strong>Potential reading.</strong> {item.potentialReading}
+                <strong>Observed.</strong> {item.observedPattern}
               </p>
-            ) : null}
-            {item.kind !== "none" && item.kind !== "descriptive" && item.worthExamining ? (
-              <p>
-                <strong>Worth examining.</strong> {item.worthExamining}
-              </p>
-            ) : null}
-            {item.evidence ? (
-              <small>
-                Evidence: A {item.evidence.selectedValue == null ? "n/a" : item.evidence.selectedValue} (n=
-                {formatCount(item.evidence.selectedN)})
-                {item.evidence.outsideN == null
-                  ? ""
-                  : ` · B ${item.evidence.outsideValue == null ? "n/a" : item.evidence.outsideValue} (n=${formatCount(item.evidence.outsideN)})`}
-                {item.evidence.delta == null ? "" : ` · Δ ${item.evidence.delta}`}
-                {item.evidence.cliffsDelta == null ? "" : ` · δ=${item.evidence.cliffsDelta.toFixed(2)}`}
-              </small>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </div>
+              {item.kind !== "none" && item.kind !== "descriptive" && item.potentialReading ? (
+                <p>
+                  <strong>Potential reading.</strong> {item.potentialReading}
+                </p>
+              ) : null}
+              {item.kind !== "none" && item.kind !== "descriptive" && item.worthExamining ? (
+                <p>
+                  <strong>Worth examining.</strong> {item.worthExamining}
+                </p>
+              ) : null}
+              {item.evidence ? (
+                <small>
+                  Evidence: A {item.evidence.selectedValue == null ? "n/a" : item.evidence.selectedValue} (n=
+                  {formatCount(item.evidence.selectedN)})
+                  {item.evidence.outsideN == null
+                    ? ""
+                    : ` · B ${item.evidence.outsideValue == null ? "n/a" : item.evidence.outsideValue} (n=${formatCount(item.evidence.outsideN)})`}
+                  {item.evidence.delta == null ? "" : ` · Δ ${item.evidence.delta}`}
+                  {item.evidence.cliffsDelta == null ? "" : ` · δ=${item.evidence.cliffsDelta.toFixed(2)}`}
+                </small>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      )}
+    </CompareSection>
   );
 }
 
@@ -309,6 +338,7 @@ export function ComparisonPanel({
   const canExport = canExportSegmentComparison(status, stale, result);
   const actionLabel = getCompareActionLabel(generateInput);
   const overlapMessage = result ? overlapCopy(result.sample.relation) : null;
+  const contextVisibility = result ? getComparisonContextVisibility(result) : null;
   const chipsA = useMemo(
     () => (definitionA ? describeReadableConditions(definitionA, schema) : []),
     [definitionA, schema],
@@ -344,8 +374,8 @@ export function ComparisonPanel({
   };
 
   return (
-    <div className="analytics-v2-segment">
-      <section className="analytics-v2-panel">
+    <div className="analytics-v2-segment analytics-v2-compare">
+      <section className="analytics-v2-panel analytics-v2-compare-tray">
         <div className="analytics-v2-panel__head">
           <div className="analytics-v2-panel__title">
             <h3>
@@ -445,56 +475,63 @@ export function ComparisonPanel({
         </div>
       </section>
 
-      <section className={`analytics-v2-panel analytics-v2-seg-result${stale && result ? " is-stale" : ""}`}>
-        <div className="analytics-v2-panel__head">
-          <div className="analytics-v2-panel__title">
-            <h3>Comparison analysis</h3>
-          </div>
-        </div>
+      {status === "idle" && !result ? (
+        <section className="analytics-v2-empty-card">
+          <h3>No comparison yet</h3>
+          <p>Place two segment definitions created in Segment Explorer in the tray, then generate the comparison.</p>
+        </section>
+      ) : null}
+      {status === "loading" && !result ? (
+        <section className="analytics-v2-empty-card">
+          <h3>Generating the comparison</h3>
+          <p>The ranked differences will appear here when the comparison is ready.</p>
+        </section>
+      ) : null}
+      {status === "error" ? (
+        <section className="analytics-v2-empty-card">
+          <h3>Comparison could not be generated</h3>
+          <p>{error}</p>
+        </section>
+      ) : null}
 
-        {status === "idle" && !result ? (
-          <p className="analytics-v2-seg-empty">
-            Place two segment definitions created in Segment Explorer in the tray, then generate the comparison.
-          </p>
-        ) : null}
-        {status === "loading" && !result ? <p className="analytics-v2-seg-empty">Generating the comparison…</p> : null}
-        {status === "error" ? <p className="analytics-v2-seg-empty">{error}</p> : null}
+      {result ? (
+        <>
+          {stale ? (
+            <p className="analytics-v2-segment-notice" role="status">
+              The tray or the available population has changed. The results below describe the last generated
+              comparison. Update the comparison to apply the current segments.
+            </p>
+          ) : null}
 
-        {result ? (
-          <>
-            {stale ? (
-              <p className="analytics-v2-segment-notice" role="status">
-                The tray or the available population has changed. The results below describe the last generated
-                comparison. Update the comparison to apply the current segments.
-              </p>
-            ) : null}
+          {overlapMessage ? (
+            <p className="analytics-v2-compare-overlap" role="status">
+              {overlapMessage}
+            </p>
+          ) : null}
 
-            {overlapMessage ? (
-              <p className="analytics-v2-compare-overlap" role="status">
-                {overlapMessage}
-              </p>
-            ) : null}
+          {result.blockedReason === "identical" ? (
+            <section className="analytics-v2-empty-card">
+              <h3>No difference analysis</h3>
+              <p>The two definitions select the same responses, so a difference analysis is not generated.</p>
+            </section>
+          ) : (
+            <>
+              <CompareSection
+                title="Compact profile"
+                tip="Primary-axis medians only. Facets and modulators stay in Score differences so the signature remains readable as the schema grows."
+              >
+                <CompareRadar axes={result.profileAxes} />
+              </CompareSection>
 
-            {result.blockedReason === "identical" ? (
-              <p className="analytics-v2-seg-empty">
-                The two definitions select the same responses, so a difference analysis is not generated.
-              </p>
-            ) : (
-              <>
-                <div className="analytics-v2-seg-analysis-block">
-                  <h4>
-                    Compact profile
-                    <InfoTip text="Primary-axis medians only. Facets and modulators stay in Largest differences so the signature remains readable as the schema grows." />
-                  </h4>
-                  <CompareRadar axes={result.profileAxes} />
-                </div>
+              <InsightsBlock items={result.insights} />
 
-                <div className="analytics-v2-seg-analysis-block">
-                  <h4>
-                    Largest differences
-                    <InfoTip text="Score differences with at least five applicable responses on both sides are listed first, ranked by absolute Cliff’s delta when the samples are disjoint, with median difference as the tie-break. Smaller-n rows stay available via Show all. Composition differences are ranked separately by absolute percentage-point gap." />
-                  </h4>
-                  <h5>Score differences</h5>
+              <CompareSection
+                title="Score differences"
+                tip="Score differences with at least five applicable responses on both sides are listed first, ranked by absolute Cliff’s delta when the samples are disjoint, with median difference as the tie-break. Smaller-n rows stay available via Show all. Each row places Segment A and Segment B on the same 1–5 scale. Points show medians and horizontal intervals show the interquartile range. Cliff’s delta is available only for disjoint segments and is descriptive, not causal."
+              >
+                <PairedScoreDifferencePlot items={result.scoreDifferences} />
+                <details className="analytics-v2-compare-details">
+                  <summary>View exact score values</summary>
                   <RankedTable
                     items={result.scoreDifferences}
                     columns={[
@@ -517,7 +554,16 @@ export function ComparisonPanel({
                       { key: "evidence", header: "Evidence", render: (row) => row.evidenceLabel ?? "—" },
                     ]}
                   />
-                  <h5>Composition differences</h5>
+                </details>
+              </CompareSection>
+
+              <CompareSection
+                title="Composition differences"
+                tip="Composition differences are ranked by absolute percentage-point gap. Bars show the percentage-point difference in category prevalence, calculated as Segment A minus Segment B. Bars to the right are more common in A; bars to the left are more common in B. Percentages use the applicable population for each field. Suppressed cells are not plotted."
+              >
+                <CompositionDifferencePlot items={result.compositionDifferences} />
+                <details className="analytics-v2-compare-details">
+                  <summary>View exact composition values</summary>
                   <RankedTable
                     items={result.compositionDifferences.filter((row) => row.family !== "geography")}
                     columns={[
@@ -532,99 +578,102 @@ export function ComparisonPanel({
                       },
                     ]}
                   />
-                </div>
+                </details>
+              </CompareSection>
 
-                {result.definitionDifferences.length > 0 ? (
-                  <div className="analytics-v2-seg-analysis-block">
-                    <h4>
-                      Definition-linked differences
-                      <InfoTip text="These dimensions were used directly in the segment filters or belong to the same filtered construct. Their differences are expected from the segment definition and are not treated as new findings." />
-                    </h4>
-                    <RankedTable
-                      items={result.definitionDifferences}
-                      columns={[
-                        { key: "type", header: "Type", render: (row) => SCORE_KIND_LABEL[row.kind] },
-                        { key: "name", header: "Name", render: (row) => row.label },
-                        { key: "a", header: "Median A", render: (row) => formatScore(row.medianA) },
-                        { key: "b", header: "Median B", render: (row) => formatScore(row.medianB) },
-                        { key: "delta", header: "Δ median", render: (row) => formatScore(row.medianDelta) },
-                        {
-                          key: "n",
-                          header: "N A / B",
-                          render: (row) => `${formatCount(row.applicableNA)} / ${formatCount(row.applicableNB)}`,
-                        },
-                      ]}
-                    />
-                  </div>
-                ) : null}
-
-                {result.dfc ? (
-                  <div className="analytics-v2-seg-analysis-block">
-                    <h4>
-                      {result.dfc.label}
-                      <InfoTip text="Comparable modules use their own applicable populations. The overall summary is not ranked as a main difference when asset composition differs." />
-                    </h4>
-                    {result.dfc.assetCompositionDiffers ? (
-                      <small>Asset composition differs, so the overall summary stays secondary to comparable modules.</small>
-                    ) : null}
-                    <p>
-                      Overall: A {formatScore(result.dfc.overall.medianA)} (n=
-                      {formatCount(result.dfc.overall.applicableNA)}) · B {formatScore(result.dfc.overall.medianB)} (n=
-                      {formatCount(result.dfc.overall.applicableNB)})
-                    </p>
-                    <RankedTable
-                      items={result.dfc.modules}
-                      columns={[
-                        { key: "name", header: "Module", render: (row) => row.label },
-                        {
-                          key: "app",
-                          header: "Applicable A / B",
-                          render: (row) => `${formatCount(row.applicableNA)} / ${formatCount(row.applicableNB)}`,
-                        },
-                        {
-                          key: "rate",
-                          header: "Applicability",
-                          render: (row) => `${formatPercent(row.applicabilityRateA)} / ${formatPercent(row.applicabilityRateB)}`,
-                        },
-                        { key: "a", header: "Median A", render: (row) => formatScore(row.medianA) },
-                        { key: "b", header: "Median B", render: (row) => formatScore(row.medianB) },
-                        { key: "delta", header: "Δ median", render: (row) => formatScore(row.medianDelta) },
-                        {
-                          key: "iqr",
-                          header: "IQR A / B",
-                          render: (row) =>
-                            `${formatScore(row.q1A)}–${formatScore(row.q3A)} / ${formatScore(row.q1B)}–${formatScore(row.q3B)}`,
-                        },
-                        {
-                          key: "cliffs",
-                          header: "Cliff’s δ",
-                          render: (row) => formatCliffs(row),
-                        },
-                      ]}
-                    />
-                  </div>
-                ) : null}
-
-                <div className="analytics-v2-seg-analysis-block">
-                  <h4>
-                    Where these segments differ
-                    <InfoTip text="Country shares only. Finer location, labels and postal codes stay out of this comparison. Weather is outdoor context around the response time, not a causal explanation." />
-                  </h4>
+              {result.definitionDifferences.length > 0 ? (
+                <CompareSection
+                  title="Definition-linked differences"
+                  tip="These dimensions were used directly in the segment filters or belong to the same filtered construct. Their differences are expected from the segment definition and are not treated as new findings."
+                >
                   <RankedTable
-                    items={result.geography}
+                    items={result.definitionDifferences}
                     columns={[
-                      { key: "name", header: "Area", render: (row) => row.label },
-                      { key: "a", header: "% A", render: (row) => formatPercent(row.shareA) },
-                      { key: "b", header: "% B", render: (row) => formatPercent(row.shareB) },
-                      { key: "pp", header: "Δ pp", render: (row) => formatPp(row.deltaPercentagePoints) },
+                      { key: "type", header: "Type", render: (row) => SCORE_KIND_LABEL[row.kind] },
+                      { key: "name", header: "Name", render: (row) => row.label },
+                      { key: "a", header: "Median A", render: (row) => formatScore(row.medianA) },
+                      { key: "b", header: "Median B", render: (row) => formatScore(row.medianB) },
+                      { key: "delta", header: "Δ median", render: (row) => formatScore(row.medianDelta) },
                       {
                         key: "n",
-                        header: "N area",
-                        render: (row) => formatCount(row.analysedCount),
+                        header: "N A / B",
+                        render: (row) => `${formatCount(row.applicableNA)} / ${formatCount(row.applicableNB)}`,
                       },
                     ]}
                   />
-                  {result.weather.length > 0 ? (
+                </CompareSection>
+              ) : null}
+
+              {result.dfc ? (
+                <CompareSection
+                  title={result.dfc.label}
+                  tip="Comparable modules use their own applicable populations. The overall summary is not ranked as a main difference when asset composition differs."
+                >
+                  {result.dfc.assetCompositionDiffers ? (
+                    <small>
+                      Asset composition differs, so the overall summary stays secondary to comparable modules.
+                    </small>
+                  ) : null}
+                  <p>
+                    Overall: A {formatScore(result.dfc.overall.medianA)} (n=
+                    {formatCount(result.dfc.overall.applicableNA)}) · B {formatScore(result.dfc.overall.medianB)} (n=
+                    {formatCount(result.dfc.overall.applicableNB)})
+                  </p>
+                  <RankedTable
+                    items={result.dfc.modules}
+                    columns={[
+                      { key: "name", header: "Module", render: (row) => row.label },
+                      {
+                        key: "app",
+                        header: "Applicable A / B",
+                        render: (row) => `${formatCount(row.applicableNA)} / ${formatCount(row.applicableNB)}`,
+                      },
+                      {
+                        key: "rate",
+                        header: "Applicability",
+                        render: (row) => `${formatPercent(row.applicabilityRateA)} / ${formatPercent(row.applicabilityRateB)}`,
+                      },
+                      { key: "a", header: "Median A", render: (row) => formatScore(row.medianA) },
+                      { key: "b", header: "Median B", render: (row) => formatScore(row.medianB) },
+                      { key: "delta", header: "Δ median", render: (row) => formatScore(row.medianDelta) },
+                      {
+                        key: "iqr",
+                        header: "IQR A / B",
+                        render: (row) =>
+                          `${formatScore(row.q1A)}–${formatScore(row.q3A)} / ${formatScore(row.q1B)}–${formatScore(row.q3B)}`,
+                      },
+                      {
+                        key: "cliffs",
+                        header: "Cliff’s δ",
+                        render: (row) => formatCliffs(row),
+                      },
+                    ]}
+                  />
+                </CompareSection>
+              ) : null}
+
+              {contextVisibility?.hasContext ? (
+                <CompareSection
+                  title="Where these segments differ"
+                  tip="Country shares only. Finer location, labels and postal codes stay out of this comparison. Weather is outdoor context around the response time, not a causal explanation."
+                >
+                  {contextVisibility.hasGeographyContext ? (
+                    <RankedTable
+                      items={result.geography}
+                      columns={[
+                        { key: "name", header: "Area", render: (row) => row.label },
+                        { key: "a", header: "% A", render: (row) => formatPercent(row.shareA) },
+                        { key: "b", header: "% B", render: (row) => formatPercent(row.shareB) },
+                        { key: "pp", header: "Δ pp", render: (row) => formatPp(row.deltaPercentagePoints) },
+                        {
+                          key: "n",
+                          header: "N area",
+                          render: (row) => formatCount(row.analysedCount),
+                        },
+                      ]}
+                    />
+                  ) : null}
+                  {contextVisibility.hasWeatherContext ? (
                     <ul className="analytics-v2-compare-weather">
                       {result.weather.map((series) => (
                         <li key={series.field}>
@@ -634,17 +683,13 @@ export function ComparisonPanel({
                         </li>
                       ))}
                     </ul>
-                  ) : (
-                    <small>No usable weather context in these segments.</small>
-                  )}
-                </div>
-
-                <InsightsBlock items={result.insights} />
-              </>
-            )}
-          </>
-        ) : null}
-      </section>
+                  ) : null}
+                </CompareSection>
+              ) : null}
+            </>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

@@ -75,6 +75,7 @@ export type SurveyAnalyticsFieldDefinition = {
 export type SurveyAnalyticsSchema = {
   survey_id: string;
   schema_namespace: string;
+  schema_version?: number;
   measurement_hash: string | null;
   ready_response_count: number;
   excluded_unmapped_count: number;
@@ -577,6 +578,7 @@ export function buildSurveyAnalyticsSchema(input: {
     schema_namespace:
       input.survey.definition_json.survey_meta.measurement_plan_json?.schema_namespace ??
       "flexpulse_behavioural_schema",
+    schema_version: input.survey.definition_json.survey_meta.measurement_plan_json?.schema_version ?? 1,
     measurement_hash: input.survey.measurement_hash ?? null,
     ready_response_count: input.readyResponseCount,
     excluded_unmapped_count: input.excludedUnmappedCount ?? 0,

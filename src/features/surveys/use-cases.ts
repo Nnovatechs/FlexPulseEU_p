@@ -17,8 +17,8 @@ import {
 import { buildSurveyOverviewData } from "./analytics/overview-v2";
 import { buildInstrumentHealthData } from "./analytics/instrument-health";
 import {
+  buildSegmentAnalysis,
   buildSegmentCatalog,
-  buildSegmentExplorerSummary,
   validateSegmentDefinition,
   type SegmentDefinition,
 } from "./analytics/segments";
@@ -444,7 +444,7 @@ export async function runSegmentExplorerSummary(surveyId: string, definition: Se
     throw new Error(validated.message);
   }
 
-  return buildSegmentExplorerSummary({
+  return buildSegmentAnalysis({
     schema: context.schema,
     rows: context.rows,
     definition: validated.definition,

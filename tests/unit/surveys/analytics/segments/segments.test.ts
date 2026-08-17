@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   addToComparisonTray,
+  assertAggregateSegmentAnalysis,
+  buildSegmentAnalysis,
   buildSegmentCatalog,
   buildSegmentExplorerSummary,
+  canRunSegmentAnalysis,
   commitSegmentDefinition,
   compileSegmentDefinition,
+  computeCliffsDelta,
   decodeSegmentDefinition,
+  describeReadableConditions,
   emptySegmentDefinition,
   encodeSegmentDefinition,
   formatVisibleDate,
+  getAnalyseActionLabel,
   getAssetValueLabel,
   getBandLabel,
   getConceptDescription,
@@ -16,7 +22,12 @@ import {
   getFieldBand,
   getFieldRange,
   getScoreDirectionNote,
+  isSegmentAnalysisStale,
   isWholeSampleDefinition,
+  discloseExclusiveCounts,
+  isUsableWeatherQuality,
+  percentageBarWidth,
+  SEGMENT_CELL_MIN_N,
   savedSegmentsStorageKey,
   comparisonTrayStorageKey,
   MULTI_ITEM_FACET_SCORE_LABEL,
@@ -174,6 +185,19 @@ const dfcConcept = concept({
   })),
 });
 
+const thermalConcept = concept({
+  concept_key: "thermal_comfort_norms",
+  evidence_source: "survey_questions",
+  measurement_type: "multi_item_likert_mean",
+  output_type: "number",
+  aggregation_rule: "mean",
+  threshold_profile: "likert_1_5_low_mid_high",
+  minimum_answer_count: 1,
+  question_keys: ["Q_THERMAL_01"],
+  required_question_keys: ["Q_THERMAL_01"],
+  question_intents: [],
+});
+
 function mapperOutput(input: {
   trust?: number;
   override?: number;
@@ -181,9 +205,11 @@ function mapperOutput(input: {
   assets?: string[];
   dfc?: number | null;
   ev?: number | null;
+  thermal?: number;
   country?: string;
   language?: string;
   temp?: number;
+  weatherFlag?: string;
 }): MapperOutput {
   return {
     profile: {
@@ -209,6 +235,7 @@ function mapperOutput(input: {
           }
         : {}),
       ...(input.savings != null ? { savings_motivation: { value: input.savings, tag: "medium" } } : {}),
+      ...(input.thermal != null ? { thermal_comfort_norms: { value: input.thermal, tag: "medium" } } : {}),
       ...(input.assets ? { owned_der_assets: { value: input.assets } } : {}),
       ...(input.dfc !== undefined
         ? {
@@ -234,7 +261,7 @@ function mapperOutput(input: {
         input.temp != null
           ? {
               provider: "open_meteo",
-              quality_flag: "ok",
+              quality_flag: input.weatherFlag ?? "weather_ok",
               observed_at: "2026-01-01T00:00:00.000Z",
               temp_outdoor_c: input.temp,
               humidity_pct: 40,
@@ -877,6 +904,448 @@ describe("segment commit limit", () => {
         schema,
       }).ok,
     ).toBe(false);
+  });
+});
+
+describe("segment analysis draft vs analysed", () => {
+  const draft = definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]);
+  const other = definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "low" }]);
+
+  it("does not treat a preloaded URL draft as analysed", () => {
+    expect(isSegmentAnalysisStale(draft, null)).toBe(false);
+    expect(canRunSegmentAnalysis(draft, null, "idle")).toBe(true);
+    expect(getAnalyseActionLabel(draft, null, "idle")).toBe("Analyse segment");
+    expect(getAnalyseActionLabel(definition(), null, "idle")).toBe("Analyse whole sample");
+  });
+
+  it("marks the result stale only after an analysis and a later draft change", () => {
+    expect(isSegmentAnalysisStale(draft, draft)).toBe(false);
+    expect(canRunSegmentAnalysis(draft, draft, "ready")).toBe(false);
+    expect(getAnalyseActionLabel(draft, draft, "ready")).toBe("Analysis up to date");
+    expect(isSegmentAnalysisStale(other, draft)).toBe(true);
+    expect(canRunSegmentAnalysis(other, draft, "ready")).toBe(true);
+    expect(getAnalyseActionLabel(other, draft, "ready")).toBe("Update analysis");
+    expect(canRunSegmentAnalysis(other, draft, "loading")).toBe(false);
+    expect(getAnalyseActionLabel(other, draft, "loading")).toBe("Analysing…");
+  });
+});
+
+describe("segment analysis result", () => {
+  const survey = buildSurvey(
+    [trustConcept, overrideConcept, assetsConcept, dfcConcept, thermalConcept],
+    { weather: true },
+  );
+  const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 4 });
+  const rows = [
+    record("r1", mapperOutput({ trust: 5, override: 2, assets: ["ev"], dfc: 4, ev: 4, thermal: 4, country: "ES" })),
+    record("r2", mapperOutput({ trust: 3, override: 3, assets: ["ev"], dfc: 3, ev: 3, thermal: 3, country: "FR" })),
+    record("r3", mapperOutput({ trust: 1, override: 5, assets: ["heat_pump"], dfc: 2, ev: 2, thermal: 2, country: "IE" })),
+    record("r4", mapperOutput({ trust: 5, override: 2, assets: ["ev"], dfc: 5, ev: 5, thermal: 5, country: "ES" })),
+  ];
+
+  it("describes chips locally without needing an analysis result", () => {
+    const local = describeReadableConditions(
+      definition([{ kind: "contains", field: "profile.owned_der_assets.value", value: "ev" }]),
+      schema,
+    );
+    expect(local).toEqual([
+      {
+        field: "profile.owned_der_assets.value",
+        label: expect.any(String),
+        detail: "Has Electric vehicle",
+        defining: true,
+      },
+    ]);
+  });
+
+  it("keeps selectedN + outsideN = analysedN and hides differentiators for the whole sample", () => {
+    const whole = buildSegmentAnalysis({ schema, rows, definition: definition() });
+    expect(whole.sample.selectedN + whole.sample.outsideN).toBe(whole.sample.analysedN);
+    expect(whole.sample.selectedN).toBe(4);
+    expect(whole.sample.outsideN).toBe(0);
+    expect(whole.differentiators.available).toBe(false);
+    expect(whole.differentiators.reason).toBe("whole_sample");
+    expect(whole.differentiators.scores).toEqual([]);
+    expect(whole.differentiators.categories).toEqual([]);
+    expect(assertAggregateSegmentAnalysis(whole)).toEqual({
+      hasResponseId: false,
+      hasAnswers: false,
+      hasMapperOutput: false,
+    });
+  });
+
+  it("compares the selected segment with the disjoint exterior and excludes defining scores", () => {
+    const highTrust = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(highTrust.sample.selectedN).toBe(2);
+    expect(highTrust.sample.outsideN).toBe(2);
+    expect(highTrust.sample.selectedN + highTrust.sample.outsideN).toBe(highTrust.sample.analysedN);
+    expect(highTrust.differentiators.available).toBe(true);
+    expect(highTrust.profileAxes.find((axis) => axis.conceptKey === "trust_in_automation")?.defining).toBe(true);
+    expect(highTrust.differentiators.scores.map((item) => item.conceptKey)).not.toContain("trust_in_automation");
+    expect(highTrust.differentiators.scores.map((item) => item.conceptKey)).toEqual(
+      expect.arrayContaining(["declared_flexibility_capability", "thermal_comfort_norms"]),
+    );
+    expect(highTrust.profileAxes.find((axis) => axis.conceptKey === "thermal_comfort_norms")?.directionNote).toMatch(
+      /stricter/i,
+    );
+    expect(highTrust.profileAxes.find((axis) => axis.conceptKey === "thermal_comfort_norms")?.bands[0]?.label).toBe(
+      "Stricter",
+    );
+  });
+
+  it("does not error when the exterior is empty or the segment is empty", () => {
+    const allEnglish = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.survey_language", value: "English" }]),
+    });
+    expect(allEnglish.sample.selectedN).toBe(4);
+    expect(allEnglish.sample.outsideN).toBe(0);
+    expect(allEnglish.differentiators.available).toBe(false);
+    expect(allEnglish.differentiators.reason).toBe("empty_outside");
+
+    const none = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.country_code", value: "XX" }]),
+    });
+    expect(none.sample.selectedN).toBe(0);
+    expect(none.sample.outsideN).toBe(4);
+    expect(none.profileAxes).toEqual([]);
+    expect(none.differentiators.available).toBe(false);
+    expect(none.differentiators.reason).toBe("empty_segment");
+  });
+
+  it("describes a single matching response without requiring a complement", () => {
+    const onlyIreland = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.country_code", value: "IE" }]),
+    });
+    expect(onlyIreland.sample.selectedN).toBe(1);
+    const trust = onlyIreland.profileAxes.find((axis) => axis.conceptKey === "trust_in_automation");
+    expect(trust?.median).toBe(1);
+    expect(trust?.q1).toBe(1);
+    expect(trust?.q3).toBe(1);
+    expect(onlyIreland.differentiators.available).toBe(true);
+  });
+
+  it("keeps defining categorical fields out of the differentiator ranking", () => {
+    const spain = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.country_code", value: "ES" }]),
+    });
+    expect(spain.differentiators.categories.map((item) => item.field)).not.toContain("context.country_code");
+  });
+
+  it("exposes facets, supporting factors, catalog DFC modules and asset penetration", () => {
+    const highTrust = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(highTrust.facets.some((facet) => facet.conceptKey === "trust_in_automation")).toBe(true);
+    expect(highTrust.facets.find((facet) => facet.facet === "reliability")?.definingParent).toBe(true);
+    expect(highTrust.facets.find((facet) => facet.facet === "reliability")?.evidenceLabel).toBe(SINGLE_ITEM_SIGNAL_LABEL);
+    expect(highTrust.supportingFactors.map((factor) => factor.conceptKey)).toContain("manual_override_need");
+    expect(highTrust.supportingFactors[0]?.dimensionLabel).toBeTruthy();
+    expect(highTrust.conditionalModules?.conceptKey).toBe("declared_flexibility_capability");
+    expect(highTrust.conditionalModules?.modules.map((module) => module.setKey)).toEqual(["ev_charging"]);
+    expect(highTrust.conditionalModules?.modules.map((module) => module.label)).not.toContain("Washing machine");
+    const evModule = highTrust.conditionalModules?.modules[0];
+    expect((evModule?.applicableN ?? 0) + (evModule?.notApplicableN ?? 0)).toBe(highTrust.sample.selectedN);
+    expect(highTrust.assets.map((asset) => asset.label)).toEqual(expect.arrayContaining(["Electric vehicle"]));
+    expect(highTrust.assets.find((asset) => asset.value === "ev")?.disclosure).toBe("suppressed");
+    expect(highTrust.assets.find((asset) => asset.value === "ev")?.segmentCount).toBeNull();
+    expect(assertAggregateSegmentAnalysis(highTrust)).toEqual({
+      hasResponseId: false,
+      hasAnswers: false,
+      hasMapperOutput: false,
+    });
+  });
+
+  it("computes internal variation, suppresses small geo cells and omits weather without valid readings", () => {
+    const highTrust = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(highTrust.internalVariation.every((item) => item.conceptKey !== "trust_in_automation")).toBe(true);
+    expect(highTrust.internalVariation.every((item) => item.normalisedIqr >= 0 && item.bandEntropy >= 0)).toBe(true);
+    expect(highTrust.geography).toEqual([]);
+    expect(highTrust.weather).toEqual([]);
+    expect(highTrust.insights.length).toBeGreaterThan(0);
+    expect(highTrust.insights.length).toBeLessThanOrEqual(3);
+    expect(highTrust.insights.some((item) => item.observedPattern.toLowerCase().includes("trust in automation") && item.kind === "score_difference")).toBe(false);
+    expect(highTrust.associations).toEqual([]);
+  });
+
+  it("omits DFC, supporting factors and assets when the survey schema does not include them", () => {
+    const leanSurvey = buildSurvey([trustConcept]);
+    const leanSchema = buildSurveyAnalyticsSchema({ survey: leanSurvey, readyResponseCount: 2 });
+    const leanRows = [
+      record("a", mapperOutput({ trust: 5 })),
+      record("b", mapperOutput({ trust: 2 })),
+    ];
+    const result = buildSegmentAnalysis({
+      schema: leanSchema,
+      rows: leanRows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(result.supportingFactors).toEqual([]);
+    expect(result.conditionalModules).toBeNull();
+    expect(result.assets).toEqual([]);
+    expect(result.facets.length).toBeGreaterThan(0);
+  });
+});
+
+describe("segment analysis context", () => {
+  it("keeps areas at or above the privacy threshold and drops smaller cells", () => {
+    const survey = buildSurvey([trustConcept], { geo: true });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`es-${index}`, mapperOutput({ trust: 4, country: "ES" })),
+      ),
+      record("fr-1", mapperOutput({ trust: 2, country: "FR" })),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.country_code", value: "ES" }]),
+    });
+    expect(SEGMENT_CELL_MIN_N).toBe(5);
+    const countries = result.geography.filter((row) => row.field === "context.country_code");
+    expect(countries.map((row) => row.value)).toEqual(["ES"]);
+    expect(countries[0]?.analysedCount).toBe(5);
+    expect(countries[0]?.penetration).toBe(1);
+    expect(result.geography.map((row) => row.value)).not.toContain("FR");
+    expect(result.geography.every((row) => row.analysedCount >= SEGMENT_CELL_MIN_N)).toBe(true);
+  });
+
+  it("exposes valid weather context and Spearman pairs when the sample is large enough", () => {
+    const survey = buildSurvey([trustConcept, thermalConcept, overrideConcept], { weather: true });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      record("a", mapperOutput({ trust: 5, thermal: 2, override: 2, temp: 8 })),
+      record("b", mapperOutput({ trust: 4, thermal: 3, override: 3, temp: 10 })),
+      record("c", mapperOutput({ trust: 4, thermal: 4, override: 2, temp: 12 })),
+      record("d", mapperOutput({ trust: 3, thermal: 3, override: 4, temp: 11 })),
+      record("e", mapperOutput({ trust: 2, thermal: 5, override: 5, temp: 9 })),
+      record("f", mapperOutput({ trust: 5, thermal: 2, override: 1, temp: 7 })),
+    ];
+    const result = buildSegmentAnalysis({ schema, rows, definition: definition() });
+    expect(result.weather[0]?.field).toBe("context.climate.temp_outdoor_c");
+    expect(result.weather[0]?.n).toBe(6);
+    expect(result.weather[0]?.min).toBe(7);
+    expect(result.weather[0]?.max).toBe(12);
+    expect(result.associations.length).toBeGreaterThan(0);
+    expect(result.associations.every((item) => item.pairedN >= 5)).toBe(true);
+    expect(result.insights.every((item) => item.kind !== "score_difference")).toBe(true);
+  });
+});
+
+describe("segment analysis corrections", () => {
+  it("uses the production weather_ok flag and ignores the test-only ok flag", () => {
+    const survey = buildSurvey([trustConcept], { weather: true });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 2 });
+    expect(schema.schema_version).toBe(1);
+    expect(isUsableWeatherQuality("weather_ok")).toBe(true);
+    expect(isUsableWeatherQuality("ok")).toBe(false);
+    const real = buildSegmentAnalysis({
+      schema,
+      rows: [
+        record("a", mapperOutput({ trust: 4, temp: 11, weatherFlag: "weather_ok" })),
+        record("b", mapperOutput({ trust: 2, temp: 9, weatherFlag: "weather_ok" })),
+      ],
+      definition: definition(),
+    });
+    expect(real.weather[0]?.n).toBe(2);
+    const staleFlag = buildSegmentAnalysis({
+      schema,
+      rows: [
+        record("a", mapperOutput({ trust: 4, temp: 11, weatherFlag: "ok" })),
+        record("b", mapperOutput({ trust: 2, temp: 9, weatherFlag: "ok" })),
+      ],
+      definition: definition(),
+    });
+    expect(staleFlag.weather).toEqual([]);
+  });
+
+  it("describes whole-sample assets without a fake exterior comparison", () => {
+    const survey = buildSurvey([trustConcept, assetsConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = Array.from({ length: 6 }, (_, index) =>
+      record(`r${index}`, mapperOutput({ trust: 3, assets: index < 5 ? ["ev", "heat_pump"] : ["ev"] })),
+    );
+    const whole = buildSegmentAnalysis({ schema, rows, definition: definition() });
+    expect(whole.sample.comparisonAvailable).toBe(false);
+    expect(whole.assets.every((asset) => asset.comparisonAvailable === false)).toBe(true);
+    expect(whole.assets.every((asset) => asset.outsideShare == null && asset.deltaPercentagePoints == null)).toBe(true);
+    expect(whole.assets.find((asset) => asset.value === "ev")?.segmentShare).toBe(1);
+    expect(whole.insights.some((item) => item.kind === "asset_difference")).toBe(false);
+  });
+
+  it("does not claim a single facet outperforms other facets of its construct", () => {
+    const survey = buildSurvey([overrideConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      record("a", mapperOutput({ override: 5 })),
+      record("b", mapperOutput({ override: 5 })),
+      record("c", mapperOutput({ override: 4 })),
+      record("d", mapperOutput({ override: 2 })),
+      record("e", mapperOutput({ override: 1 })),
+      record("f", mapperOutput({ override: 2 })),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.survey_language", value: "English" }]),
+    });
+    const facetInsight = result.insights.find((item) => item.kind === "facet_contrast");
+    if (facetInsight) {
+      expect(facetInsight.observedPattern).toMatch(/largest observed difference/i);
+      expect(facetInsight.observedPattern).not.toMatch(/other measured facets/i);
+      expect(facetInsight.evidence?.selectedN).toBeGreaterThan(0);
+    }
+    expect(result.facets).toHaveLength(1);
+  });
+
+  it("only claims a within-construct facet contrast when two comparable facets exist", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      record("a", mapperOutput({ trust: 5, country: "ES" })),
+      record("b", mapperOutput({ trust: 5, country: "ES" })),
+      record("c", mapperOutput({ trust: 4, country: "ES" })),
+      record("d", mapperOutput({ trust: 2, country: "FR" })),
+      record("e", mapperOutput({ trust: 1, country: "FR" })),
+      record("f", mapperOutput({ trust: 2, country: "FR" })),
+    ];
+    rows[0].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 5;
+    rows[0].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 1;
+    rows[1].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 5;
+    rows[1].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 1;
+    rows[2].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 5;
+    rows[2].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 2;
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.country_code", value: "ES" }]),
+    });
+    expect(result.facets.length).toBeGreaterThan(1);
+    const facetInsight = result.insights.find((item) => item.kind === "facet_contrast");
+    expect(facetInsight?.evidence?.cliffsDelta).not.toBeNull();
+    expect(facetInsight?.worthExamining).not.toMatch(/add(ing)? another filter/i);
+  });
+
+  it("protects n=1 geo and contextual cells without blocking the aggregate profile", () => {
+    const survey = buildSurvey([trustConcept], { geo: true });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      record("high", mapperOutput({ trust: 5, country: "ES" })),
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`low-${index}`, mapperOutput({ trust: 2, country: "ES" })),
+      ),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(result.sample.selectedN).toBe(1);
+    expect(result.profileAxes[0]?.median).toBe(5);
+    expect(result.geography.every((row) => row.disclosure === "suppressed")).toBe(true);
+    expect(result.geography.every((row) => row.segmentCount == null && row.penetration == null)).toBe(true);
+    expect(JSON.stringify(result.geography)).not.toMatch(/"segmentCount":1/);
+    expect(result.differentiators.categories.every((item) => item.disclosure === "suppressed")).toBe(true);
+  });
+
+  it("suppresses the complementary cell that would reconstruct a small count", () => {
+    expect(
+      [...discloseExclusiveCounts(
+        [
+          { key: "ES", count: 5 },
+          { key: "FR", count: 1 },
+        ],
+        6,
+      )].sort(),
+    ).toEqual(["ES", "FR"]);
+    expect(
+      discloseExclusiveCounts(
+        [
+          { key: "ES", count: 12 },
+          { key: "FR", count: 8 },
+        ],
+        20,
+      ).size,
+    ).toBe(0);
+
+    const survey = buildSurvey([trustConcept], { geo: true });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 14 });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`es-high-${index}`, mapperOutput({ trust: 5, country: "ES" })),
+      ),
+      ...Array.from({ length: 3 }, (_, index) =>
+        record(`es-low-${index}`, mapperOutput({ trust: 2, country: "ES" })),
+      ),
+      record("fr-high", mapperOutput({ trust: 5, country: "FR" })),
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`fr-low-${index}`, mapperOutput({ trust: 2, country: "FR" })),
+      ),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    const countries = result.geography.filter((row) => row.field === "context.country_code");
+    expect(countries).toHaveLength(2);
+    expect(countries.every((row) => row.disclosure === "suppressed")).toBe(true);
+    expect(countries.every((row) => row.segmentCount == null)).toBe(true);
+  });
+
+  it("keeps the largest IQR among all eligible variation rows", () => {
+    const survey = buildSurvey([trustConcept, thermalConcept, overrideConcept, savingsConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      record("a", mapperOutput({ trust: 3, thermal: 1, override: 3, savings: 3 })),
+      record("b", mapperOutput({ trust: 3, thermal: 1, override: 3, savings: 3 })),
+      record("c", mapperOutput({ trust: 3, thermal: 5, override: 3, savings: 3 })),
+      record("d", mapperOutput({ trust: 3, thermal: 5, override: 3, savings: 3 })),
+      record("e", mapperOutput({ trust: 3, thermal: 5, override: 3, savings: 3 })),
+      record("f", mapperOutput({ trust: 3, thermal: 1, override: 3, savings: 3 })),
+    ];
+    const result = buildSegmentAnalysis({ schema, rows, definition: definition() });
+    const eligible =
+      result.profileAxes.filter((axis) => !axis.defining).length +
+      result.supportingFactors.filter((factor) => !factor.defining).length;
+    expect(result.internalVariation).toHaveLength(eligible);
+    const widest = result.internalVariation.reduce((max, item) => (item.iqr > max.iqr ? item : max));
+    expect(widest.conceptKey).toBe("thermal_comfort_norms");
+  });
+
+  it("renders a true zero share as width 0", () => {
+    expect(percentageBarWidth(0)).toBe(0);
+    expect(percentageBarWidth(null)).toBe(0);
+    expect(percentageBarWidth(0.25)).toBe(25);
+  });
+});
+
+describe("Cliff’s delta", () => {
+  it("returns the expected values for complete separation, ties and empty groups", () => {
+    expect(computeCliffsDelta([3, 4, 5], [1, 2])).toBe(1);
+    expect(computeCliffsDelta([1, 2], [3, 4, 5])).toBe(-1);
+    expect(computeCliffsDelta([2, 2, 2], [2, 2])).toBe(0);
+    expect(computeCliffsDelta([1], [1])).toBe(0);
+    expect(computeCliffsDelta([], [1])).toBeNull();
+    expect(computeCliffsDelta([1], [])).toBeNull();
   });
 });
 

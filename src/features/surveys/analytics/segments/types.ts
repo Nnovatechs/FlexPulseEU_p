@@ -194,6 +194,236 @@ export type SegmentExplorerSummary = {
   axes: SegmentProfileAxis[];
 };
 
+export type SegmentScoreSnapshot = {
+  median: number;
+  q1: number;
+  q3: number;
+  applicableN: number;
+  bands: SegmentProfileAxis["bands"];
+};
+
+export type SegmentAnalysisProfileAxis = SegmentProfileAxis & {
+  field: string;
+  wholeSurveyMedian: number | null;
+};
+
+export type SegmentScoreDifferentiator = {
+  kind: "score";
+  conceptKey: string;
+  field: string;
+  label: string;
+  directionNote: string | null;
+  segment: SegmentScoreSnapshot;
+  outside: SegmentScoreSnapshot;
+  medianDelta: number;
+  cliffsDelta: number | null;
+};
+
+export type SegmentCategoryDifferentiator = {
+  kind: "categorical";
+  field: string;
+  label: string;
+  value: string;
+  valueLabel: string;
+  segmentShare: number | null;
+  outsideShare: number | null;
+  segmentCount: number | null;
+  outsideCount: number | null;
+  segmentN: number;
+  outsideN: number;
+  deltaPercentagePoints: number | null;
+  disclosure: "visible" | "suppressed";
+  comparisonAvailable: boolean;
+};
+
+export type SegmentAnalysisSample = {
+  selectedN: number;
+  outsideN: number;
+  analysedN: number;
+  share: number | null;
+  referenceType: "outside" | "none";
+  comparisonAvailable: boolean;
+};
+
+export type SegmentFacetSignal = {
+  conceptKey: string;
+  conceptLabel: string;
+  facet: string;
+  field: string;
+  label: string;
+  evidenceLevel: "interpretive_signal" | "facet_subscore";
+  evidenceLabel: string;
+  definingParent: boolean;
+  applicableN: number;
+  median: number;
+  q1: number;
+  q3: number;
+  bands: SegmentProfileAxis["bands"];
+  wholeSurveyMedian: number | null;
+  outside: SegmentScoreSnapshot | null;
+  medianDelta: number | null;
+  cliffsDelta: number | null;
+};
+
+export type SegmentSupportingFactorAxis = {
+  conceptKey: string;
+  dimension: string;
+  dimensionLabel: string;
+  field: string;
+  label: string;
+  directionNote: string | null;
+  defining: boolean;
+  applicableN: number;
+  median: number;
+  q1: number;
+  q3: number;
+  bands: SegmentProfileAxis["bands"];
+  wholeSurveyMedian: number | null;
+  outside: SegmentScoreSnapshot | null;
+  medianDelta: number | null;
+  cliffsDelta: number | null;
+  facets: SegmentFacetSignal[];
+};
+
+export type SegmentConditionalModule = {
+  conceptKey: string;
+  setKey: string;
+  field: string;
+  label: string;
+  applicableN: number;
+  notApplicableN: number;
+  applicabilityRate: number | null;
+  missingWithinApplicable: number;
+  median: number | null;
+  q1: number | null;
+  q3: number | null;
+  bands: SegmentProfileAxis["bands"];
+  outside: {
+    applicableN: number;
+    median: number | null;
+    q1: number | null;
+    q3: number | null;
+  } | null;
+};
+
+export type SegmentConditionalSummary = {
+  conceptKey: string;
+  label: string;
+  overall: SegmentScoreSnapshot | null;
+  modules: SegmentConditionalModule[];
+  applicableModuleCounts: Array<{
+    count: number;
+    households: number;
+    share: number;
+  }>;
+};
+
+export type SegmentAssetPenetration = {
+  field: string;
+  value: string;
+  label: string;
+  segmentCount: number | null;
+  segmentN: number;
+  segmentShare: number | null;
+  outsideCount: number | null;
+  outsideN: number;
+  outsideShare: number | null;
+  deltaPercentagePoints: number | null;
+  disclosure: "visible" | "suppressed";
+  comparisonAvailable: boolean;
+};
+
+export type SegmentInternalVariation = {
+  field: string;
+  conceptKey: string;
+  label: string;
+  applicableN: number;
+  iqr: number;
+  normalisedIqr: number;
+  bandEntropy: number;
+  dominantBand: SegmentBandKey;
+  bands: SegmentProfileAxis["bands"];
+};
+
+export type SegmentGeographyRow = {
+  field: string;
+  value: string;
+  label: string;
+  segmentCount: number | null;
+  analysedCount: number;
+  selectedN: number;
+  penetration: number | null;
+  composition: number | null;
+  disclosure: "visible" | "suppressed";
+};
+
+export type SegmentWeatherSeries = {
+  field: string;
+  label: string;
+  unit: string;
+  n: number;
+  median: number;
+  q1: number;
+  q3: number;
+  min: number;
+  max: number;
+  outsideMedian: number | null;
+};
+
+export type SegmentInsightEvidence = {
+  selectedN: number;
+  outsideN: number | null;
+  selectedValue: number | null;
+  outsideValue: number | null;
+  delta: number | null;
+  cliffsDelta: number | null;
+};
+
+export type SegmentSemanticInsight = {
+  kind: "score_difference" | "facet_contrast" | "internal_variation" | "asset_difference" | "none";
+  observedPattern: string;
+  potentialReading: string;
+  worthExamining: string;
+  conceptKeys: string[];
+  evidence: SegmentInsightEvidence | null;
+};
+
+export type SegmentAssociation = {
+  leftConceptKey: string;
+  leftLabel: string;
+  rightConceptKey: string;
+  rightLabel: string;
+  rho: number;
+  pairedN: number;
+};
+
+export type SegmentAnalysisResult = {
+  definition: SegmentDefinition;
+  generatedAt: string;
+  sample: SegmentAnalysisSample;
+  readableConditions: SegmentExplorerSummary["readableConditions"];
+  profileAxes: SegmentAnalysisProfileAxis[];
+  differentiators: {
+    available: boolean;
+    reason: "whole_sample" | "empty_segment" | "empty_outside" | null;
+    scores: SegmentScoreDifferentiator[];
+    categories: SegmentCategoryDifferentiator[];
+  };
+  facets: SegmentFacetSignal[];
+  supportingFactors: SegmentSupportingFactorAxis[];
+  conditionalModules: SegmentConditionalSummary | null;
+  assets: SegmentAssetPenetration[];
+  internalVariation: SegmentInternalVariation[];
+  geography: SegmentGeographyRow[];
+  weather: SegmentWeatherSeries[];
+  insights: SegmentSemanticInsight[];
+  associations: SegmentAssociation[];
+};
+
+export const SEGMENT_ASSOCIATION_MIN_N = 5;
+export const SEGMENT_ASSOCIATION_MAX_PAIRS = 8;
+export const SEGMENT_FACET_CONTRAST_GAP = 0.15;
+
 export type SavedSegmentRecord = {
   id: string;
   name: string;

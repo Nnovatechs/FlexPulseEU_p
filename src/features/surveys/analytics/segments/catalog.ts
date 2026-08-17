@@ -256,7 +256,9 @@ export function buildSegmentCatalog(input: {
 
   const geography = [
     input.schema.fields.find((field) => field.key === "context.country_code"),
-    input.schema.fields.find((field) => field.key === "geo.postal_area.code"),
+    ...input.schema.supported_geo_levels.map((level) =>
+      input.schema.fields.find((field) => field.key === `geo.${level}.code`),
+    ),
     input.schema.fields.find((field) => field.key === "context.location.best_code"),
   ]
     .filter((field): field is SurveyAnalyticsFieldDefinition => field != null)

@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { runSegmentExplorerAction } from "@/features/surveys/segment-explorer-actions";
 import {
   MAX_SEGMENT_CONDITIONS,
   addToComparisonTray,
+  canRunSegmentAnalysis,
   clearScoreCondition,
   comparisonTrayCount,
+  describeReadableConditions,
   emptyComparisonTray,
+  getAnalyseActionLabel,
   getComparisonTraySnapshot,
   getConceptDescription,
   getFieldApplicability,
@@ -15,8 +18,8 @@ import {
   getFieldEquality,
   getFieldRange,
   getMembershipValues,
+  isSegmentAnalysisStale,
   removeConditionAt,
-  segmentDefinitionsEqual,
   resetSegmentDefinition,
   saveNamedSegment,
   scoreControlMode,
@@ -29,21 +32,20 @@ import {
   toggleSemanticBand,
   writeComparisonTray,
   type ComparisonTrayState,
+  type SegmentAnalysisStatus,
   type SegmentBandKey,
   type SegmentCatalog,
   type SegmentCatalogDimension,
   type SegmentCatalogScoreField,
+  type SegmentAnalysisResult,
   type SegmentDefinition,
-  type SegmentExplorerSummary,
 } from "@/features/surveys/analytics/segments";
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
 import { InfoTip } from "./info-tip";
+import { SegmentAnalysisPanel } from "./segment-analysis-panel";
 
 const FACETS_TIP =
   "Facets are the measured sub-parts of this axis. They show how the overall score breaks down, including single-item signals and multi-item facet scores.";
-
-const SELECTED_SEGMENT_TIP =
-  "Live descriptive profile of the current filter set on the primary axes: matched n, share, median, IQR and semantic bands. Defining filters are marked.";
 
 type SegmentExplorerPanelProps = {
   surveyId: string;
@@ -58,26 +60,8 @@ type SegmentExplorerPanelProps = {
 
 type SystemKey = `dimension:${string}` | "assets" | "geography" | "context";
 
-function formatCount(value: number) {
-  return new Intl.NumberFormat("en-GB").format(value);
-}
-
-function formatScore(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) {
-    return "n/a";
-  }
-  return value.toFixed(2);
-}
-
 function detailsOpen(event: { currentTarget: EventTarget | null }) {
   return event.currentTarget instanceof HTMLDetailsElement ? event.currentTarget.open : false;
-}
-
-function formatPercent(value: number | null) {
-  if (value == null || Number.isNaN(value)) {
-    return "n/a";
-  }
-  return `${Math.round(value * 100)}%`;
 }
 
 function countForFields(definition: SegmentDefinition, fields: string[]) {
@@ -296,8 +280,11 @@ export function SegmentExplorerPanel({
   onOpenComparison,
   onTrayChange,
 }: SegmentExplorerPanelProps) {
-  const [summary, setSummary] = useState<SegmentExplorerSummary | null>(null);
+  const [analysedDefinition, setAnalysedDefinition] = useState<SegmentDefinition | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<SegmentAnalysisResult | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<SegmentAnalysisStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const analysisRequestRef = useRef(0);
   const tray = useSyncExternalStore(
     subscribeSegmentStorage,
     () => getComparisonTraySnapshot(surveyId, catalog.measurementHash, schema),
@@ -334,13 +321,21 @@ export function SegmentExplorerPanel({
     return items;
   }, [catalog]);
   const [selectedKey, setSelectedKey] = useState<SystemKey>(systems[0]?.key ?? "context");
+  const systemBodyRef = useRef<HTMLDivElement>(null);
+  const [systemBodyMinHeight, setSystemBodyMinHeight] = useState(0);
   const selected = systems.find((system) => system.key === selectedKey) ?? systems[0];
   const selectedDimension =
     selected?.key.startsWith("dimension:")
       ? catalog.dimensions.find((dimension) => `dimension:${dimension.dimension}` === selected.key)
       : null;
   const atLimit = definition.conditions.length >= MAX_SEGMENT_CONDITIONS;
-  const loading = summary == null || !segmentDefinitionsEqual(summary.definition, definition);
+  const draftConditions = useMemo(
+    () => describeReadableConditions(definition, schema),
+    [definition, schema],
+  );
+  const stale = isSegmentAnalysisStale(definition, analysedDefinition);
+  const canAnalyse = canRunSegmentAnalysis(definition, analysedDefinition, analysisStatus);
+  const analyseLabel = getAnalyseActionLabel(definition, analysedDefinition, analysisStatus);
   const axisDescription = selectedDimension?.overall
     ? getConceptDescription(selectedDimension.overall.conceptKey, {
         schemaNamespace: catalog.schemaNamespace,
@@ -349,24 +344,38 @@ export function SegmentExplorerPanel({
       })
     : null;
 
-  useEffect(() => {
-    let cancelled = false;
-    runSegmentExplorerAction(surveyId, definition)
+  useLayoutEffect(() => {
+    const node = systemBodyRef.current;
+    if (!node) {
+      return;
+    }
+    const nextHeight = Math.ceil(node.getBoundingClientRect().height);
+    setSystemBodyMinHeight((current) => Math.max(current, nextHeight));
+  }, [selectedKey, definition.conditions, openNested, selectedDimension]);
+
+  const handleAnalyse = () => {
+    const requestId = analysisRequestRef.current + 1;
+    analysisRequestRef.current = requestId;
+    const snapshot = definition;
+    setAnalysisStatus("loading");
+    setError(null);
+    runSegmentExplorerAction(surveyId, snapshot)
       .then((next) => {
-        if (!cancelled) {
-          setSummary(next);
-          setError(null);
+        if (analysisRequestRef.current !== requestId) {
+          return;
         }
+        setAnalysedDefinition(next.definition);
+        setAnalysisResult(next);
+        setAnalysisStatus("ready");
       })
       .catch((cause: unknown) => {
-        if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : "The segment could not be analysed.");
+        if (analysisRequestRef.current !== requestId) {
+          return;
         }
+        setAnalysisStatus("error");
+        setError(cause instanceof Error ? cause.message : "The segment could not be analysed.");
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [definition, surveyId]);
+  };
 
   const persistTray = (next: ComparisonTrayState) => {
     writeComparisonTray(surveyId, catalog.measurementHash, next);
@@ -374,7 +383,10 @@ export function SegmentExplorerPanel({
   };
 
   const handleAddToComparison = (replaceSlot?: 0 | 1) => {
-    const result = addToComparisonTray(tray, definition, replaceSlot);
+    if (!analysedDefinition) {
+      return;
+    }
+    const result = addToComparisonTray(tray, analysedDefinition, replaceSlot);
     if (!result.ok) {
       setLocalNotice(
         result.reason === "duplicate"
@@ -405,15 +417,11 @@ export function SegmentExplorerPanel({
                   ? "Whole sample"
                   : `${definition.conditions.length}/${MAX_SEGMENT_CONDITIONS}`}
               </strong>
-              <small>
-                {loading
-                  ? "Updating…"
-                  : `${formatCount(summary?.matchedN ?? 0)} / ${formatCount(summary?.analysedN ?? catalog.analysedN)} · ${formatPercent(summary?.share ?? null)}`}
-              </small>
+              <small>Draft filters · AND only</small>
             </div>
             <div className="analytics-v2-seg-toolbar__chips">
-              {summary?.readableConditions.length ? (
-                summary.readableConditions.map((condition, index) => (
+              {draftConditions.length ? (
+                draftConditions.map((condition, index) => (
                   <button
                     key={`${condition.field}:${index}`}
                     type="button"
@@ -471,31 +479,12 @@ export function SegmentExplorerPanel({
                   </button>
                 </div>
               </div>
-              <div className="analytics-v2-seg-compare-wrap">
-                {comparisonTrayCount(tray) === 2 ? (
-                  <span className="analytics-v2-seg-replace">
-                    Replace
-                    <button type="button" className="analytics-v2-seg-chip" onClick={() => handleAddToComparison(0)}>
-                      A
-                    </button>
-                    <button type="button" className="analytics-v2-seg-chip" onClick={() => handleAddToComparison(1)}>
-                      B
-                    </button>
-                  </span>
-                ) : null}
-                <button type="button" className="analytics-v2-seg-compare" onClick={() => handleAddToComparison()}>
-                  Add to comparison
-                  <span className="analytics-v2-seg-compare__arrow" aria-hidden="true">
-                    »
-                  </span>
-                </button>
-              </div>
             </div>
           </div>
 
           <div className="analytics-v2-panel__head">
             <div className="analytics-v2-panel__title">
-              <h3>Filter systems</h3>
+              <h3>Segment Builder</h3>
             </div>
           </div>
 
@@ -516,7 +505,11 @@ export function SegmentExplorerPanel({
             })}
           </nav>
 
-          <div className="analytics-v2-seg-system-body">
+          <div
+            ref={systemBodyRef}
+            className="analytics-v2-seg-system-body"
+            style={systemBodyMinHeight > 0 ? { minHeight: systemBodyMinHeight } : undefined}
+          >
             {selectedDimension ? (
               <>
                 {selectedDimension.overall ? (
@@ -770,73 +763,29 @@ export function SegmentExplorerPanel({
           </div>
         </section>
 
-        <section className="analytics-v2-panel analytics-v2-seg-result">
-          <div className="analytics-v2-panel__head">
-            <div className="analytics-v2-panel__title">
-              <h3>
-                Selected segment
-                <InfoTip text={SELECTED_SEGMENT_TIP} />
-              </h3>
-            </div>
-            <button type="button" className="button button--ghost" onClick={onOpenComparison}>
-              Comparison {comparisonTrayCount(tray)}/2
-            </button>
-          </div>
+        <div className="analytics-v2-seg-analyse-bar">
+          <button
+            type="button"
+            className="analytics-v2-seg-analyse"
+            disabled={!canAnalyse}
+            aria-busy={analysisStatus === "loading"}
+            onClick={handleAnalyse}
+          >
+            {analyseLabel}
+          </button>
+        </div>
 
-          <div className="analytics-v2-kpi-strip analytics-v2-seg-kpis">
-            <article className="analytics-v2-kpi">
-              <span>Matched</span>
-              <strong>{formatCount(summary?.matchedN ?? 0)}</strong>
-              <small>of {formatCount(summary?.analysedN ?? catalog.analysedN)} analysed</small>
-            </article>
-            <article className="analytics-v2-kpi">
-              <span>Share</span>
-              <strong>{formatPercent(summary?.share ?? null)}</strong>
-              <small>{loading ? "Updating profile" : "Same base as Overview"}</small>
-            </article>
-            <article className="analytics-v2-kpi">
-              <span>Conditions</span>
-              <strong>{definition.conditions.length}</strong>
-              <small>AND only · max {MAX_SEGMENT_CONDITIONS}</small>
-            </article>
-          </div>
-
-          {summary?.axes.length ? (
-            <div className="analytics-v2-health-table-wrap">
-              <table className="analytics-v2-health-table analytics-v2-seg-table">
-                <thead>
-                  <tr>
-                    <th>Axis</th>
-                    <th>n</th>
-                    <th>Median · IQR</th>
-                    <th>Bands</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.axes.map((axis) => (
-                    <tr key={axis.conceptKey}>
-                      <td>
-                        {axis.label}
-                        {axis.defining ? <small>Defining condition</small> : null}
-                      </td>
-                      <td>{formatCount(axis.applicableN)}</td>
-                      <td>
-                        {formatScore(axis.median)} · {formatScore(axis.q1)}–{formatScore(axis.q3)}
-                      </td>
-                      <td>
-                        {axis.bands.map((band) => `${band.label} ${formatCount(band.count)}`).join(" · ")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="analytics-v2-seg-empty">
-              {loading ? "Preparing the profile." : "No scored primary axes are available for this segment."}
-            </p>
-          )}
-        </section>
+        <SegmentAnalysisPanel
+          result={analysisResult}
+          status={analysisStatus}
+          dirty={stale}
+          comparisonCount={comparisonTrayCount(tray)}
+          comparisonFull={comparisonTrayCount(tray) === 2}
+          onAddToComparison={handleAddToComparison}
+          onOpenComparison={onOpenComparison}
+          draftDefinition={definition}
+          onExploreSubgroup={(field, band) => onDefinitionChange(toggleSemanticBand(definition, field, band))}
+        />
       </div>
     </div>
   );

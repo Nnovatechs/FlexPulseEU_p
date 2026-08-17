@@ -18,6 +18,7 @@ import {
   buildRadarPolygon,
   polarPoint,
 } from "@/features/surveys/analytics/profile-explorer-utils";
+import { hasTraceShare, percentageBarWidth } from "@/features/surveys/analytics/segments";
 
 type OverviewPanelProps = {
   data: SurveyOverviewData;
@@ -729,12 +730,12 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
                   </span>
                   <div className="analytics-v2-construct-table__mix">
                     <div className="analytics-v2-stack" aria-hidden="true">
-                      {construct.bands.map((band) =>
+                          {construct.bands.map((band) =>
                         band.share > 0 ? (
                           <span
                             key={band.key}
-                            className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
-                            style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
+                            className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}${hasTraceShare(band.share) ? " is-trace" : ""}`}
+                            style={{ width: `${percentageBarWidth(band.share)}%` }}
                           />
                         ) : null,
                       )}

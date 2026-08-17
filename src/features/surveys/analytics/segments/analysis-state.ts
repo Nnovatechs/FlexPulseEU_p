@@ -19,6 +19,14 @@ export function canRunSegmentAnalysis(
   return status !== "loading" && (analysed == null || !segmentDefinitionsEqual(draft, analysed));
 }
 
+export function canExportSegmentAnalysis(
+  status: SegmentAnalysisStatus,
+  stale: boolean,
+  result: unknown | null,
+) {
+  return status === "ready" && !stale && result != null;
+}
+
 export function getAnalyseActionLabel(
   draft: SegmentDefinition,
   analysed: SegmentDefinition | null,

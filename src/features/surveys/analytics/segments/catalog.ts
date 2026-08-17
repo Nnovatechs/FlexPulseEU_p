@@ -25,7 +25,6 @@ import type {
   SegmentCatalogDimension,
   SegmentCatalogFacetField,
   SegmentCatalogScoreField,
-  SegmentCatalogSupportingFactor,
 } from "./types";
 
 const EXCLUDED_FIELD_KEYS = new Set([
@@ -34,11 +33,10 @@ const EXCLUDED_FIELD_KEYS = new Set([
   "context.location.best_granularity",
 ]);
 
-function labelContext(schema: SurveyAnalyticsSchema, survey: PersistedSurvey): SegmentLabelContext {
+function labelContext(schema: SurveyAnalyticsSchema): SegmentLabelContext {
   return {
-    schemaNamespace:
-      survey.definition_json.survey_meta.measurement_plan_json?.schema_namespace ?? schema.schema_namespace,
-    schemaVersion: survey.definition_json.survey_meta.measurement_plan_json?.schema_version ?? 1,
+    schemaNamespace: schema.schema_namespace,
+    schemaVersion: schema.schema_version ?? 1,
     fields: schema.fields,
   };
 }
@@ -146,13 +144,16 @@ function hasUsableNumericCoverage(rows: SurveyAnalyticsRecord[], field: string) 
   return uniqueFiniteNumbers(rows, field).length > 0;
 }
 
-export function buildSegmentCatalog(input: {
+export function buildSegmentCatalog({
+  schema,
+  rows,
+}: {
   survey: PersistedSurvey;
   schema: SurveyAnalyticsSchema;
   rows: SurveyAnalyticsRecord[];
 }): SegmentCatalog {
-  const context = labelContext(input.schema, input.survey);
-  const profileFields = input.schema.fields.filter((field) => field.source === "profile");
+  const context = labelContext(schema);
+  const profileFields = schema.fields.filter((field) => field.source === "profile");
   const dimensions = new Map<string, SegmentCatalogDimension>();
 
   function ensureDimension(dimension: string): SegmentCatalogDimension {
@@ -202,17 +203,11 @@ export function buildSegmentCatalog(input: {
       continue;
     }
 
-    const facets = profileFields
-      .filter((candidate) => candidate.concept_key === field.concept_key && candidate.facet)
-      .map((candidate) => toFacetField(candidate, context))
-      .filter((facet): facet is SegmentCatalogFacetField => facet != null);
-    const supporting: SegmentCatalogSupportingFactor = {
+    group.supportingFactors.push({
       conceptKey: field.concept_key,
       label: score.label,
       overall: score,
-      facets,
-    };
-    group.supportingFactors.push(supporting);
+    });
   }
 
   const conditionalConcepts = new Set(
@@ -252,37 +247,37 @@ export function buildSegmentCatalog(input: {
   const assetField = profileFields.find(
     (field) => field.concept_role === "applicability_factor" && field.value_type === "string[]",
   );
-  const assetValues = assetField ? uniqueArrayStrings(input.rows, assetField.key) : [];
+  const assetValues = assetField ? uniqueArrayStrings(rows, assetField.key) : [];
 
   const geography = [
-    input.schema.fields.find((field) => field.key === "context.country_code"),
-    ...input.schema.supported_geo_levels.map((level) =>
-      input.schema.fields.find((field) => field.key === `geo.${level}.code`),
+    schema.fields.find((field) => field.key === "context.country_code"),
+    ...schema.supported_geo_levels.map((level) =>
+      schema.fields.find((field) => field.key === `geo.${level}.code`),
     ),
-    input.schema.fields.find((field) => field.key === "context.location.best_code"),
+    schema.fields.find((field) => field.key === "context.location.best_code"),
   ]
     .filter((field): field is SurveyAnalyticsFieldDefinition => field != null)
-    .map((field) => buildChoiceField(field, input.rows, context))
+    .map((field) => buildChoiceField(field, rows, context))
     .filter((field): field is SegmentCatalogChoiceField => field != null);
 
   const contextFields: SegmentCatalogContextField[] = [];
-  const language = input.schema.fields.find((field) => field.key === "context.survey_language");
-  const audience = input.schema.fields.find((field) => field.key === "response.audience_label");
-  const respondedAt = input.schema.fields.find((field) => field.key === "response.responded_at");
-  const temperature = input.schema.fields.find((field) => field.key === "context.climate.temp_outdoor_c");
-  const humidity = input.schema.fields.find((field) => field.key === "context.climate.humidity_pct");
+  const language = schema.fields.find((field) => field.key === "context.survey_language");
+  const audience = schema.fields.find((field) => field.key === "response.audience_label");
+  const respondedAt = schema.fields.find((field) => field.key === "response.responded_at");
+  const temperature = schema.fields.find((field) => field.key === "context.climate.temp_outdoor_c");
+  const humidity = schema.fields.find((field) => field.key === "context.climate.humidity_pct");
 
   for (const field of [language, audience]) {
     if (!field) {
       continue;
     }
-    const choice = buildChoiceField(field, input.rows, context);
+    const choice = buildChoiceField(field, rows, context);
     if (choice) {
       contextFields.push({ ...choice, kind: "choice" });
     }
   }
 
-  if (respondedAt && uniqueStrings(input.rows, respondedAt.key).length > 0) {
+  if (respondedAt && uniqueStrings(rows, respondedAt.key).length > 0) {
     contextFields.push({
       kind: "date_range",
       field: respondedAt.key,
@@ -290,7 +285,7 @@ export function buildSegmentCatalog(input: {
     });
   }
 
-  if (temperature && hasUsableNumericCoverage(input.rows, temperature.key)) {
+  if (temperature && hasUsableNumericCoverage(rows, temperature.key)) {
     contextFields.push({
       kind: "numeric_range",
       field: temperature.key,
@@ -300,7 +295,7 @@ export function buildSegmentCatalog(input: {
     });
   }
 
-  if (humidity && hasUsableNumericCoverage(input.rows, humidity.key)) {
+  if (humidity && hasUsableNumericCoverage(rows, humidity.key)) {
     contextFields.push({
       kind: "numeric_range",
       field: humidity.key,
@@ -311,10 +306,11 @@ export function buildSegmentCatalog(input: {
   }
 
   return {
-    surveyId: input.schema.survey_id,
+    surveyId: schema.survey_id,
     schemaNamespace: context.schemaNamespace,
-    measurementHash: input.schema.measurement_hash,
-    analysedN: input.rows.length,
+    schemaVersion: context.schemaVersion,
+    measurementHash: schema.measurement_hash,
+    analysedN: rows.length,
     dimensions: Array.from(dimensions.values()).sort((left, right) => left.label.localeCompare(right.label)),
     assets:
       assetField && assetValues.length > 0

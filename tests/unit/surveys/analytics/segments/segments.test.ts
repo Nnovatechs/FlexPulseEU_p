@@ -3,9 +3,11 @@ import {
   addToComparisonTray,
   assertAggregateSegmentAnalysis,
   buildSegmentAnalysis,
+  buildSegmentAnalysisExport,
   buildSegmentCatalog,
   buildSegmentExplorerSummary,
   canRunSegmentAnalysis,
+  canExportSegmentAnalysis,
   commitSegmentDefinition,
   compileSegmentDefinition,
   computeCliffsDelta,
@@ -28,6 +30,12 @@ import {
   isUsableWeatherQuality,
   percentageBarWidth,
   SEGMENT_CELL_MIN_N,
+  SEGMENT_SEMANTIC_MIN_N,
+  SEMANTIC_INSUFFICIENT_EVIDENCE,
+  SEGMENT_ANALYSIS_EXPORT_VERSION,
+  SEGMENT_ANALYSIS_VERSION,
+  SEGMENT_ANALYSIS_METHODOLOGY_VERSION,
+  segmentAnalysisExportContainsSensitiveField,
   savedSegmentsStorageKey,
   comparisonTrayStorageKey,
   MULTI_ITEM_FACET_SCORE_LABEL,
@@ -484,6 +492,9 @@ describe("segment catalog", () => {
 
     expect(trust?.overall?.conceptKey).toBe("trust_in_automation");
     expect(trust?.supportingFactors.map((factor) => factor.conceptKey)).toEqual(["manual_override_need"]);
+    expect(trust?.supportingFactors[0]).not.toHaveProperty("facets");
+    expect(trust?.facets.map((facet) => facet.conceptKey)).toEqual(["trust_in_automation", "trust_in_automation"]);
+    expect(catalog.schemaVersion).toBe(schema.schema_version ?? 1);
     expect(trust?.facets.map((facet) => facet.evidenceLabel)).toContain(SINGLE_ITEM_SIGNAL_LABEL);
     expect(capability?.conditionalModules.map((module) => module.setKey)).toEqual(["ev_charging"]);
     expect(capability?.facets).toEqual([]);
@@ -546,6 +557,37 @@ describe("segment catalog", () => {
     });
     expect(catalog.dimensions[0]?.supportingFactors).toEqual([]);
     expect(catalog.dimensions[0]?.conditionalModules).toEqual([]);
+    expect(catalog.dimensions[0]?.facets.length).toBeGreaterThan(0);
+  });
+
+  it("exposes one or more modulators as aggregated supporting factors without their facets", () => {
+    const survey = buildSurvey([trustConcept, overrideConcept, savingsConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 1 });
+    const catalog = buildSegmentCatalog({
+      survey,
+      schema,
+      rows: [record("r1", mapperOutput({ trust: 4, override: 3, savings: 4 }))],
+    });
+    const supporting = catalog.dimensions.flatMap((dimension) => dimension.supportingFactors);
+    expect(supporting.map((factor) => factor.conceptKey).sort()).toEqual([
+      "manual_override_need",
+      "savings_motivation",
+    ]);
+    expect(supporting.every((factor) => !("facets" in factor))).toBe(true);
+    expect(catalog.dimensions.flatMap((dimension) => dimension.facets).every((facet) => facet.conceptKey === "trust_in_automation")).toBe(true);
+  });
+
+  it("uses the analytics schema version rather than a hardcoded schemaVersion", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 1 });
+    schema.schema_version = 99;
+    const catalog = buildSegmentCatalog({
+      survey,
+      schema,
+      rows: [record("r1", mapperOutput({ trust: 4 }))],
+    });
+    expect(catalog.schemaVersion).toBe(99);
+    expect(catalog.schemaVersion).toBe(schema.schema_version ?? 1);
   });
 });
 
@@ -927,6 +969,10 @@ describe("segment analysis draft vs analysed", () => {
     expect(getAnalyseActionLabel(other, draft, "ready")).toBe("Update analysis");
     expect(canRunSegmentAnalysis(other, draft, "loading")).toBe(false);
     expect(getAnalyseActionLabel(other, draft, "loading")).toBe("Analysing…");
+    expect(canExportSegmentAnalysis("ready", false, draft)).toBe(true);
+    expect(canExportSegmentAnalysis("ready", true, draft)).toBe(false);
+    expect(canExportSegmentAnalysis("idle", false, null)).toBe(false);
+    expect(canExportSegmentAnalysis("ready", false, null)).toBe(false);
   });
 });
 
@@ -1050,9 +1096,11 @@ describe("segment analysis result", () => {
       definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
     });
     expect(highTrust.facets.some((facet) => facet.conceptKey === "trust_in_automation")).toBe(true);
+    expect(highTrust.facets.every((facet) => facet.conceptKey !== "manual_override_need")).toBe(true);
     expect(highTrust.facets.find((facet) => facet.facet === "reliability")?.definingParent).toBe(true);
     expect(highTrust.facets.find((facet) => facet.facet === "reliability")?.evidenceLabel).toBe(SINGLE_ITEM_SIGNAL_LABEL);
     expect(highTrust.supportingFactors.map((factor) => factor.conceptKey)).toContain("manual_override_need");
+    expect(highTrust.supportingFactors[0]).not.toHaveProperty("facets");
     expect(highTrust.supportingFactors[0]?.dimensionLabel).toBeTruthy();
     expect(highTrust.conditionalModules?.conceptKey).toBe("declared_flexibility_capability");
     expect(highTrust.conditionalModules?.modules.map((module) => module.setKey)).toEqual(["ev_charging"]);
@@ -1191,7 +1239,7 @@ describe("segment analysis corrections", () => {
     expect(whole.insights.some((item) => item.kind === "asset_difference")).toBe(false);
   });
 
-  it("does not claim a single facet outperforms other facets of its construct", () => {
+  it("does not expose modulator facets even when the survey only measures a modulator", () => {
     const survey = buildSurvey([overrideConcept]);
     const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
     const rows = [
@@ -1207,25 +1255,25 @@ describe("segment analysis corrections", () => {
       rows,
       definition: definition([{ kind: "eq", field: "context.survey_language", value: "English" }]),
     });
-    const facetInsight = result.insights.find((item) => item.kind === "facet_contrast");
-    if (facetInsight) {
-      expect(facetInsight.observedPattern).toMatch(/largest observed difference/i);
-      expect(facetInsight.observedPattern).not.toMatch(/other measured facets/i);
-      expect(facetInsight.evidence?.selectedN).toBeGreaterThan(0);
-    }
-    expect(result.facets).toHaveLength(1);
+    expect(result.facets).toEqual([]);
+    expect(result.supportingFactors.map((factor) => factor.conceptKey)).toEqual(["manual_override_need"]);
+    expect(result.insights.some((item) => item.kind === "facet_contrast")).toBe(false);
   });
 
   it("only claims a within-construct facet contrast when two comparable facets exist", () => {
     const survey = buildSurvey([trustConcept]);
-    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 10 });
     const rows = [
       record("a", mapperOutput({ trust: 5, country: "ES" })),
       record("b", mapperOutput({ trust: 5, country: "ES" })),
       record("c", mapperOutput({ trust: 4, country: "ES" })),
-      record("d", mapperOutput({ trust: 2, country: "FR" })),
-      record("e", mapperOutput({ trust: 1, country: "FR" })),
+      record("d", mapperOutput({ trust: 5, country: "ES" })),
+      record("e", mapperOutput({ trust: 4, country: "ES" })),
       record("f", mapperOutput({ trust: 2, country: "FR" })),
+      record("g", mapperOutput({ trust: 1, country: "FR" })),
+      record("h", mapperOutput({ trust: 2, country: "FR" })),
+      record("i", mapperOutput({ trust: 1, country: "FR" })),
+      record("j", mapperOutput({ trust: 2, country: "FR" })),
     ];
     rows[0].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 5;
     rows[0].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 1;
@@ -1233,6 +1281,10 @@ describe("segment analysis corrections", () => {
     rows[1].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 1;
     rows[2].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 5;
     rows[2].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 2;
+    rows[3].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 5;
+    rows[3].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 1;
+    rows[4].mapper_output.profile.trust_in_automation!.facets!.reliability.value = 4;
+    rows[4].mapper_output.profile.trust_in_automation!.facets!.delegation.value = 2;
     const result = buildSegmentAnalysis({
       schema,
       rows,
@@ -1335,6 +1387,154 @@ describe("segment analysis corrections", () => {
     expect(percentageBarWidth(0)).toBe(0);
     expect(percentageBarWidth(null)).toBe(0);
     expect(percentageBarWidth(0.25)).toBe(25);
+  });
+
+  it("keeps descriptives with a small n and withholds comparative semantic insights", () => {
+    expect(SEGMENT_SEMANTIC_MIN_N).toBe(5);
+    expect(SEGMENT_SEMANTIC_MIN_N).not.toBe(SEGMENT_CELL_MIN_N - 1);
+    const survey = buildSurvey([trustConcept, thermalConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 7 });
+    const rows = [
+      record("high-a", mapperOutput({ trust: 5, thermal: 1 })),
+      record("high-b", mapperOutput({ trust: 5, thermal: 5 })),
+      record("high-c", mapperOutput({ trust: 4, thermal: 1 })),
+      record("high-d", mapperOutput({ trust: 5, thermal: 5 })),
+      ...Array.from({ length: 3 }, (_, index) =>
+        record(`low-${index}`, mapperOutput({ trust: 1, thermal: 3 })),
+      ),
+    ];
+    const smallOutside = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(smallOutside.sample.selectedN).toBe(4);
+    expect(smallOutside.sample.outsideN).toBe(3);
+    expect(smallOutside.profileAxes[0]?.median).toBeGreaterThan(0);
+    expect(smallOutside.profileAxes[0]?.bands.some((band) => band.share > 0)).toBe(true);
+    expect(smallOutside.insights.some((item) => item.kind === "score_difference")).toBe(false);
+    expect(smallOutside.insights.some((item) => item.kind === "facet_contrast")).toBe(false);
+    expect(smallOutside.insights.some((item) => item.kind === "asset_difference")).toBe(false);
+  });
+
+  it("allows an internal variation insight when the segment n is at least 5 even if the exterior is small", () => {
+    const survey = buildSurvey([trustConcept, thermalConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 7 });
+    const rows = [
+      record("a", mapperOutput({ trust: 5, thermal: 1, country: "ES" })),
+      record("b", mapperOutput({ trust: 5, thermal: 1, country: "ES" })),
+      record("c", mapperOutput({ trust: 5, thermal: 5, country: "ES" })),
+      record("d", mapperOutput({ trust: 5, thermal: 5, country: "ES" })),
+      record("e", mapperOutput({ trust: 5, thermal: 3, country: "ES" })),
+      record("f", mapperOutput({ trust: 1, thermal: 3, country: "FR" })),
+      record("g", mapperOutput({ trust: 2, thermal: 3, country: "FR" })),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "eq", field: "context.country_code", value: "ES" }]),
+    });
+    expect(result.sample.selectedN).toBe(5);
+    expect(result.sample.outsideN).toBe(2);
+    expect(result.insights.some((item) => item.kind === "score_difference")).toBe(false);
+    expect(result.insights.some((item) => item.kind === "internal_variation")).toBe(true);
+    expect(result.insights.find((item) => item.kind === "internal_variation")?.evidence?.selectedN).toBeGreaterThanOrEqual(
+      SEGMENT_SEMANTIC_MIN_N,
+    );
+  });
+
+  it("shows a neutral semantic state instead of fabricating an alternative reading", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    const rows = [
+      record("high", mapperOutput({ trust: 5 })),
+      ...Array.from({ length: 5 }, (_, index) => record(`low-${index}`, mapperOutput({ trust: 2 }))),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(result.sample.selectedN).toBe(1);
+    expect(result.profileAxes[0]?.median).toBe(5);
+    expect(result.insights).toEqual([
+      expect.objectContaining({
+        kind: "none",
+        observedPattern: SEMANTIC_INSUFFICIENT_EVIDENCE,
+        potentialReading: "",
+        worthExamining: "",
+      }),
+    ]);
+  });
+
+  it("hides geographic detail when the area complement has 1–4 cases", () => {
+    const survey = buildSurvey([trustConcept], { geo: true });
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 11 });
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`es-high-${index}`, mapperOutput({ trust: 5, country: "ES" })),
+      ),
+      record("es-low", mapperOutput({ trust: 2, country: "ES" })),
+      ...Array.from({ length: 5 }, (_, index) =>
+        record(`fr-low-${index}`, mapperOutput({ trust: 2, country: "FR" })),
+      ),
+    ];
+    const result = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(result.sample.selectedN).toBe(5);
+    expect(result.profileAxes[0]?.median).toBe(5);
+    const countries = result.geography.filter((row) => row.field === "context.country_code");
+    expect(countries.map((row) => row.value).sort()).toEqual(["ES", "FR"]);
+    expect(countries.every((row) => row.disclosure === "suppressed")).toBe(true);
+    expect(countries.every((row) => row.segmentCount == null && row.penetration == null)).toBe(true);
+    expect(JSON.stringify(countries)).not.toMatch(/"segmentCount":5/);
+  });
+
+  it("exports the current analysed result as versioned aggregate JSON", () => {
+    const survey = buildSurvey([trustConcept, overrideConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+    schema.schema_version = 1;
+    const rows = Array.from({ length: 6 }, (_, index) =>
+      record(`r${index}`, mapperOutput({ trust: index < 3 ? 5 : 2, override: 3 })),
+    );
+    const analysis = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+      generatedAt: "2026-08-17T09:00:00.000Z",
+    });
+    const file = buildSegmentAnalysisExport({ analysis, schema });
+    const parsed = JSON.parse(file.body) as {
+      exportVersion: string;
+      analysisVersion: string;
+      methodologyVersion: string;
+      generatedAt: string;
+      schemaNamespace: string;
+      schemaVersion: number;
+      measurementHash: string | null;
+      analysis: typeof analysis;
+    };
+    expect(file.filename).toMatch(/^segment-analysis-survey-segments-/);
+    expect(parsed).toEqual(
+      expect.objectContaining({
+        exportVersion: SEGMENT_ANALYSIS_EXPORT_VERSION,
+        analysisVersion: SEGMENT_ANALYSIS_VERSION,
+        methodologyVersion: SEGMENT_ANALYSIS_METHODOLOGY_VERSION,
+        generatedAt: "2026-08-17T09:00:00.000Z",
+        schemaNamespace: schema.schema_namespace,
+        schemaVersion: 1,
+        measurementHash: schema.measurement_hash,
+      }),
+    );
+    expect(parsed.analysis.definition).toEqual(analysis.definition);
+    expect(parsed.analysis.supportingFactors.map((factor) => factor.conceptKey)).toContain("manual_override_need");
+    expect(segmentAnalysisExportContainsSensitiveField(parsed)).toBe(false);
+    expect(file.body).not.toMatch(/response_id|answers_json|mapper_output|prolific/i);
+    expect(canExportSegmentAnalysis("ready", false, analysis)).toBe(true);
+    expect(canExportSegmentAnalysis("ready", true, analysis)).toBe(false);
   });
 });
 

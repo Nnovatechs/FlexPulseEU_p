@@ -22,10 +22,15 @@ import {
   getScoreDirectionNote,
   type SegmentLabelContext,
 } from "./labels";
-import { discloseExclusiveCounts, isSmallIdentifiableCount, SEGMENT_CELL_MIN_N } from "./disclosure";
+import { applyExclusiveCellDisclosure, discloseExclusiveCounts, isSmallIdentifiableCount, SEGMENT_CELL_MIN_N } from "./disclosure";
 import { isWholeSampleDefinition } from "./normalize";
 import { isUsableWeatherQuality } from "./presentation";
 import { describeReadableConditions, segmentLabelContext } from "./readable-conditions";
+import {
+  hasSemanticComparisonN,
+  hasSemanticInternalN,
+  SEMANTIC_INSUFFICIENT_EVIDENCE,
+} from "./semantic";
 import type {
   SegmentAnalysisProfileAxis,
   SegmentAnalysisResult,
@@ -330,6 +335,7 @@ function comparisonSnapshot(
 function facetFields(schema: SurveyAnalyticsSchema) {
   return schema.fields.filter(
     (field) =>
+      field.concept_role === "primary_profile_axis" &&
       field.value_type === "number" &&
       Boolean(field.facet) &&
       field.key.endsWith(".value") &&
@@ -404,7 +410,6 @@ function buildSupportingFactors(
   definition: SegmentDefinition,
   context: SegmentLabelContext,
   compare: boolean,
-  facets: SegmentFacetSignal[],
 ): SegmentSupportingFactorAxis[] {
   return modulatorFields(schema)
     .flatMap((field) => {
@@ -441,7 +446,6 @@ function buildSupportingFactors(
           outside: compared.outside,
           medianDelta: compared.medianDelta,
           cliffsDelta: compared.cliffsDelta,
-          facets: facets.filter((facet) => facet.conceptKey === conceptKey),
         },
       ];
     })
@@ -668,18 +672,24 @@ function buildGeography(
     if (eligible.length === 0) {
       return [];
     }
-    const suppressed = discloseExclusiveCounts(
+    const suppressedSegment = discloseExclusiveCounts(
       eligible.map(([value]) => ({
         key: value,
         count: selectedValues.counts.get(value) ?? 0,
       })),
       selected.length,
     );
+    const suppressedOutside = applyExclusiveCellDisclosure(
+      eligible.map(([value, analysedCount]) => ({
+        key: value,
+        count: analysedCount - (selectedValues.counts.get(value) ?? 0),
+      })),
+    );
 
     return eligible
       .map(([value, analysedCount]) => {
         const segmentCount = selectedValues.counts.get(value) ?? 0;
-        const hide = suppressed.has(value);
+        const hide = suppressedSegment.has(value) || suppressedOutside.has(value);
         return {
           field: field.key,
           value,
@@ -815,7 +825,6 @@ function facetContrastInsight(facets: SegmentFacetSignal[]): SegmentSemanticInsi
         facet: SegmentFacetSignal;
         comparable: boolean;
         gap: number;
-        preliminary: boolean;
       }
     | null = null;
 
@@ -832,7 +841,6 @@ function facetContrastInsight(facets: SegmentFacetSignal[]): SegmentSemanticInsi
       facet: top,
       comparable,
       gap,
-      preliminary: top.applicableN < SEGMENT_CELL_MIN_N || (top.outside?.applicableN ?? 0) < SEGMENT_CELL_MIN_N,
     };
     if (!best || Math.abs(top.cliffsDelta) > Math.abs(best.facet.cliffsDelta ?? 0)) {
       best = candidate;
@@ -843,7 +851,13 @@ function facetContrastInsight(facets: SegmentFacetSignal[]): SegmentSemanticInsi
     return null;
   }
 
-  const { facet, comparable, gap, preliminary } = best;
+  const selectedN = best.facet.applicableN;
+  const outsideN = best.facet.outside?.applicableN ?? 0;
+  if (!hasSemanticComparisonN(selectedN, outsideN)) {
+    return null;
+  }
+
+  const { facet, comparable, gap } = best;
   const contrasted = comparable && gap >= SEGMENT_FACET_CONTRAST_GAP;
   const observed = contrasted
     ? `${facet.conceptLabel} · ${facet.label} shows a larger difference than the other measured facets of this construct (Δ median ${facet.medianDelta?.toFixed(2)}, δ=${facet.cliffsDelta?.toFixed(2)}, n=${facet.applicableN}/${facet.outside?.applicableN ?? 0}).`
@@ -851,7 +865,7 @@ function facetContrastInsight(facets: SegmentFacetSignal[]): SegmentSemanticInsi
 
   return {
     kind: "facet_contrast",
-    observedPattern: preliminary ? `${observed} This reading is descriptive and preliminary because the applicable n is small.` : observed,
+    observedPattern: observed,
     potentialReading: `The same overall score may be expressed differently through ${facet.label.toLowerCase()}. This remains a ${facet.evidenceLabel.toLowerCase()}.`,
     worthExamining: INDEPENDENT_CHECK,
     conceptKeys: [facet.conceptKey],
@@ -877,13 +891,11 @@ function buildInsights(input: {
   const topScore = input.differentiatorsAvailable
     ? input.scores.find((item) => item.cliffsDelta != null && Math.abs(item.cliffsDelta) >= 0.15)
     : null;
-  if (topScore) {
+  if (topScore && hasSemanticComparisonN(topScore.segment.applicableN, topScore.outside.applicableN)) {
     const direction = (topScore.medianDelta ?? 0) >= 0 ? "higher" : "lower";
-    const preliminary =
-      topScore.segment.applicableN < SEGMENT_CELL_MIN_N || topScore.outside.applicableN < SEGMENT_CELL_MIN_N;
     insights.push({
       kind: "score_difference",
-      observedPattern: `${topScore.label} is ${direction} in this segment than outside it (Δ median ${topScore.medianDelta.toFixed(2)}, δ=${topScore.cliffsDelta?.toFixed(2)}, n=${topScore.segment.applicableN}/${topScore.outside.applicableN}).${preliminary ? " This reading is descriptive and preliminary because the applicable n is small." : ""}`,
+      observedPattern: `${topScore.label} is ${direction} in this segment than outside it (Δ median ${topScore.medianDelta.toFixed(2)}, δ=${topScore.cliffsDelta?.toFixed(2)}, n=${topScore.segment.applicableN}/${topScore.outside.applicableN}).`,
       potentialReading: `${topScore.label} is associated with this segment, but the difference is descriptive and may reflect other shared conditions.`,
       worthExamining: INDEPENDENT_CHECK,
       conceptKeys: [topScore.conceptKey],
@@ -904,7 +916,7 @@ function buildInsights(input: {
   }
 
   const varied = input.variation.slice().sort((left, right) => right.normalisedIqr - left.normalisedIqr)[0];
-  if (varied && insights.length < 3) {
+  if (varied && hasSemanticInternalN(varied.applicableN) && insights.length < 3) {
     insights.push({
       kind: "internal_variation",
       observedPattern: `${varied.label} remains mixed inside the segment (normalised IQR ${varied.normalisedIqr.toFixed(2)}, band entropy ${varied.bandEntropy.toFixed(2)}, n=${varied.applicableN}).`,
@@ -931,7 +943,11 @@ function buildInsights(input: {
           Math.abs(item.deltaPercentagePoints) >= 15,
       )
     : null;
-  if (asset && insights.length < 3) {
+  if (
+    asset &&
+    insights.length < 3 &&
+    hasSemanticComparisonN(asset.segmentN, asset.outsideN)
+  ) {
     insights.push({
       kind: "asset_difference",
       observedPattern: `${asset.label} appears in ${Math.round((asset.segmentShare ?? 0) * 100)}% of the segment versus ${Math.round((asset.outsideShare ?? 0) * 100)}% outside it (n=${asset.segmentN}/${asset.outsideN}).`,
@@ -952,9 +968,9 @@ function buildInsights(input: {
   if (insights.length === 0) {
     insights.push({
       kind: "none",
-      observedPattern: "No standout non-defining contrast is available for this analysed definition.",
-      potentialReading: "The selected responses may be close to the rest of the sample, or the schema does not provide enough contrast to narrate.",
-      worthExamining: "The analysed definition does not currently support a stronger reading.",
+      observedPattern: SEMANTIC_INSUFFICIENT_EVIDENCE,
+      potentialReading: "",
+      worthExamining: "",
       conceptKeys: [],
       evidence: null,
     });
@@ -1004,7 +1020,6 @@ export function buildSegmentAnalysis(input: {
     input.definition,
     context,
     compare,
-    facets,
   );
   const scores =
     differentiatorReason == null

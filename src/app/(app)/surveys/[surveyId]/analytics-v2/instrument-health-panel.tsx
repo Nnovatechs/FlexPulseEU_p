@@ -22,6 +22,7 @@ import {
   type InstrumentHealthScope,
 } from "@/features/surveys/analytics/instrument-health";
 import { INSTRUMENT_HEALTH_COPY } from "@/features/surveys/analytics/instrument-health-semantics";
+import { hasTraceShare, percentageBarWidth } from "@/features/surveys/analytics/segments";
 import { appRoutes } from "@/lib/config/routes";
 
 type InstrumentHealthPanelProps = {
@@ -117,8 +118,8 @@ function LikertBar({ bins }: { bins: InstrumentHealthLikertBin[] | null }) {
       {bins.map((bin) => (
         <span
           key={bin.value}
-          className={`analytics-v2-health-likert__seg analytics-v2-health-likert__seg--${bin.value}`}
-          style={{ width: `${Math.max(bin.share * 100, bin.count > 0 ? 2 : 0)}%` }}
+          className={`analytics-v2-health-likert__seg analytics-v2-health-likert__seg--${bin.value}${hasTraceShare(bin.share) ? " is-trace" : ""}`}
+          style={{ width: `${percentageBarWidth(bin.share)}%` }}
           title={`${bin.value}: ${formatCount(bin.count)} (${formatPercent(bin.share)})`}
         />
       ))}
@@ -226,8 +227,8 @@ function ConstructDetail({ construct }: { construct: InstrumentHealthConstruct }
             band.share > 0 ? (
               <span
                 key={band.key}
-                className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}`}
-                style={{ width: `${Math.max(band.share * 100, 1.5)}%` }}
+                className={`analytics-v2-stack__seg analytics-v2-stack__seg--${band.key}${hasTraceShare(band.share) ? " is-trace" : ""}`}
+                style={{ width: `${percentageBarWidth(band.share)}%` }}
               />
             ) : null,
           )}

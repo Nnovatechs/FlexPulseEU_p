@@ -74,10 +74,7 @@ function dimensionFields(dimension: SegmentCatalogDimension) {
     dimension.overall?.field,
     ...dimension.facets.map((facet) => facet.field),
     ...dimension.conditionalModules.map((module) => module.field),
-    ...dimension.supportingFactors.flatMap((factor) => [
-      factor.overall.field,
-      ...factor.facets.map((facet) => facet.field),
-    ]),
+    ...dimension.supportingFactors.map((factor) => factor.overall.field),
   ].filter((field): field is string => Boolean(field));
 }
 
@@ -339,7 +336,7 @@ export function SegmentExplorerPanel({
   const axisDescription = selectedDimension?.overall
     ? getConceptDescription(selectedDimension.overall.conceptKey, {
         schemaNamespace: catalog.schemaNamespace,
-        schemaVersion: 1,
+        schemaVersion: catalog.schemaVersion,
         fields: schema.fields,
       })
     : null;
@@ -605,11 +602,6 @@ export function SegmentExplorerPanel({
                             onChange={onDefinitionChange}
                           />
                         </FilterRow>
-                        {factor.facets.map((facet) => (
-                          <FilterRow key={facet.field} label={facet.label} hint={facet.evidenceLabel}>
-                            <ScoreControls field={facet} definition={definition} onChange={onDefinitionChange} />
-                          </FilterRow>
-                        ))}
                       </div>
                     ))}
                   </details>
@@ -779,6 +771,7 @@ export function SegmentExplorerPanel({
           result={analysisResult}
           status={analysisStatus}
           dirty={stale}
+          schema={schema}
           comparisonCount={comparisonTrayCount(tray)}
           comparisonFull={comparisonTrayCount(tray) === 2}
           onAddToComparison={handleAddToComparison}

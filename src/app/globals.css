@@ -8133,6 +8133,13 @@ body:has(.analytics-shell) {
   gap: 0.55rem;
 }
 
+.analytics-v2-seg-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
 .analytics-v2-seg-kpis .analytics-v2-kpi {
   padding: 0.65rem 0.75rem 0.7rem;
 }
@@ -8356,7 +8363,8 @@ body:has(.analytics-shell) {
 }
 
 .analytics-v2-seg-cat-bars .is-trace,
-.analytics-v2-stack__seg.is-trace {
+.analytics-v2-stack__seg.is-trace,
+.analytics-v2-health-likert__seg.is-trace {
   box-shadow: inset 2px 0 0 var(--an-accent, #5b9cf6);
 }
 

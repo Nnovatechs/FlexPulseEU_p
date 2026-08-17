@@ -6,6 +6,8 @@ import {
   hasTraceShare,
   isWholeSampleDefinition,
   percentageBarWidth,
+  buildSegmentAnalysisExport,
+  canExportSegmentAnalysis,
   type SegmentAnalysisProfileAxis,
   type SegmentAnalysisResult,
   type SegmentAssetPenetration,
@@ -23,6 +25,7 @@ import {
   type SegmentSupportingFactorAxis,
   type SegmentWeatherSeries,
 } from "@/features/surveys/analytics/segments";
+import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
 import {
   buildRadarGridPolygon,
   buildRadarPolygon,
@@ -51,11 +54,11 @@ const ASSETS_TIP =
 const VARIATION_TIP =
   "Where respondents inside the selected segment still differ from one another. Highest score dispersion orders by normalised IQR on the 1–5 scale. Most mixed semantic bands orders by band entropy (0 = one band, 1 = even mix).";
 const GEO_TIP =
-  "Penetration is segment respondents in the area divided by all analysed respondents in that area. Areas with fewer than five analysed responses are omitted. Exact counts below five are suppressed.";
+  "Penetration is segment respondents in the area divided by all analysed respondents in that area. Areas with fewer than five analysed responses are omitted. Exact counts of 1–4 in the area, or in its complement, are suppressed.";
 const WEATHER_TIP =
   "Weather values describe approximate outdoor conditions around the response time. They do not represent indoor temperature or establish a causal effect on responses.";
 const INSIGHTS_TIP =
-  "At most three evidence-linked readings. They are not causal effects and they never treat a defining filter as a discovery.";
+  "At most three evidence-linked readings. Comparative readings need at least five applicable responses in both the segment and the exterior. They are not causal effects and they never treat a defining filter as a discovery.";
 const ASSOCIATIONS_TIP =
   "Spearman correlations inside the analysed segment, limited to scored primary axes and supporting factors. Collapsed and capped; this is not instrument diagnostics.";
 
@@ -507,12 +510,16 @@ function InsightsBlock({ items }: { items: SegmentSemanticInsight[] }) {
             <p>
               <strong>Observed pattern.</strong> {item.observedPattern}
             </p>
-            <p>
-              <strong>Potential reading.</strong> {item.potentialReading}
-            </p>
-            <p>
-              <strong>Worth examining.</strong> {item.worthExamining}
-            </p>
+            {item.kind !== "none" && item.potentialReading ? (
+              <p>
+                <strong>Potential reading.</strong> {item.potentialReading}
+              </p>
+            ) : null}
+            {item.kind !== "none" && item.worthExamining ? (
+              <p>
+                <strong>Worth examining.</strong> {item.worthExamining}
+              </p>
+            ) : null}
             {item.evidence ? (
               <small>
                 Evidence: selected {item.evidence.selectedValue == null ? "n/a" : item.evidence.selectedValue} (n=
@@ -796,6 +803,7 @@ type SegmentAnalysisPanelProps = {
   result: SegmentAnalysisResult | null;
   status: "idle" | "loading" | "ready" | "error";
   dirty: boolean;
+  schema: SurveyAnalyticsSchema;
   comparisonCount: number;
   comparisonFull: boolean;
   onAddToComparison: (replaceSlot?: 0 | 1) => void;
@@ -804,10 +812,22 @@ type SegmentAnalysisPanelProps = {
   draftDefinition?: SegmentDefinition | null;
 };
 
+function downloadSegmentAnalysisExport(result: SegmentAnalysisResult, schema: SurveyAnalyticsSchema) {
+  const file = buildSegmentAnalysisExport({ analysis: result, schema });
+  const blob = new Blob([file.body], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function SegmentAnalysisPanel({
   result,
   status,
   dirty,
+  schema,
   comparisonCount,
   comparisonFull,
   onAddToComparison,
@@ -816,6 +836,7 @@ export function SegmentAnalysisPanel({
   draftDefinition,
 }: SegmentAnalysisPanelProps) {
   const [showWholeSurvey, setShowWholeSurvey] = useState(false);
+  const canExport = canExportSegmentAnalysis(status, dirty, result);
 
   return (
     <section className={`analytics-v2-panel analytics-v2-seg-result${dirty && result ? " is-stale" : ""}`}>
@@ -826,9 +847,24 @@ export function SegmentAnalysisPanel({
             <InfoTip text="This view describes the selected responses and, where indicated, compares them with respondents outside the selected segment. Differences are descriptive associations, not causal effects." />
           </h3>
         </div>
-        <button type="button" className="button button--ghost" onClick={onOpenComparison}>
-          Comparison {comparisonCount}/2
-        </button>
+        <div className="analytics-v2-seg-result-actions">
+          <button
+            type="button"
+            className="button button--ghost"
+            disabled={!canExport}
+            onClick={() => {
+              if (!result || !canExport) {
+                return;
+              }
+              downloadSegmentAnalysisExport(result, schema);
+            }}
+          >
+            Export segment analysis
+          </button>
+          <button type="button" className="button button--ghost" onClick={onOpenComparison}>
+            Comparison {comparisonCount}/2
+          </button>
+        </div>
       </div>
 
       {status === "idle" && !result ? (

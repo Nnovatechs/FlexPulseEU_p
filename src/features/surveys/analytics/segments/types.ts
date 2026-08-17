@@ -103,7 +103,6 @@ export type SegmentCatalogSupportingFactor = {
   conceptKey: string;
   label: string;
   overall: SegmentCatalogScoreField;
-  facets: SegmentCatalogFacetField[];
 };
 
 export type SegmentCatalogConditionalModule = {
@@ -155,6 +154,7 @@ export type SegmentCatalogContextField =
 export type SegmentCatalog = {
   surveyId: string;
   schemaNamespace: string;
+  schemaVersion: number;
   measurementHash: string | null;
   analysedN: number;
   dimensions: SegmentCatalogDimension[];
@@ -282,7 +282,6 @@ export type SegmentSupportingFactorAxis = {
   outside: SegmentScoreSnapshot | null;
   medianDelta: number | null;
   cliffsDelta: number | null;
-  facets: SegmentFacetSignal[];
 };
 
 export type SegmentConditionalModule = {

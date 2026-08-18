@@ -5,6 +5,7 @@ import path from "node:path";
 import proj4 from "proj4";
 import { XMLParser } from "fast-xml-parser";
 import { topology } from "topojson-server";
+import { presimplify, quantile, simplify as simplifyTopology } from "topojson-simplify";
 
 type Position = [number, number];
 type Ring = Position[];
@@ -46,6 +47,11 @@ type GeographyManifestEntry = {
   featureCount: number;
   license: string;
   attribution: string;
+};
+
+type PostalAreaIndexFile = {
+  version: string;
+  countries: Record<"ES" | "FR" | "IE", PostalAreaFeatureProperties[]>;
 };
 
 const ROOT = process.cwd();
@@ -163,25 +169,6 @@ function parseLatLonPosList(posList: string): Ring {
     if (lon == null) {
       continue;
     }
-    ring.push([lon, lat]);
-  }
-  return ensureClosedRing(ring);
-}
-
-function parseProjectedPosList(posList: string): Ring {
-  const parts = posList
-    .trim()
-    .split(/\s+/)
-    .map((value) => Number(value))
-    .filter((value) => Number.isFinite(value));
-  const ring: Ring = [];
-  for (let index = 0; index < parts.length; index += 2) {
-    const x = parts[index];
-    const y = parts[index + 1];
-    if (y == null) {
-      continue;
-    }
-    const [lon, lat] = proj4("EPSG:29903", "EPSG:4326", [x, y]) as [number, number];
     ring.push([lon, lat]);
   }
   return ensureClosedRing(ring);
@@ -445,8 +432,13 @@ function buildEuropeOutline() {
   };
 }
 
-function toTopology(collection: FeatureCollection, objectName: string) {
-  return topology({ [objectName]: collection }, 1e5);
+function toTopology(collection: FeatureCollection, objectName: string, simplifyQuantile?: number) {
+  const created = topology({ [objectName]: collection }, 1e5);
+  if (simplifyQuantile == null) {
+    return created;
+  }
+  const presimplified = presimplify(created as never);
+  return simplifyTopology(presimplified as never, quantile(presimplified as never, simplifyQuantile));
 }
 
 function writeJson(filePath: string, value: unknown) {
@@ -467,6 +459,17 @@ function assertFeatureCollection(label: string, collection: FeatureCollection, e
   }
 }
 
+function buildPostalAreaIndex(spain: FeatureCollection, france: FeatureCollection, ireland: FeatureCollection): PostalAreaIndexFile {
+  return {
+    version: VERSION,
+    countries: {
+      ES: spain.features.map((feature) => feature.properties),
+      FR: france.features.map((feature) => feature.properties),
+      IE: ireland.features.map((feature) => feature.properties),
+    },
+  };
+}
+
 function main() {
   ensureDir(OUTPUT_DIR);
 
@@ -479,10 +482,11 @@ function main() {
   assertFeatureCollection("France", france, 106);
   assertFeatureCollection("Ireland", ireland, 139);
 
-  writeJson(path.join(OUTPUT_DIR, "ES.topo.json"), toTopology(spain, "postalAreas"));
+  writeJson(path.join(OUTPUT_DIR, "ES.topo.json"), toTopology(spain, "postalAreas", 0.08));
   writeJson(path.join(OUTPUT_DIR, "FR.topo.json"), toTopology(france, "postalAreas"));
   writeJson(path.join(OUTPUT_DIR, "IE.topo.json"), toTopology(ireland, "postalAreas"));
   writeJson(path.join(OUTPUT_DIR, "europe-outline.topo.json"), toTopology(europe, "countries"));
+  writeJson(path.join(OUTPUT_DIR, "postal-area-index.json"), buildPostalAreaIndex(spain, france, ireland));
 
   const manifest: GeographyManifestEntry[] = [
     {

@@ -81,6 +81,7 @@ const CountryPostalMap = memo(function CountryPostalMap({
           const aggregate = areaMap.get(shape.areaKey);
           const selected = selectedAreaKeys.has(shape.areaKey);
           const selectable = !readOnly && selectableAreaKeys.has(shape.areaKey);
+          const hasData = (aggregate?.n ?? 0) > 0;
           const fill = selected ? "var(--an-accent, #6ea8fe)" : areaIntensity(aggregate?.n ?? 0, maxN);
           return (
             <path
@@ -90,7 +91,7 @@ const CountryPostalMap = memo(function CountryPostalMap({
               role={selectable ? "button" : undefined}
               aria-pressed={selectable ? selected : undefined}
               aria-label={`${shape.label} ${shape.postalPrefix}`}
-              className={`analytics-v2-postal-map__area${selected ? " is-selected" : ""}${selectable ? "" : " is-dimmed"}`}
+              className={`analytics-v2-postal-map__area${selected ? " is-selected" : ""}${hasData ? "" : " is-dimmed"}`}
               fill={fill}
               onClick={() => selectable && onToggleArea?.(shape.areaKey, selectableKeys)}
               onKeyDown={(event) => {

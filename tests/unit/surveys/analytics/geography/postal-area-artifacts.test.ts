@@ -51,12 +51,20 @@ function sampleCoordinates(coordinates: Array<[number, number]>) {
 describe("postal geography artifacts", () => {
   it("keeps the manifest aligned with the generated artifacts and source hashes", () => {
     const manifest = readPostalGeographyManifest();
+    const index = readJson<{
+      version: string;
+      countries: Record<"ES" | "FR" | "IE", Array<{ areaKey: string }>>;
+    }>(path.join(OUTPUT_DIR, "postal-area-index.json"));
     expect(manifest.map((entry) => [entry.countryCode, entry.featureCount])).toEqual([
       ["ES", 52],
       ["FR", 106],
       ["IE", 139],
       ["EU", expect.any(Number)],
     ]);
+    expect(index.version).toBe("v1");
+    expect(index.countries.ES).toHaveLength(52);
+    expect(index.countries.FR).toHaveLength(106);
+    expect(index.countries.IE).toHaveLength(139);
 
     const sourceByCountry = new Map([
       ["ES", "es-lineas-limite-gml.zip"],

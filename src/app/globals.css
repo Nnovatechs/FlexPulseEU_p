@@ -8251,8 +8251,12 @@ body:has(.analytics-shell) {
 .analytics-v2-postal-map__area {
   stroke: color-mix(in srgb, var(--an-border) 80%, transparent);
   stroke-width: 0.85;
-  cursor: pointer;
+  cursor: default;
   transition: fill 120ms ease, stroke 120ms ease, opacity 120ms ease, filter 120ms ease;
+}
+
+.analytics-v2-postal-map__area[role="button"] {
+  cursor: pointer;
 }
 
 .analytics-v2-postal-map__svg.has-selection .analytics-v2-postal-map__area:not(.is-selected) {

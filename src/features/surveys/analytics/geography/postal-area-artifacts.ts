@@ -24,21 +24,16 @@ type ManifestEntry = {
   attribution: string;
 };
 
-type PostalAreaTopology = {
-  objects: {
-    postalAreas: {
-      geometries: Array<{
-        properties: PostalAreaFeatureProperties;
-      }>;
-    };
-  };
+type PostalAreaIndexFile = {
+  version: string;
+  countries: Record<SupportedPostalAreaCountryCode, PostalAreaFeatureProperties[]>;
 };
 
 const POSTAL_GEOGRAPHY_VERSION = "v1";
 const BASE_DIR = path.join(process.cwd(), "public", "geography", "postal-areas", POSTAL_GEOGRAPHY_VERSION);
 
 const manifestCache = new Map<string, ManifestEntry[]>();
-const topologyCache = new Map<SupportedPostalAreaCountryCode, PostalAreaTopology>();
+const indexCache = new Map<string, PostalAreaIndexFile>();
 const keySetCache = new Map<SupportedPostalAreaCountryCode, Set<string>>();
 
 function readJsonFile<T>(filePath: string) {
@@ -59,18 +54,18 @@ export function readPostalGeographyManifest() {
   return manifest;
 }
 
-function readPostalAreaTopology(countryCode: SupportedPostalAreaCountryCode) {
-  const cached = topologyCache.get(countryCode);
+function readPostalAreaIndex() {
+  const cached = indexCache.get(POSTAL_GEOGRAPHY_VERSION);
   if (cached) {
     return cached;
   }
-  const topology = readJsonFile<PostalAreaTopology>(path.join(BASE_DIR, `${countryCode}.topo.json`));
-  topologyCache.set(countryCode, topology);
-  return topology;
+  const index = readJsonFile<PostalAreaIndexFile>(path.join(BASE_DIR, "postal-area-index.json"));
+  indexCache.set(POSTAL_GEOGRAPHY_VERSION, index);
+  return index;
 }
 
 export function readPostalAreaProperties(countryCode: SupportedPostalAreaCountryCode) {
-  return readPostalAreaTopology(countryCode).objects.postalAreas.geometries.map((geometry) => geometry.properties);
+  return readPostalAreaIndex().countries[countryCode];
 }
 
 export function readSupportedPostalAreaKeys(countryCode: SupportedPostalAreaCountryCode) {

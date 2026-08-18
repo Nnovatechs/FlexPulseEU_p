@@ -380,7 +380,6 @@ export function SegmentExplorerPanel({
   const postalAreaSelection = getFieldInValues(definition, POSTAL_AREA_KEY_FIELD).map(String);
   const postalMapBaseline = useMemo(() => buildPostalMapBaseline(definition), [definition]);
   const postalMapDefinitionRef = useRef(postalMapBaseline.definition);
-  postalMapDefinitionRef.current = postalMapBaseline.definition;
   const axisDescription = selectedDimension?.overall
     ? getConceptDescription(selectedDimension.overall.conceptKey, {
         schemaNamespace: catalog.schemaNamespace,
@@ -427,6 +426,10 @@ export function SegmentExplorerPanel({
       window.clearTimeout(timer);
     };
   }, [definition, surveyId]);
+
+  useEffect(() => {
+    postalMapDefinitionRef.current = postalMapBaseline.definition;
+  }, [postalMapBaseline.definition, postalMapBaseline.key]);
 
   useEffect(() => {
     if (!active || !postalAreaField) {

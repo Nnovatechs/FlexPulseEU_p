@@ -18,6 +18,18 @@ export type CountryMapData = {
   viewBox: string;
 };
 
+type CountryFeature = {
+  type: "Feature";
+  properties: {
+    areaKey: string;
+    label: string;
+    postalPrefix: string;
+  };
+  geometry: object;
+};
+
+type Frame = [[number, number], [number, number]];
+
 type TopologyPayload = {
   type: "Topology";
   objects: {
@@ -27,6 +39,73 @@ type TopologyPayload = {
 
 const countryMapPromiseCache = new Map<CountryCode, Promise<CountryMapData>>();
 
+function projectShapes(features: CountryFeature[], frame: Frame) {
+  if (features.length === 0) {
+    return [];
+  }
+  const projection = geoMercator().fitExtent(frame, {
+    type: "FeatureCollection",
+    features,
+  } as never);
+  const pathGenerator = geoPath(projection);
+  return features
+    .map((entry) => ({
+      areaKey: entry.properties.areaKey,
+      label: entry.properties.label,
+      postalPrefix: entry.properties.postalPrefix,
+      path: pathGenerator(entry as never) ?? "",
+    }))
+    .filter((entry) => entry.path.length > 0);
+}
+
+function buildFranceInsetFrames(): Frame[] {
+  const frames: Frame[] = [];
+  const cellWidth = 88;
+  const cellHeight = 64;
+  const gap = 12;
+  const startX = 438;
+  const startY = 18;
+  for (let index = 0; index < 12; index += 1) {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = startX + column * (cellWidth + gap);
+    const y = startY + row * (cellHeight + gap);
+    frames.push([
+      [x, y],
+      [x + cellWidth, y + cellHeight],
+    ]);
+  }
+  return frames;
+}
+
+function buildFranceMapData(features: CountryFeature[]): CountryMapData {
+  const width = 640;
+  const height = 520;
+  const mainland = features.filter((entry) => entry.properties.postalPrefix.length === 2);
+  const overseas = features
+    .filter((entry) => entry.properties.postalPrefix.length === 3)
+    .sort((left, right) => left.properties.postalPrefix.localeCompare(right.properties.postalPrefix));
+  const shapes = [
+    ...projectShapes(mainland, [
+      [14, 24],
+      [420, height - 18],
+    ]),
+  ];
+  const frames = buildFranceInsetFrames();
+  overseas.forEach((feature, index) => {
+    const frame = frames[index];
+    if (!frame) {
+      return;
+    }
+    shapes.push(...projectShapes([feature], frame));
+  });
+  return {
+    countryCode: "FR",
+    viewBox: `0 0 ${width} ${height}`,
+    shapes,
+  };
+}
+
 async function buildCountryMapData(countryCode: CountryCode): Promise<CountryMapData> {
   const response = await fetch(`/geography/postal-areas/v1/${countryCode}.topo.json`);
   if (!response.ok) {
@@ -34,36 +113,20 @@ async function buildCountryMapData(countryCode: CountryCode): Promise<CountryMap
   }
   const topology = (await response.json()) as TopologyPayload;
   const collection = feature(topology as never, topology.objects.postalAreas as never) as unknown as {
-    features: Array<{
-      properties: {
-        areaKey: string;
-        label: string;
-        postalPrefix: string;
-      };
-      geometry: object;
-    }>;
+    features: CountryFeature[];
   };
+  if (countryCode === "FR") {
+    return buildFranceMapData(collection.features);
+  }
   const width = 640;
-  const height = countryCode === "FR" ? 520 : 420;
-  const projection = geoMercator().fitExtent(
-    [
-      [14, 14],
-      [width - 14, height - 14],
-    ],
-    collection as never,
-  );
-  const pathGenerator = geoPath(projection);
+  const height = 420;
   return {
     countryCode,
     viewBox: `0 0 ${width} ${height}`,
-    shapes: collection.features
-      .map((entry) => ({
-        areaKey: entry.properties.areaKey,
-        label: entry.properties.label,
-        postalPrefix: entry.properties.postalPrefix,
-        path: pathGenerator(entry as never) ?? "",
-      }))
-      .filter((entry) => entry.path.length > 0),
+    shapes: projectShapes(collection.features, [
+      [14, 14],
+      [width - 14, height - 14],
+    ]),
   };
 }
 

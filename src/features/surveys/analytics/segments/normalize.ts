@@ -21,13 +21,27 @@ export function compareSegmentConditions(left: SegmentCondition, right: SegmentC
   return compareUnknown(left, right);
 }
 
+function normalizeSegmentCondition(condition: SegmentCondition): SegmentCondition {
+  if (condition.kind !== "in") {
+    return condition;
+  }
+
+  const values = Array.from(new Set(condition.values)).sort(compareUnknown) as Array<
+    string | number | boolean
+  >;
+  return {
+    ...condition,
+    values,
+  };
+}
+
 export function normalizeSegmentDefinition(definition: SegmentDefinition): SegmentDefinition {
   return {
     version: SEGMENT_DEFINITION_VERSION,
     surveyId: definition.surveyId,
     schemaNamespace: definition.schemaNamespace,
     measurementHash: definition.measurementHash,
-    conditions: definition.conditions.slice().sort(compareSegmentConditions),
+    conditions: definition.conditions.map(normalizeSegmentCondition).sort(compareSegmentConditions),
   };
 }
 

@@ -1,5 +1,6 @@
 import type { SegmentDefinition } from "./types";
 import type { SegmentExplorerSummary } from "./types";
+import type { PostalMapComparison } from "@/features/surveys/analytics/geography/postal-map-types";
 
 export type ComparisonOverlapRelation =
   | "identical"
@@ -178,6 +179,7 @@ export type SegmentComparisonResult = {
   profileAxes: ComparisonProfileAxis[];
   geography: ComparisonGeographyRow[];
   weather: ComparisonWeatherSeries[];
+  postalMap: PostalMapComparison | null;
   insights: ComparisonInsight[];
   rules: ComparisonRules;
 };

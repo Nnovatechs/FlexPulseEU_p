@@ -3,6 +3,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { OVERVIEW_SECTION_INTROS } from "@/features/surveys/analytics/overview-v2-insights";
 import { InfoTip } from "./info-tip";
+import { PostalAreaMap } from "./postal-area-map";
 import type {
   OverviewGroupProfile,
   OverviewOpportunityView,
@@ -22,6 +23,7 @@ import { hasTraceShare, percentageBarWidth } from "@/features/surveys/analytics/
 
 type OverviewPanelProps = {
   data: SurveyOverviewData;
+  active?: boolean;
 };
 
 const QUADRANT_SERIES: Record<QuadrantSlot, { color: string; fill: string }> = {
@@ -464,7 +466,7 @@ function MatrixCell({
   );
 }
 
-export function OverviewPanel({ data }: OverviewPanelProps) {
+export function OverviewPanel({ data, active = true }: OverviewPanelProps) {
   const opportunity = data.opportunity;
   const [selectedOptionKey, setSelectedOptionKey] = useState(opportunity?.defaultOptionKey ?? "");
   const [hoveredQuadrant, setHoveredQuadrant] = useState<string | null>(null);
@@ -751,6 +753,21 @@ export function OverviewPanel({ data }: OverviewPanelProps) {
               ))}
             </div>
           </section>
+
+          {data.postalMap && data.postalMap.coverage.mappedN > 0 ? (
+            <section className="analytics-v2-panel">
+              <header className="analytics-v2-panel__head">
+                <h3>Geographic distribution</h3>
+              </header>
+              <PostalAreaMap
+                analysis={data.postalMap}
+                active={active}
+                readOnly
+                title="Geographic distribution"
+                description="Colour intensity represents the number of mapped responses in the survey."
+              />
+            </section>
+          ) : null}
 
           {data.countryPulse ? (
             <section className="analytics-v2-panel">

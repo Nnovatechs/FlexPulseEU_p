@@ -20,6 +20,10 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isScalarValue(value: unknown): value is string | number | boolean {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
 function isBand(value: unknown): value is SegmentCondition extends { band: infer Band } ? Band : never {
   return value === "high" || value === "medium" || value === "low";
 }
@@ -44,10 +48,12 @@ function validateConditionShape(condition: unknown): condition is SegmentConditi
         candidate.min <= candidate.max
       );
     case "eq":
+      return isScalarValue(candidate.value);
+    case "in":
       return (
-        typeof candidate.value === "string" ||
-        typeof candidate.value === "number" ||
-        typeof candidate.value === "boolean"
+        Array.isArray(candidate.values) &&
+        candidate.values.length > 0 &&
+        candidate.values.every(isScalarValue)
       );
     case "contains":
     case "not_contains":
@@ -70,7 +76,7 @@ function scoreConditionKey(condition: SegmentCondition) {
     return `${condition.field}:${condition.kind === "applicability" ? "applicability" : "score"}`;
   }
 
-  if (condition.kind === "eq" || condition.kind === "date_range") {
+  if (condition.kind === "eq" || condition.kind === "in" || condition.kind === "date_range") {
     return `${condition.field}:${condition.kind}`;
   }
 
@@ -155,6 +161,10 @@ export function validateSegmentDefinition(
 
     if (condition.kind === "eq" && !field.filter_operators.includes("eq")) {
       return fail("operator_not_allowed", `Equality is not allowed for "${condition.field}".`);
+    }
+
+    if (condition.kind === "in" && !field.filter_operators.includes("in")) {
+      return fail("operator_not_allowed", `IN is not allowed for "${condition.field}".`);
     }
 
     if (condition.kind === "contains" && !field.filter_operators.includes("contains")) {

@@ -23,6 +23,8 @@ export function compileSegmentCondition(condition: SegmentCondition): SurveyAnal
       return [{ field: condition.field, op: "between", value: [condition.min, condition.max] }];
     case "eq":
       return [{ field: condition.field, op: "eq", value: condition.value }];
+    case "in":
+      return [{ field: condition.field, op: "in", value: condition.values }];
     case "contains":
       return [{ field: condition.field, op: "contains", value: condition.value }];
     case "not_contains":

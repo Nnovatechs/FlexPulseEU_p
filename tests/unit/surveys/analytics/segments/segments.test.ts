@@ -47,9 +47,12 @@ import {
   saveNamedSegment,
   scoreControlMode,
   segmentDefinitionsEqual,
+  setInValues,
   setEquality,
   setNumericRange,
   SINGLE_ITEM_SIGNAL_LABEL,
+  getFieldInValues,
+  toggleInValue,
   toggleMembership,
   toggleSemanticBand,
   utcInclusiveDateBounds,
@@ -423,6 +426,75 @@ describe("segment contract and compiler", () => {
     ).toBe(true);
   });
 
+  it("compiles a postal-area IN condition and combines it with AND filters", () => {
+    const geoSurvey = buildSurvey([trustConcept, assetsConcept], { geo: true });
+    const geoSchema = buildSurveyAnalyticsSchema({ survey: geoSurvey, readyResponseCount: 3 });
+    const geoRows = [
+      record("es", mapperOutput({ trust: 5, assets: ["ev"], country: "ES" })),
+      record("fr", mapperOutput({ trust: 3, assets: ["ev"], country: "FR" })),
+      record("ie", mapperOutput({ trust: 2, assets: ["heat_pump"], country: "IE" })),
+    ];
+
+    const source = definition([
+      { kind: "in", field: "geo.postal_area.code", values: ["28", "75"] },
+      { kind: "contains", field: "profile.owned_der_assets.value", value: "ev" },
+    ]);
+    expect(compileSegmentDefinition(source)).toEqual([
+      { field: "geo.postal_area.code", op: "in", value: ["28", "75"] },
+      { field: "profile.owned_der_assets.value", op: "contains", value: "ev" },
+    ]);
+    expect(
+      applySurveyAnalyticsFilters({
+        schema: geoSchema,
+        rows: geoRows,
+        filters: compileSegmentDefinition(source),
+      }).map((row) => row.response_id),
+    ).toEqual(["es", "fr"]);
+  });
+
+  it("toggles IN values without duplicates and clears the condition when empty or fully selected", () => {
+    const field = "geo.postal_area.code";
+    const allValues = ["D02", "D04", "D06"];
+
+    const single = toggleInValue(definition(), field, "D02", { allValues });
+    expect(getFieldInValues(single, field)).toEqual(["D02"]);
+
+    const multi = toggleInValue(single, field, "D04", { allValues });
+    expect(getFieldInValues(multi, field)).toEqual(["D02", "D04"]);
+
+    const deduped = setInValues(multi, field, ["D04", "D02", "D02"]);
+    expect(getFieldInValues(deduped, field)).toEqual(["D02", "D04"]);
+
+    const cleared = toggleInValue(multi, field, "D02", { allValues });
+    expect(getFieldInValues(cleared, field)).toEqual(["D04"]);
+
+    const allSelected = toggleInValue(multi, field, "D06", { allValues });
+    expect(getFieldInValues(allSelected, field)).toEqual([]);
+    expect(allSelected.conditions.some((condition) => condition.field === field && condition.kind === "in")).toBe(false);
+  });
+
+  it("rejects empty IN arrays and fields that do not allow the in operator", () => {
+    expect(
+      validationIssue(
+        validateSegmentDefinition(
+          definition([{ kind: "in", field: "geo.postal_area.code", values: [] }]),
+          schema,
+          expected,
+        ),
+      ),
+    ).toBe("invalid_condition");
+
+    expect(
+      validationIssue(
+        validateSegmentDefinition(
+          definition([{ kind: "in", field: "profile.owned_der_assets.value", values: ["ev"] }]),
+          schema,
+          expected,
+        ),
+      ),
+    ).toBe("operator_not_allowed");
+  });
+
   it("rejects incompatible hashes, unknown fields and oversized definitions", () => {
     expect(validationIssue(validateSegmentDefinition(definition(), schema, { surveyId: "other", measurementHash: "measure-1" }))).toBe(
       "survey_mismatch",
@@ -464,12 +536,16 @@ describe("segment contract and compiler", () => {
   });
 
   it("round-trips the URL codec and rejects invalid payloads", () => {
-    const source = definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]);
+    const source = definition([
+      { kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" },
+      { kind: "in", field: "geo.postal_area.code", values: ["D04", "D02", "D02"] },
+    ]);
     const encoded = encodeSegmentDefinition(source);
     const decoded = decodeSegmentDefinition(encoded);
     expect(decoded.ok).toBe(true);
     if (decoded.ok) {
       expect(segmentDefinitionsEqual(decoded.definition, source)).toBe(true);
+      expect(getFieldInValues(decoded.definition, "geo.postal_area.code")).toEqual(["D02", "D04"]);
     }
     expect(encodeSegmentDefinition(source)).toBe(encoded);
     expect(decodeSegmentDefinition("%%%not-base64%%%").ok).toBe(false);
@@ -479,6 +555,28 @@ describe("segment contract and compiler", () => {
       .replace(/\//g, "_")
       .replace(/=+$/g, "");
     expect(decodeSegmentDefinition(unknownVersion).ok).toBe(false);
+  });
+
+  it("does not crash on unknown postal-area values and simply matches no rows", () => {
+    const geoSurvey = buildSurvey([trustConcept], { geo: true });
+    const geoSchema = buildSurveyAnalyticsSchema({ survey: geoSurvey, readyResponseCount: 1 });
+    const geoRows = [record("r1", mapperOutput({ trust: 4, country: "ES" }))];
+    const source = definition([{ kind: "in", field: "geo.postal_area.code", values: ["UNKNOWN"] }]);
+
+    expect(() =>
+      applySurveyAnalyticsFilters({
+        schema: geoSchema,
+        rows: geoRows,
+        filters: compileSegmentDefinition(source),
+      }),
+    ).not.toThrow();
+    expect(
+      applySurveyAnalyticsFilters({
+        schema: geoSchema,
+        rows: geoRows,
+        filters: compileSegmentDefinition(source),
+      }),
+    ).toEqual([]);
   });
 });
 
@@ -628,7 +726,7 @@ describe("segment summary, storage and comparison", () => {
 
   it("previews matched, share and outside without running the full analysis", () => {
     const whole = previewSegmentSample({ schema, rows, definition: definition() });
-    expect(whole).toEqual({ matchedN: 3, analysedN: 3, outsideN: 0, share: 1 });
+    expect(whole).toMatchObject({ matchedN: 3, analysedN: 3, outsideN: 0, share: 1 });
     const high = previewSegmentSample({
       schema,
       rows,

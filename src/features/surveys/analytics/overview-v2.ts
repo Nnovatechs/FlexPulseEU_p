@@ -4,6 +4,8 @@ import {
   resolveFlexpulseBehaviouralConcept,
 } from "@/features/ontology/flexpulse-behavioural-schema";
 import { computeLinearQuantile } from "@/features/surveys/analytics/descriptive-stats";
+import { buildPostalMapAnalysis } from "@/features/surveys/analytics/geography/postal-map-analysis";
+import type { PostalMapAnalysis } from "@/features/surveys/analytics/geography/postal-map-types";
 import { getScoreDirectionNote } from "@/features/surveys/analytics/instrument-health-semantics";
 import {
   OVERVIEW_GEOGRAPHY_MIN_N,
@@ -152,6 +154,7 @@ export type SurveyOverviewData = {
         }>;
       }
     | null;
+  postalMap: PostalMapAnalysis | null;
 };
 
 type BuildSurveyOverviewInput = {
@@ -734,5 +737,10 @@ export function buildSurveyOverviewData(input: BuildSurveyOverviewInput): Survey
     constructs,
     insights,
     countryPulse,
+    postalMap: buildPostalMapAnalysis({
+      schema: input.schema,
+      rows: input.rows,
+      eligibleRows: input.rows,
+    }),
   };
 }

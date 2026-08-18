@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { previewSegmentSampleAction, runSegmentExplorerAction } from "@/features/surveys/segment-explorer-actions";
+import {
+  buildPostalMapBaseline,
+  POSTAL_AREA_KEY_FIELD,
+} from "@/features/surveys/analytics/geography/postal-map-baseline";
+import {
+  previewSegmentPostalMapAction,
+  previewSegmentSampleAction,
+  runSegmentExplorerAction,
+} from "@/features/surveys/segment-explorer-actions";
 import {
   MAX_SEGMENT_CONDITIONS,
   addToComparisonTray,
@@ -16,6 +24,7 @@ import {
   getFieldApplicability,
   getFieldBand,
   getFieldEquality,
+  getFieldInValues,
   getFieldRange,
   getMembershipValues,
   isSegmentAnalysisStale,
@@ -28,7 +37,9 @@ import {
   setApplicability,
   setDateRange,
   setEquality,
+  setInValues,
   setNumericRange,
+  toggleInValue,
   toggleMembership,
   toggleSemanticBand,
   writeComparisonTray,
@@ -43,7 +54,9 @@ import {
   type SegmentSamplePreview,
 } from "@/features/surveys/analytics/segments";
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
+import type { PostalMapAnalysis } from "@/features/surveys/analytics/geography/postal-map-types";
 import { InfoTip } from "./info-tip";
+import { PostalAreaMap } from "./postal-area-map";
 import { SegmentAnalysisPanel } from "./segment-analysis-panel";
 
 const FACETS_TIP =
@@ -58,6 +71,7 @@ type SegmentExplorerPanelProps = {
   onDefinitionChange: (definition: SegmentDefinition) => void;
   onOpenComparison: () => void;
   onTrayChange: (tray: ComparisonTrayState) => void;
+  active?: boolean;
 };
 
 type SystemKey = `dimension:${string}` | "assets" | "geography" | "context";
@@ -299,6 +313,7 @@ export function SegmentExplorerPanel({
   onDefinitionChange,
   onOpenComparison,
   onTrayChange,
+  active = true,
 }: SegmentExplorerPanelProps) {
   const [analysedDefinition, setAnalysedDefinition] = useState<SegmentDefinition | null>(null);
   const [analysisResult, setAnalysisResult] = useState<SegmentAnalysisResult | null>(null);
@@ -316,6 +331,8 @@ export function SegmentExplorerPanel({
   const [liveSample, setLiveSample] = useState<SegmentSamplePreview>(() => emptySamplePreview(catalog.analysedN));
   const [liveSampleStatus, setLiveSampleStatus] = useState<"ready" | "updating">("ready");
   const sampleRequestRef = useRef(0);
+  const [postalMapPreview, setPostalMapPreview] = useState<PostalMapAnalysis | null>(null);
+  const postalMapRequestRef = useRef(0);
   const systems = useMemo(() => {
     const items: Array<{ key: SystemKey; label: string; fields: string[] }> = catalog.dimensions.map(
       (dimension) => ({
@@ -359,6 +376,11 @@ export function SegmentExplorerPanel({
   const stale = isSegmentAnalysisStale(definition, analysedDefinition);
   const canAnalyse = canRunSegmentAnalysis(definition, analysedDefinition, analysisStatus);
   const analyseLabel = getAnalyseActionLabel(definition, analysedDefinition, analysisStatus);
+  const postalAreaField = catalog.geography.find((field) => field.field === POSTAL_AREA_KEY_FIELD) ?? null;
+  const postalAreaSelection = getFieldInValues(definition, POSTAL_AREA_KEY_FIELD).map(String);
+  const postalMapBaseline = useMemo(() => buildPostalMapBaseline(definition), [definition]);
+  const postalMapDefinitionRef = useRef(postalMapBaseline.definition);
+  postalMapDefinitionRef.current = postalMapBaseline.definition;
   const axisDescription = selectedDimension?.overall
     ? getConceptDescription(selectedDimension.overall.conceptKey, {
         schemaNamespace: catalog.schemaNamespace,
@@ -405,6 +427,34 @@ export function SegmentExplorerPanel({
       window.clearTimeout(timer);
     };
   }, [definition, surveyId]);
+
+  useEffect(() => {
+    if (!active || !postalAreaField) {
+      return;
+    }
+
+    const requestId = postalMapRequestRef.current + 1;
+    postalMapRequestRef.current = requestId;
+    const timer = window.setTimeout(() => {
+      void previewSegmentPostalMapAction(surveyId, postalMapDefinitionRef.current)
+        .then((next) => {
+          if (postalMapRequestRef.current !== requestId) {
+            return;
+          }
+          setPostalMapPreview(next);
+        })
+        .catch(() => {
+          if (postalMapRequestRef.current !== requestId) {
+            return;
+          }
+          setPostalMapPreview(null);
+        });
+    }, SAMPLE_PREVIEW_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [active, postalAreaField, postalMapBaseline.key, surveyId]);
 
   const displayedSample = isWholeSampleDefinition(definition)
     ? emptySamplePreview(catalog.analysedN)
@@ -738,21 +788,63 @@ export function SegmentExplorerPanel({
 
             {selected?.key === "geography"
               ? catalog.geography.map((field) => (
-                  <FilterRow key={field.field} label={field.label}>
-                    <select
-                      value={String(getFieldEquality(definition, field.field) ?? "")}
-                      onChange={(event) =>
-                        onDefinitionChange(setEquality(definition, field.field, event.target.value || null))
-                      }
+                  field.field === POSTAL_AREA_KEY_FIELD ? (
+                    <FilterRow
+                      key={field.field}
+                      label={field.label}
+                      hint="Select one or more postal areas. The map keeps the current non-geographic filters and treats all selected areas as a single IN condition."
                     >
-                      <option value="">Any</option>
-                      {field.values.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </FilterRow>
+                      {postalAreaSelection.length > 0 ? (
+                        <div className="analytics-v2-seg-toolbar__chips">
+                          {postalAreaSelection.map((areaKey) => {
+                            const area = postalMapPreview?.areas.find((entry) => entry.areaKey === areaKey);
+                            return (
+                              <span key={areaKey} className="analytics-v2-seg-chip is-active">
+                                {area ? `${area.label} (${area.postalPrefix})` : areaKey}
+                              </span>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            className="button button--ghost"
+                            onClick={() => onDefinitionChange(setInValues(definition, POSTAL_AREA_KEY_FIELD, []))}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      ) : null}
+                      <PostalAreaMap
+                        analysis={postalMapPreview}
+                        selectedAreaKeys={postalAreaSelection}
+                        availableAreaKeys={postalMapPreview?.areas.map((area) => area.areaKey) ?? []}
+                        active={active}
+                        onToggleArea={(areaKey, allAreaKeys) =>
+                          onDefinitionChange(
+                            toggleInValue(definition, POSTAL_AREA_KEY_FIELD, areaKey, {
+                              allValues: allAreaKeys,
+                            }),
+                          )
+                        }
+                        baselineNote="The map reflects the current non-geographic segment filters. Postal-area selections are highlighted but excluded from the heatmap baseline."
+                      />
+                    </FilterRow>
+                  ) : (
+                    <FilterRow key={field.field} label={field.label}>
+                      <select
+                        value={String(getFieldEquality(definition, field.field) ?? "")}
+                        onChange={(event) =>
+                          onDefinitionChange(setEquality(definition, field.field, event.target.value || null))
+                        }
+                      >
+                        <option value="">Any</option>
+                        {field.values.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </FilterRow>
+                  )
                 ))
               : null}
 

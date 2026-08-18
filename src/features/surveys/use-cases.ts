@@ -16,6 +16,9 @@ import {
 } from "./survey-analytics";
 import { buildSurveyOverviewData } from "./analytics/overview-v2";
 import { buildInstrumentHealthData } from "./analytics/instrument-health";
+import { buildPostalMapAnalysis } from "./analytics/geography/postal-map-analysis";
+import { buildPostalMapComparison } from "./analytics/geography/postal-map-comparison";
+import type { PostalMapAnalysis } from "./analytics/geography/postal-map-types";
 import {
   buildSegmentAnalysis,
   buildSegmentCatalog,
@@ -470,6 +473,26 @@ export async function runSegmentSamplePreview(surveyId: string, definition: Segm
   });
 }
 
+export async function runSegmentPostalMapPreview(
+  surveyId: string,
+  definition: SegmentDefinition,
+): Promise<PostalMapAnalysis | null> {
+  const context = await loadSurveyAnalyticsContext(surveyId);
+  const validated = validateSegmentDefinition(definition, context.schema, {
+    surveyId: context.survey.id,
+    measurementHash: context.schema.measurement_hash,
+  });
+  if (!validated.ok) {
+    throw new Error(validated.message);
+  }
+
+  return buildPostalMapAnalysis({
+    schema: context.schema,
+    rows: context.rows,
+    definition: validated.definition,
+  });
+}
+
 export async function runSegmentComparison(
   surveyId: string,
   definitionA: SegmentDefinition,
@@ -489,12 +512,27 @@ export async function runSegmentComparison(
     throw new Error(validatedB.message);
   }
 
-  return buildSegmentComparison({
+  const result = buildSegmentComparison({
     schema: context.schema,
     rows: context.rows,
     definitionA: validatedA.definition,
     definitionB: validatedB.definition,
   });
+  return {
+    ...result,
+    postalMap: buildPostalMapComparison(
+      buildPostalMapAnalysis({
+        schema: context.schema,
+        rows: context.rows,
+        definition: validatedA.definition,
+      }),
+      buildPostalMapAnalysis({
+        schema: context.schema,
+        rows: context.rows,
+        definition: validatedB.definition,
+      }),
+    ),
+  };
 }
 
 export async function generateSurveyInstrumentHealthData(surveyId: string) {

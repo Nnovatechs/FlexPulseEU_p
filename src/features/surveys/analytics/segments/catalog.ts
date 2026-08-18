@@ -31,6 +31,7 @@ const EXCLUDED_FIELD_KEYS = new Set([
   "response.audience_token",
   "context.climate.quality_flag",
   "context.location.best_granularity",
+  "geo.postal_area.code",
 ]);
 
 function labelContext(schema: SurveyAnalyticsSchema): SegmentLabelContext {
@@ -137,6 +138,29 @@ function buildChoiceField(
     field: field.key,
     label: getFieldLabel(field.key, context),
     values: values.map((value) => ({ value, label: getChoiceValueLabel(value) })),
+  };
+}
+
+function buildPostalAreaChoiceField(
+  field: SurveyAnalyticsFieldDefinition,
+  rows: SurveyAnalyticsRecord[],
+): SegmentCatalogChoiceField | null {
+  if (field.key !== "geo.postal_area.area_key") {
+    return null;
+  }
+
+  const values = uniqueStrings(rows, field.key);
+  if (values.length === 0) {
+    return null;
+  }
+
+  return {
+    field: field.key,
+    label: "Postal area",
+    values: values.map((value) => ({
+      value,
+      label: value,
+    })),
   };
 }
 
@@ -252,12 +276,14 @@ export function buildSegmentCatalog({
   const geography = [
     schema.fields.find((field) => field.key === "context.country_code"),
     ...schema.supported_geo_levels.map((level) =>
-      schema.fields.find((field) => field.key === `geo.${level}.code`),
+      level === "postal_area"
+        ? schema.fields.find((field) => field.key === "geo.postal_area.area_key")
+        : schema.fields.find((field) => field.key === `geo.${level}.code`),
     ),
     schema.fields.find((field) => field.key === "context.location.best_code"),
   ]
     .filter((field): field is SurveyAnalyticsFieldDefinition => field != null)
-    .map((field) => buildChoiceField(field, rows, context))
+    .map((field) => buildPostalAreaChoiceField(field, rows) ?? buildChoiceField(field, rows, context))
     .filter((field): field is SegmentCatalogChoiceField => field != null);
 
   const contextFields: SegmentCatalogContextField[] = [];

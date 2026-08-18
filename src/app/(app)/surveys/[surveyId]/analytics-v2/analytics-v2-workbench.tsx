@@ -29,6 +29,8 @@ import { InstrumentHealthPanel } from "./instrument-health-panel";
 import { SegmentExplorerPanel } from "./segment-explorer-panel";
 import { ComparisonPanel } from "./comparison-panel";
 
+const POSTAL_AREA_KEY_FIELD = "geo.postal_area.area_key";
+
 type AnalyticsV2WorkbenchProps = {
   surveyId: string;
   surveyTitle: string;
@@ -76,6 +78,13 @@ export function AnalyticsV2Workbench({
       }),
     [catalog.measurementHash, catalog.schemaNamespace, surveyId],
   );
+  const supportedPostalAreaValues = useMemo(
+    () =>
+      new Set(
+        (catalog.geography.find((field) => field.field === POSTAL_AREA_KEY_FIELD)?.values ?? []).map((entry) => entry.value),
+      ),
+    [catalog.geography],
+  );
 
   const resolveParam = useCallback(
     (param: string | null) => {
@@ -93,9 +102,39 @@ export function AnalyticsV2Workbench({
       if (!validated.ok) {
         return { definition: emptyDefinition, notice: validated.message, preloaded: false };
       }
-      return { definition: validated.definition, notice: null, preloaded: !isWholeSampleDefinition(validated.definition) };
+      const nextConditions = validated.definition.conditions.flatMap((condition) => {
+        if (condition.kind !== "in" || condition.field !== POSTAL_AREA_KEY_FIELD) {
+          return [condition];
+        }
+        const values = condition.values.filter(
+          (value): value is string => typeof value === "string" && supportedPostalAreaValues.has(value),
+        );
+        return values.length > 0 ? [{ ...condition, values }] : [];
+      });
+      const sanitized = commitSegmentDefinition({
+        next: { ...validated.definition, conditions: nextConditions },
+        schema,
+      });
+      if (!sanitized.ok) {
+        return { definition: emptyDefinition, notice: sanitized.message, preloaded: false };
+      }
+      const removedUnsupported =
+        validated.definition.conditions
+          .filter((condition) => condition.kind === "in" && condition.field === POSTAL_AREA_KEY_FIELD)
+          .flatMap((condition) => (condition.kind === "in" ? condition.values : [])).length -
+        sanitized.definition.conditions
+          .filter((condition) => condition.kind === "in" && condition.field === POSTAL_AREA_KEY_FIELD)
+          .flatMap((condition) => (condition.kind === "in" ? condition.values : [])).length;
+      return {
+        definition: sanitized.definition,
+        notice:
+          removedUnsupported > 0
+            ? "Some postal areas in the URL are not supported by this survey map and were ignored."
+            : null,
+        preloaded: !isWholeSampleDefinition(sanitized.definition),
+      };
     },
-    [catalog.measurementHash, emptyDefinition, schema, surveyId],
+    [catalog.measurementHash, emptyDefinition, schema, supportedPostalAreaValues, surveyId],
   );
 
   const initial = useMemo(() => resolveParam(initialSegmentParam), [initialSegmentParam, resolveParam]);
@@ -186,7 +225,7 @@ export function AnalyticsV2Workbench({
         hidden={activeTab !== "overview"}
         className={activeTab === "overview" ? undefined : "analytics-v2-tab-panel--inactive"}
       >
-        <OverviewPanel data={overviewData} />
+        <OverviewPanel data={overviewData} active={activeTab === "overview"} />
       </div>
 
       <div
@@ -202,6 +241,7 @@ export function AnalyticsV2Workbench({
           onDefinitionChange={handleDefinitionChange}
           onOpenComparison={() => setActiveTab("comparison")}
           onTrayChange={persistTray}
+          active={activeTab === "segments"}
         />
       </div>
 
@@ -218,6 +258,7 @@ export function AnalyticsV2Workbench({
           storageReady
           onTrayChange={persistTray}
           onOpenInExplorer={handleOpenInExplorer}
+          active={activeTab === "comparison"}
         />
       </div>
 

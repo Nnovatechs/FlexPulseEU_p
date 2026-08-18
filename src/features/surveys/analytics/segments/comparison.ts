@@ -914,6 +914,7 @@ export function buildSegmentComparison(input: {
     profileAxes,
     geography,
     weather,
+    postalMap: null,
     insights: blockedReason
       ? []
       : buildInsights({ sample, scores: scoreDifferences, composition: compositionDifferences }),

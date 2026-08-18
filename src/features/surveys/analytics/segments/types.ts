@@ -24,6 +24,12 @@ export type SegmentEqualityCondition = {
   value: string | number | boolean;
 };
 
+export type SegmentInCondition = {
+  kind: "in";
+  field: string;
+  values: Array<string | number | boolean>;
+};
+
 export type SegmentContainsCondition = {
   kind: "contains";
   field: string;
@@ -53,6 +59,7 @@ export type SegmentCondition =
   | SegmentSemanticBandCondition
   | SegmentNumericRangeCondition
   | SegmentEqualityCondition
+  | SegmentInCondition
   | SegmentContainsCondition
   | SegmentNotContainsCondition
   | SegmentApplicabilityCondition

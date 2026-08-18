@@ -8168,6 +8168,143 @@ body:has(.analytics-shell) {
   font-size: 0.68rem;
 }
 
+.analytics-v2-postal-map {
+  position: relative;
+  display: grid;
+  gap: 0.7rem;
+  width: 100%;
+}
+
+.analytics-v2-postal-map__summary {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--an-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--an-surface-alt) 76%, transparent);
+}
+
+.analytics-v2-postal-map__summary p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--an-muted-strong);
+}
+
+.analytics-v2-postal-map__summary strong {
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-postal-map__countries {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.analytics-v2-postal-map__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  font-size: 0.7rem;
+  color: var(--an-muted-strong);
+}
+
+.analytics-v2-postal-map__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.analytics-v2-postal-map__legend-swatch {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--an-border);
+}
+
+.analytics-v2-postal-map__legend-swatch--a {
+  background: color-mix(in srgb, var(--an-accent, #6ea8fe) 72%, var(--an-surface));
+}
+
+.analytics-v2-postal-map__legend-swatch--b {
+  background: color-mix(in srgb, #b877d9 72%, var(--an-surface));
+}
+
+.analytics-v2-postal-map__country {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.analytics-v2-postal-map__country-head h5 {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-postal-map__svg {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--an-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--an-surface-alt) 66%, transparent);
+}
+
+.analytics-v2-postal-map__area {
+  stroke: color-mix(in srgb, var(--an-border) 80%, transparent);
+  stroke-width: 0.85;
+  cursor: pointer;
+  transition: fill 120ms ease, stroke 120ms ease, opacity 120ms ease, filter 120ms ease;
+}
+
+.analytics-v2-postal-map__svg.has-selection .analytics-v2-postal-map__area:not(.is-selected) {
+  opacity: 0.35;
+}
+
+.analytics-v2-postal-map__area:hover,
+.analytics-v2-postal-map__area:focus-visible {
+  stroke: var(--an-text-strong);
+  stroke-width: 1.2;
+}
+
+.analytics-v2-postal-map__area.is-selected {
+  opacity: 1;
+  stroke: var(--an-text-strong);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--an-accent, #6ea8fe) 40%, transparent));
+}
+
+.analytics-v2-postal-map__area.is-dimmed {
+  opacity: 0.52;
+}
+
+.analytics-v2-postal-map__tooltip {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 0.12rem;
+  max-width: 13.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--an-border) 85%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--an-surface) 82%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 20px color-mix(in srgb, #000 20%, transparent);
+  pointer-events: none;
+}
+
+.analytics-v2-postal-map__tooltip strong,
+.analytics-v2-postal-map__tooltip span {
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.analytics-v2-postal-map__tooltip strong {
+  color: var(--an-text-strong);
+}
+
+.analytics-v2-postal-map__tooltip span {
+  color: var(--an-muted-strong);
+}
+
 .analytics-v2-seg-nested {
   border-top: 1px solid var(--an-border);
   padding: 0.35rem 0 0;
@@ -8966,6 +9103,10 @@ span.analytics-v2-seg-chip {
 
   .analytics-v2-seg-live-sample .analytics-v2-seg-kpis {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .analytics-v2-postal-map__summary {
+    padding: 0.55rem 0.65rem;
   }
 
   .analytics-v2-compare-plot__row {

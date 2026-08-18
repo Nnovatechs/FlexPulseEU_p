@@ -32,6 +32,7 @@ import {
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
 import { CompositionDifferencePlot, PairedScoreDifferencePlot } from "./comparison-plots";
 import { InfoTip } from "./info-tip";
+import { PostalAreaComparisonMap } from "./postal-area-comparison-map";
 
 type ComparisonPanelProps = {
   surveyId: string;
@@ -41,6 +42,7 @@ type ComparisonPanelProps = {
   storageReady: boolean;
   onTrayChange: (tray: ComparisonTrayState) => void;
   onOpenInExplorer: (definition: SegmentDefinition) => void;
+  active?: boolean;
 };
 
 const SCORE_KIND_LABEL: Record<ComparisonScoreKind, string> = {
@@ -309,6 +311,7 @@ export function ComparisonPanel({
   storageReady,
   onTrayChange,
   onOpenInExplorer,
+  active = true,
 }: ComparisonPanelProps) {
   const count = comparisonTrayCount(tray);
   const definitionA = tray.slots[0];
@@ -339,6 +342,8 @@ export function ComparisonPanel({
   const actionLabel = getCompareActionLabel(generateInput);
   const overlapMessage = result ? overlapCopy(result.sample.relation) : null;
   const contextVisibility = result ? getComparisonContextVisibility(result) : null;
+  const labelA = result ? slotTitle(result.definitionA, "A") : "Segment A";
+  const labelB = result ? slotTitle(result.definitionB, "B") : "Segment B";
   const chipsA = useMemo(
     () => (definitionA ? describeReadableConditions(definitionA, schema) : []),
     [definitionA, schema],
@@ -648,6 +653,20 @@ export function ComparisonPanel({
                         render: (row) => formatCliffs(row),
                       },
                     ]}
+                  />
+                </CompareSection>
+              ) : null}
+
+              {result.postalMap && result.postalMap.areas.length > 0 ? (
+                <CompareSection
+                  title="Geographic distribution"
+                  tip="A descriptive comparison of relative geographic composition. Colours show where each segment has a larger share of its mapped responses, normalised by the mapped total of that segment."
+                >
+                  <PostalAreaComparisonMap
+                    comparison={result.postalMap}
+                    active={active}
+                    labelA={labelA}
+                    labelB={labelB}
                   />
                 </CompareSection>
               ) : null}

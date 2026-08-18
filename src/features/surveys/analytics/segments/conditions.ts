@@ -71,6 +71,49 @@ export function setEquality(
   return replaceFieldConditions(definition, field, ["eq"], [{ kind: "eq", field, value }]);
 }
 
+export function setInValues(
+  definition: SegmentDefinition,
+  field: string,
+  values: Array<string | number | boolean>,
+): SegmentDefinition {
+  if (values.length === 0) {
+    return replaceFieldConditions(definition, field, ["in"], []);
+  }
+
+  return replaceFieldConditions(definition, field, ["in"], [{ kind: "in", field, values }]);
+}
+
+export function toggleInValue(
+  definition: SegmentDefinition,
+  field: string,
+  value: string | number | boolean,
+  options?: { allValues?: Array<string | number | boolean> },
+): SegmentDefinition {
+  const existing = definition.conditions.find(
+    (condition) => condition.field === field && condition.kind === "in",
+  );
+  const current = existing?.kind === "in" ? existing.values : [];
+  const hasValue = current.includes(value);
+  const next = hasValue ? current.filter((entry) => entry !== value) : [...current, value];
+
+  if (next.length === 0) {
+    return replaceFieldConditions(definition, field, ["in"], []);
+  }
+
+  const uniqueNext = Array.from(new Set(next));
+  const allValues = options?.allValues;
+  if (
+    allValues &&
+    allValues.length > 0 &&
+    uniqueNext.length === Array.from(new Set(allValues)).length &&
+    uniqueNext.every((entry) => allValues.includes(entry))
+  ) {
+    return replaceFieldConditions(definition, field, ["in"], []);
+  }
+
+  return replaceFieldConditions(definition, field, ["in"], [{ kind: "in", field, values: uniqueNext }]);
+}
+
 export function toggleMembership(
   definition: SegmentDefinition,
   field: string,
@@ -174,6 +217,11 @@ export function getFieldRange(definition: SegmentDefinition, field: string) {
 export function getFieldEquality(definition: SegmentDefinition, field: string) {
   const condition = definition.conditions.find((entry) => entry.field === field && entry.kind === "eq");
   return condition?.kind === "eq" ? condition.value : null;
+}
+
+export function getFieldInValues(definition: SegmentDefinition, field: string) {
+  const condition = definition.conditions.find((entry) => entry.field === field && entry.kind === "in");
+  return condition?.kind === "in" ? condition.values : [];
 }
 
 export function getMembershipValues(

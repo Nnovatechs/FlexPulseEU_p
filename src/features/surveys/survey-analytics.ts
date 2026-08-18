@@ -4,6 +4,7 @@ import type {
   MeasurementPlanEntry,
   PersistedSurvey,
 } from "./generator-types";
+import { normalizePostalAreaKey } from "./analytics/geography/postal-area-key";
 import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 
@@ -533,6 +534,16 @@ function buildStaticFieldDefinitions(survey: PersistedSurvey) {
         }),
       );
     }
+
+    fields.push(
+      buildFieldDefinition({
+        key: "geo.postal_area.area_key",
+        label: "Postal area key",
+        description: "Canonical postal area key shared by analytics and postal map geometry artifacts.",
+        source: "geo",
+        valueType: "string",
+      }),
+    );
   }
 
   if (supportsWeather) {
@@ -656,6 +667,17 @@ export function getSurveyAnalyticsFieldValue(
     case "context.climate.quality_flag":
       return record.mapper_output.context_metadata.climate?.quality_flag ?? null;
     default: {
+      if (field === "geo.postal_area.area_key") {
+        const rawPostalArea =
+          getGeoLevel(record.location_levels, "postal_area")?.code ??
+          record.mapper_output.context_metadata.location?.agg_code ??
+          null;
+        const normalized = normalizePostalAreaKey({
+          countryCode: record.mapper_output.context_metadata.country_code ?? null,
+          rawCode: rawPostalArea,
+        });
+        return normalized.areaKey;
+      }
       const geoMatch = /^geo\.(country|region|city|district|neighbourhood|place|postal_area)\.(code|label)$/.exec(
         field,
       );

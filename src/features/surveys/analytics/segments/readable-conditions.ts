@@ -40,6 +40,14 @@ export function describeSegmentCondition(condition: SegmentCondition, context: S
       return { label, detail: `Range ${condition.min}–${condition.max}` };
     case "eq":
       return { label, detail: `Equals ${conditionValueLabel(condition, context)}` };
+    case "in": {
+      const visible = condition.values.slice(0, 3).map((value) =>
+        conditionValueLabel({ kind: "eq", field: condition.field, value }, context),
+      );
+      const suffix =
+        condition.values.length > visible.length ? ` +${condition.values.length - visible.length} more` : "";
+      return { label, detail: `Includes ${visible.join(", ")}${suffix}` };
+    }
     case "contains":
       return { label, detail: `Has ${conditionValueLabel(condition, context)}` };
     case "not_contains":

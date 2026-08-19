@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import {
+  DERIVED_PROCESSING_COPY,
+  EXTERNAL_PANEL_TOKENIZATION_COPY,
+  INTERNATIONAL_TRANSFERS_COPY,
+  SUPERVISORY_AUTHORITY_COPY,
+} from "@/features/privacy/notice-copy";
 import { getCurrentOwnerLegalProfile } from "@/features/privacy/repository";
 import {
   buildSurveyLegalSnapshot,
@@ -115,6 +121,7 @@ export default async function PrivacySettingsPreviewPage() {
               Some surveys may request country and postal-code context for
               aggregated regional analysis.
             </p>
+            <p>{EXTERNAL_PANEL_TOKENIZATION_COPY}</p>
           </section>
 
           <section>
@@ -125,6 +132,7 @@ export default async function PrivacySettingsPreviewPage() {
               controller. Individual answers are not used for unrelated
               advertising, cross-customer benchmarking, or product training.
             </p>
+            <p>{DERIVED_PROCESSING_COPY}</p>
           </section>
 
           <section>
@@ -145,6 +153,7 @@ export default async function PrivacySettingsPreviewPage() {
               providers may process the minimum information required to operate
               the survey.
             </p>
+            <p>{INTERNATIONAL_TRANSFERS_COPY}</p>
             <p>
               Read the{" "}
               <Link href={snapshot.platform.privacyUrl}>
@@ -162,6 +171,7 @@ export default async function PrivacySettingsPreviewPage() {
               access, deletion, restriction, objection, or withdrawal by
               contacting the controller.
             </p>
+            <p>{SUPERVISORY_AUTHORITY_COPY}</p>
             <p>
               After identifying context has been removed, the controller may no
               longer be able to identify an individual response without

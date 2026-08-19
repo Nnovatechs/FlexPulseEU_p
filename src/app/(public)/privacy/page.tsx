@@ -1,4 +1,9 @@
 import Link from "next/link";
+import {
+  DERIVED_PROCESSING_COPY,
+  INTERNATIONAL_TRANSFERS_COPY,
+  SUPERVISORY_AUTHORITY_COPY,
+} from "@/features/privacy/notice-copy";
 import { getLegalConfig } from "@/lib/config/legal";
 import { getRawLocationRetentionLabel } from "@/lib/config/response-retention";
 
@@ -77,6 +82,11 @@ export default function PrivacyPage() {
             The platform does not ask public respondents for names, email
             addresses, account identifiers, or signatures.
           </p>
+          <p>
+            Authenticated workspace accounts use email, session data, and workspace
+            configuration to provide and protect the service. Account closure may
+            be requested through the privacy contact shown on this page.
+          </p>
         </section>
 
         <section>
@@ -86,6 +96,7 @@ export default function PrivacyPage() {
             produce aggregated research or analytics for the controller. Published
             analytics should not identify individual respondents.
           </p>
+          <p>{DERIVED_PROCESSING_COPY}</p>
           <p>
             Regional context may be normalized or enriched with external context
             such as approximate weather/location information. Raw country and
@@ -121,6 +132,7 @@ export default function PrivacyPage() {
             enrich regional context. These services are used only for operating
             the survey workflow and related analysis.
           </p>
+          <p>{INTERNATIONAL_TRANSFERS_COPY}</p>
         </section>
 
         <section>
@@ -143,6 +155,7 @@ export default function PrivacyPage() {
             response, you may request access, deletion, restriction, objection, or
             withdrawal of consent through the controller contact.
           </p>
+          <p>{SUPERVISORY_AUTHORITY_COPY}</p>
         </section>
 
         <section>

@@ -391,8 +391,22 @@ export async function getSurveyAnalyticsSchema(surveyId: string) {
   return schema;
 }
 
+export async function getSurveyAnalyticsSchemaForOwner(surveyId: string, ownerUserId: string) {
+  const { schema } = await loadSurveyAnalyticsContextForOwner(surveyId, ownerUserId);
+  return schema;
+}
+
 export async function runSurveyAnalytics(surveyId: string, query: SurveyAnalyticsQueryInput) {
   const context = await loadSurveyAnalyticsContext(surveyId);
+  return runSurveyAnalyticsFromContext(context, query);
+}
+
+export async function runSurveyAnalyticsForOwner(
+  surveyId: string,
+  ownerUserId: string,
+  query: SurveyAnalyticsQueryInput,
+) {
+  const context = await loadSurveyAnalyticsContextForOwner(surveyId, ownerUserId);
   return runSurveyAnalyticsFromContext(context, query);
 }
 
@@ -543,7 +557,11 @@ export async function generateSurveyInstrumentHealthData(surveyId: string) {
 
 async function loadSurveyAnalyticsContext(surveyId: string) {
   const session = await requireCurrentSession();
-  const runtime = await loadCachedSurveyAnalyticsRuntime(surveyId, session.user.id);
+  return loadSurveyAnalyticsContextForOwner(surveyId, session.user.id);
+}
+
+async function loadSurveyAnalyticsContextForOwner(surveyId: string, ownerUserId: string) {
+  const runtime = await loadCachedSurveyAnalyticsRuntime(surveyId, ownerUserId);
   const schema = buildSurveyAnalyticsSchema({
     survey: runtime.survey,
     readyResponseCount: runtime.rows.length,

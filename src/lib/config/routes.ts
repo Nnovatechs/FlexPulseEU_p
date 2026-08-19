@@ -7,6 +7,7 @@ export const appRoutes = {
   privacySettings: "/account/privacy",
   privacySettingsPreview: "/account/privacy/preview",
   dpa: "/account/privacy/dpa",
+  accountApi: "/account/api",
   privacy: "/privacy",
   cookies: "/cookies",
   dashboard: "/dashboard",
@@ -21,4 +22,5 @@ export const appRoutes = {
   surveyAnalytics: (surveyId: string) => `/surveys/${surveyId}/analytics`,
   surveyAnalyticsV2: (surveyId: string) => `/surveys/${surveyId}/analytics-v2`,
   instrumentHealthMethodology: "/docs/instrument-health",
+  interoperabilityApiDocs: "/docs/api",
 } as const;

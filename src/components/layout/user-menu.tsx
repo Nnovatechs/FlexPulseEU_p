@@ -40,6 +40,9 @@ export function UserMenu({ userName, userEmail }: UserMenuProps) {
       </summary>
 
       <div className="user-menu__popover">
+        <Link href={appRoutes.accountApi} className="user-menu__item">
+          API Access
+        </Link>
         <Link href={appRoutes.privacySettings} className="user-menu__item">
           Privacy Settings
         </Link>

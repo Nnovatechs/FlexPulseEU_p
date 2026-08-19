@@ -199,6 +199,7 @@ function buildLocationLevels(input: {
 function buildRecord(input: {
   responseId: string;
   audienceToken: string;
+  audienceLabel?: string;
   mapperOutput: MapperOutput;
   locationLevels: NormalizedLocationLevel[];
 }): SurveyAnalyticsRecord {
@@ -206,7 +207,7 @@ function buildRecord(input: {
     response_id: input.responseId,
     responded_at: "2026-04-06T10:00:00.000Z",
     audience_token: input.audienceToken,
-    audience_label: input.audienceToken,
+    audience_label: input.audienceLabel ?? input.audienceToken,
     mapper_output: input.mapperOutput,
     location_levels: input.locationLevels,
   };
@@ -300,6 +301,89 @@ describe("survey analytics", () => {
         }),
       ]),
     );
+  });
+
+  it("supports grouping analytics by audience label without changing the engine", () => {
+    const survey = buildSurveyFixture();
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 2 });
+    const rows = [
+      buildRecord({
+        responseId: "r1",
+        audienceToken: "aud_a",
+        audienceLabel: "Pilot cohort A",
+        mapperOutput: buildMapperOutput({
+          trust: 4,
+          trustTag: "high",
+          assets: ["ev"],
+          countryCode: "ES",
+          surveyLanguage: "English",
+          tempOutdoorC: 21,
+          humidityPct: 45,
+          aggCode: "28",
+          aggLabel: "Madrid",
+          granularity: "postal_area",
+        }),
+        locationLevels: buildLocationLevels({
+          countryCode: "ES",
+          regionCode: "ES-MD",
+          regionLabel: "Madrid",
+          cityCode: "MAD",
+          cityLabel: "Madrid",
+        }),
+      }),
+      buildRecord({
+        responseId: "r2",
+        audienceToken: "aud_b",
+        audienceLabel: "Pilot cohort B",
+        mapperOutput: buildMapperOutput({
+          trust: 3,
+          trustTag: "medium",
+          assets: ["battery"],
+          countryCode: "ES",
+          surveyLanguage: "English",
+          tempOutdoorC: 20,
+          humidityPct: 40,
+          aggCode: "08",
+          aggLabel: "Barcelona",
+          granularity: "postal_area",
+        }),
+        locationLevels: buildLocationLevels({
+          countryCode: "ES",
+          regionCode: "ES-CT",
+          regionLabel: "Catalonia",
+          cityCode: "BCN",
+          cityLabel: "Barcelona",
+        }),
+      }),
+    ];
+
+    const result = runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query: {
+        filters: [
+          {
+            field: "response.audience_label",
+            op: "eq",
+            value: "Pilot cohort A",
+          },
+        ],
+        group_by: ["response.audience_label"],
+        metrics: [{ key: "respondents", kind: "count" }],
+      },
+    });
+
+    expect(result.groups).toEqual([
+      expect.objectContaining({
+        group: { "response.audience_label": "Pilot cohort A" },
+        metrics: {
+          respondents: expect.objectContaining({
+            kind: "count",
+            value: 1,
+          }),
+        },
+      }),
+    ]);
   });
 
   it("discovers repaired thermal facet paths from the measurement plan", () => {

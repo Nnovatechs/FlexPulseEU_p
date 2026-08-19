@@ -48,6 +48,16 @@ function createSurveyLinkFixture(): PersistedSurveyLink {
   };
 }
 
+function createAdditionalSurveyLinkFixture(): PersistedSurveyLink {
+  return {
+    ...createSurveyLinkFixture(),
+    id: "link-2",
+    link_token: "audience-token",
+    audience_label: "Pilot cohort A",
+    audience_token: "aud_1",
+  };
+}
+
 function createLegalConsentFixture() {
   return {
     accepted: true as const,
@@ -170,6 +180,35 @@ describe("survey response repository", () => {
         p_external_submission_token: "submission-token",
         p_external_token_version: "v1",
         p_external_notice_version: "external-recruitment-v1",
+      }),
+    );
+  });
+
+  it("preserves the submitted survey_link_id for additional audience links", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: "response-2",
+      error: null,
+    });
+    createSupabaseAdminClient.mockReturnValue({ rpc });
+
+    const { createSurveyResponseAndEnqueueJob } = await import(
+      "@/features/surveys/response-repository"
+    );
+
+    await createSurveyResponseAndEnqueueJob({
+      survey: createSurveyFixture(),
+      surveyLink: createAdditionalSurveyLinkFixture(),
+      submittedLanguage: "English",
+      answers: { Q1: "yes" },
+      countryCodeRaw: null,
+      postalCodeRaw: null,
+      legalConsent: createLegalConsentFixture(),
+    });
+
+    expect(rpc).toHaveBeenCalledWith(
+      "create_survey_response_with_job",
+      expect.objectContaining({
+        p_survey_link_id: "link-2",
       }),
     );
   });

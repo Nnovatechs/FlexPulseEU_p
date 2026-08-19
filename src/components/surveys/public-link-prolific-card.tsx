@@ -79,7 +79,7 @@ export function PublicLinkProlificCard({
 
   return (
     <article className="surface-card">
-      <h2>Public link</h2>
+      <h2>Public default link</h2>
       <div className="stack-list">
         <div className="analytics-row">
           <strong>URL</strong>

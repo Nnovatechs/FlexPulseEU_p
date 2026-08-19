@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { requireCurrentSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -123,6 +124,18 @@ function mapSurveyLinkRow(row: SurveyLinkRow): PersistedSurveyLink {
 function buildDuplicateSurveyName(name: string) {
   const trimmed = name.trim();
   return trimmed ? `${trimmed} (copy)` : "Survey copy";
+}
+
+function normalizeAudienceLabel(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function audienceLabelKey(value: string) {
+  return normalizeAudienceLabel(value).toLocaleLowerCase();
+}
+
+function generateAudienceToken() {
+  return `aud_${randomBytes(12).toString("hex")}`;
 }
 
 async function getOwnedSurveyRowOrThrow(surveyId: string): Promise<SurveyRow> {
@@ -437,4 +450,107 @@ export async function getOwnedDefaultSurveyLink(
     links.find((link) => link.audience_token === "default") ?? links[0] ?? null;
 
   return defaultLink;
+}
+
+async function generateOwnedSurveyLinkToken(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+) {
+  const { data, error } = await supabase.rpc("generate_unique_survey_link_token");
+  if (error || typeof data !== "string" || !data.trim()) {
+    throw new Error("Failed to generate survey link token.");
+  }
+  return data;
+}
+
+export async function createOwnedSurveyAudienceLink(input: {
+  surveyId: string;
+  audienceLabel: string;
+}): Promise<PersistedSurveyLink> {
+  const existing = await getOwnedSurveyById(input.surveyId);
+  if (existing.status !== "published") {
+    throw new Error("Audience links can only be created for published surveys.");
+  }
+
+  const audienceLabel = normalizeAudienceLabel(input.audienceLabel);
+  if (!audienceLabel) {
+    throw new Error("Audience label is required.");
+  }
+  if (audienceLabel.length > 80) {
+    throw new Error("Audience label must be 80 characters or fewer.");
+  }
+
+  const existingLinks = await listOwnedSurveyLinks(existing.id);
+  const duplicate = existingLinks.some(
+    (link) => audienceLabelKey(link.audience_label) === audienceLabelKey(audienceLabel),
+  );
+  if (duplicate) {
+    throw new Error("Audience label already exists for this survey.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const linkToken = await generateOwnedSurveyLinkToken(supabase);
+    const audienceToken = generateAudienceToken();
+    const { data, error } = await supabase
+      .from("survey_links")
+      .insert({
+        survey_id: existing.id,
+        link_token: linkToken,
+        audience_label: audienceLabel,
+        audience_token: audienceToken,
+        is_active: true,
+      })
+      .select("*")
+      .single();
+
+    if (!error) {
+      return mapSurveyLinkRow(data as SurveyLinkRow);
+    }
+
+    if (error.code === "23505") {
+      continue;
+    }
+
+    throw new Error("Failed to create audience link.");
+  }
+
+  throw new Error("Could not allocate a unique audience link. Please try again.");
+}
+
+export async function setOwnedSurveyAudienceLinkActive(input: {
+  surveyId: string;
+  surveyLinkId: string;
+  isActive: boolean;
+}): Promise<PersistedSurveyLink> {
+  const survey = await getOwnedSurveyById(input.surveyId);
+  if (survey.status === "archived") {
+    throw new Error("Archived surveys are read-only.");
+  }
+  if (survey.status !== "published") {
+    throw new Error("Audience links can only be managed for published surveys.");
+  }
+
+  const links = await listOwnedSurveyLinks(survey.id);
+  const link = links.find((entry) => entry.id === input.surveyLinkId);
+  if (!link) {
+    throw new Error("Audience link not found.");
+  }
+  if (link.audience_token === "default" && !input.isActive) {
+    throw new Error("The default audience link cannot be deactivated.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("survey_links")
+    .update({ is_active: input.isActive })
+    .eq("id", link.id)
+    .eq("survey_id", survey.id)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error("Failed to update audience link state.");
+  }
+
+  return mapSurveyLinkRow(data as SurveyLinkRow);
 }

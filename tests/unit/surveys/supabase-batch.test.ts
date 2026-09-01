@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { chunkIds, selectAllPages, selectByIds } from "@/features/surveys/supabase-batch";
+import {
+  chunkIds,
+  formatPostgrestError,
+  isCancelledPostgrestError,
+  readExactCount,
+  selectAllPages,
+  selectByIds,
+} from "@/features/surveys/supabase-batch";
 
 describe("supabase batch helpers", () => {
   it("chunks identifiers into bounded IN filters", () => {
@@ -42,5 +49,27 @@ describe("supabase batch helpers", () => {
     expect(loadPage).toHaveBeenCalledWith(0, 999);
     expect(loadPage).toHaveBeenCalledWith(1000, 1999);
     expect(rows).toHaveLength(1001);
+  });
+
+  it("prefers a numeric count even when PostgREST also returns an empty error", () => {
+    expect(
+      readExactCount(12, { message: "" }, "Failed to count survey responses"),
+    ).toBe(12);
+  });
+
+  it("treats empty or aborted count errors as cancellation instead of an app failure", () => {
+    expect(isCancelledPostgrestError({ message: "" })).toBe(true);
+    expect(isCancelledPostgrestError({ message: "The user aborted a request" })).toBe(true);
+    expect(formatPostgrestError({ message: "JWT expired", code: "PGRST301" })).toBe(
+      "JWT expired — PGRST301",
+    );
+
+    expect(() =>
+      readExactCount(null, { message: "" }, "Failed to count survey responses"),
+    ).toThrowError(expect.objectContaining({ name: "AbortError" }));
+
+    expect(() =>
+      readExactCount(null, { message: "JWT expired", code: "PGRST301" }, "Failed to count survey responses"),
+    ).toThrow("Failed to count survey responses: JWT expired — PGRST301");
   });
 });

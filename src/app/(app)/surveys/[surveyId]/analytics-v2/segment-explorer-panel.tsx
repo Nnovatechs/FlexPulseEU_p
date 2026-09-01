@@ -389,6 +389,7 @@ export function SegmentExplorerPanel({
   const [previewedDefinitionKey, setPreviewedDefinitionKey] = useState<string | null>(() =>
     isWholeSampleDefinition(definition) ? encodeSegmentDefinition(definition) : null,
   );
+  const [samplePreviewFailed, setSamplePreviewFailed] = useState(false);
   const sampleRequestRef = useRef(0);
   const [postalMapPreview, setPostalMapPreview] = useState<PostalMapAnalysis | null>(null);
   const postalMapRequestRef = useRef(0);
@@ -464,12 +465,14 @@ export function SegmentExplorerPanel({
     const requestId = sampleRequestRef.current + 1;
     sampleRequestRef.current = requestId;
     const requestedKey = encodeSegmentDefinition(definition);
+    setSamplePreviewFailed(false);
     const timer = window.setTimeout(() => {
       void previewSegmentSampleAction(surveyId, definition)
         .then((next) => {
           if (sampleRequestRef.current !== requestId) {
             return;
           }
+          setSamplePreviewFailed(false);
           setLiveSample(next);
           setPreviewedDefinitionKey(requestedKey);
         })
@@ -477,7 +480,7 @@ export function SegmentExplorerPanel({
           if (sampleRequestRef.current !== requestId) {
             return;
           }
-          setPreviewedDefinitionKey(requestedKey);
+          setSamplePreviewFailed(true);
         });
     }, SAMPLE_PREVIEW_DELAY_MS);
 
@@ -530,7 +533,11 @@ export function SegmentExplorerPanel({
     ? emptySamplePreview(catalog.analysedN)
     : liveSample;
   const displayedSampleStatus =
-    isWholeSampleDefinition(definition) || previewedDefinitionKey === definitionKey ? "ready" : "updating";
+    isWholeSampleDefinition(definition) || previewedDefinitionKey === definitionKey
+      ? "ready"
+      : samplePreviewFailed
+        ? "error"
+        : "updating";
 
   const handleAnalyse = () => {
     const requestId = analysisRequestRef.current + 1;
@@ -1062,7 +1069,9 @@ export function SegmentExplorerPanel({
               <small>
                 {displayedSampleStatus === "updating"
                   ? "Updating from the current filters."
-                  : "Live from the current filters, before the full analysis."}
+                  : displayedSampleStatus === "error"
+                    ? "Could not update the live sample. The counts above are from the previous filters."
+                    : "Live from the current filters, before the full analysis."}
               </small>
               <button
                 type="button"

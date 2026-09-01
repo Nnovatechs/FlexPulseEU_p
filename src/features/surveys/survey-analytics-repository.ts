@@ -4,7 +4,7 @@ import { getOwnedSurveyById } from "./generator-repository";
 import type { PersistedSurvey } from "./generator-types";
 import type { MapperOutput } from "./generator-types";
 import type { NormalizedLocationLevel } from "./response-enrichment";
-import { selectAllPages, selectByIds } from "./supabase-batch";
+import { readExactCount, selectAllPages, selectByIds } from "./supabase-batch";
 import type { SurveyAnalyticsRecord } from "./survey-analytics";
 
 type SurveyResponseRow = {
@@ -147,13 +147,15 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
   ] = await Promise.all([
     supabase
       .from("survey_responses")
-      .select("id", { count: "exact", head: true })
+      .select("id", { count: "exact" })
       .eq("survey_id", survey.id)
-      .eq("pipeline_status", "ready"),
+      .eq("pipeline_status", "ready")
+      .limit(1),
     supabase
       .from("survey_responses")
-      .select("id", { count: "exact", head: true })
-      .eq("survey_id", survey.id),
+      .select("id", { count: "exact" })
+      .eq("survey_id", survey.id)
+      .limit(1),
     supabase
       .from("survey_responses")
       .select("responded_at")
@@ -168,13 +170,16 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
       .limit(1),
   ]);
 
-  if (readyCountError) {
-    throw new Error(`Failed to count survey analytics responses: ${readyCountError.message}`);
-  }
-
-  if (collectedCountError) {
-    throw new Error(`Failed to count collected survey responses: ${collectedCountError.message}`);
-  }
+  const totalReadyCount = readExactCount(
+    readyPipelineCount,
+    readyCountError,
+    "Failed to count survey analytics responses",
+  );
+  const totalCollectedCount = readExactCount(
+    collectedResponseCount,
+    collectedCountError,
+    "Failed to count collected survey responses",
+  );
 
   if (firstCollectedError) {
     throw new Error(`Failed to load first collected response timestamp: ${firstCollectedError.message}`);
@@ -183,9 +188,6 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
   if (lastCollectedError) {
     throw new Error(`Failed to load last collected response timestamp: ${lastCollectedError.message}`);
   }
-
-  const totalReadyCount = readyPipelineCount ?? 0;
-  const totalCollectedCount = collectedResponseCount ?? 0;
   const collectedResponseWindow = {
     firstRespondedAt: firstCollectedRaw?.[0]?.responded_at ?? null,
     lastRespondedAt: lastCollectedRaw?.[0]?.responded_at ?? null,

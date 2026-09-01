@@ -887,10 +887,14 @@ function buildInsights(input: {
     ? input.scores.find((item) => item.cliffsDelta != null && Math.abs(item.cliffsDelta) >= 0.15)
     : null;
   if (topScore && hasSemanticComparisonN(topScore.segment.applicableN, topScore.outside.applicableN)) {
-    const direction = (topScore.medianDelta ?? 0) >= 0 ? "higher" : "lower";
+    const stats = `(Δ median ${topScore.medianDelta.toFixed(2)}, δ=${topScore.cliffsDelta?.toFixed(2)}, n=${topScore.segment.applicableN}/${topScore.outside.applicableN})`;
+    const observedPattern =
+      topScore.medianDelta === 0
+        ? `${topScore.label} distributions differ from outside this segment although the medians are the same ${stats}.`
+        : `${topScore.label} is ${(topScore.medianDelta ?? 0) >= 0 ? "higher" : "lower"} in this segment than outside it ${stats}.`;
     insights.push({
       kind: "score_difference",
-      observedPattern: `${topScore.label} is ${direction} in this segment than outside it (Δ median ${topScore.medianDelta.toFixed(2)}, δ=${topScore.cliffsDelta?.toFixed(2)}, n=${topScore.segment.applicableN}/${topScore.outside.applicableN}).`,
+      observedPattern,
       potentialReading: `${topScore.label} is associated with this segment, but the difference is descriptive and may reflect other shared conditions.`,
       worthExamining: INDEPENDENT_CHECK,
       conceptKeys: [topScore.conceptKey],

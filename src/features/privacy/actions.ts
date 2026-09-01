@@ -77,11 +77,16 @@ export async function saveDpaSigningDetailsAction(formData: FormData) {
     return redirect(`${appRoutes.privacySettings}?error=participant-profile-required`);
   }
 
-  await saveCurrentOwnerDpaSigningDetails({
-    controllerAddress,
-    representativeName,
-    representativeTitle,
-  });
+  try {
+    await saveCurrentOwnerDpaSigningDetails({
+      controllerAddress,
+      representativeName,
+      representativeTitle,
+    });
+  } catch (error) {
+    console.error("DPA signing details save failed:", error);
+    return redirect(`${appRoutes.privacySettings}?error=dpa-save-failed`);
+  }
 
   revalidatePath(appRoutes.privacySettings);
   revalidatePath(appRoutes.dpa);

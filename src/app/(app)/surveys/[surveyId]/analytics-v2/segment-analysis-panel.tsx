@@ -54,7 +54,7 @@ const ASSETS_TIP =
 const VARIATION_TIP =
   "Where respondents inside the selected segment still differ from one another. Highest score dispersion orders by normalised IQR on the 1–5 scale. Most mixed semantic bands orders by band entropy (0 = one band, 1 = even mix).";
 const GEO_TIP =
-  "Penetration is segment respondents in the area divided by all analysed respondents in that area. Areas with fewer than five analysed responses are omitted. Exact counts of 1–4 in the area, or in its complement, are suppressed.";
+  "Country shares only. Penetration is segment respondents in that country divided by all analysed respondents in that country. Countries with fewer than five analysed responses are omitted. Exact counts of 1–4, or in the complement, are suppressed. Postal areas are selected on the map, not listed here.";
 const WEATHER_TIP =
   "Weather values describe approximate outdoor conditions around the response time. They do not represent indoor temperature or establish a causal effect on responses.";
 const INSIGHTS_TIP =

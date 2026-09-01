@@ -641,7 +641,10 @@ describe("segment catalog", () => {
     });
 
     expect(withValues.context.some((field) => field.field === "context.climate.temp_outdoor_c")).toBe(true);
-    expect(withValues.geography.length).toBeGreaterThan(0);
+    expect(withValues.geography.map((field) => field.field)).toEqual([
+      "context.country_code",
+      "geo.postal_area.area_key",
+    ]);
     expect(emptyOptional.context.some((field) => field.field.includes("climate"))).toBe(false);
     expect(emptyOptional.geography).toEqual([]);
   });
@@ -1286,7 +1289,9 @@ describe("segment analysis context", () => {
     expect(countries[0]?.analysedCount).toBe(5);
     expect(countries[0]?.penetration).toBe(1);
     expect(result.geography.map((row) => row.value)).not.toContain("FR");
+    expect(result.geography.every((row) => row.field === "context.country_code")).toBe(true);
     expect(result.geography.every((row) => row.analysedCount >= SEGMENT_CELL_MIN_N)).toBe(true);
+    expect(result.geography.some((row) => row.field.includes("postal"))).toBe(false);
   });
 
   it("exposes valid weather context and Spearman pairs when the sample is large enough", () => {

@@ -233,6 +233,16 @@ function collectCategoryValues(
   return { counts, applicableN };
 }
 
+function isLocationField(field: SurveyAnalyticsFieldDefinition) {
+  if (field.source === "geo" || field.key.startsWith("geo.")) {
+    return true;
+  }
+  if (field.key.startsWith("context.location.") || field.key.includes("postal")) {
+    return true;
+  }
+  return field.key === "context.country_code";
+}
+
 function buildCategoryDifferentiators(
   schema: SurveyAnalyticsSchema,
   selected: SurveyAnalyticsRecord[],
@@ -242,7 +252,7 @@ function buildCategoryDifferentiators(
 ): SegmentCategoryDifferentiator[] {
   const defining = definingFieldKeys(definition);
   const fields = schema.fields.filter((field) => {
-    if (EXCLUDED_CATEGORY_FIELDS.has(field.key) || defining.has(field.key) || field.facet) {
+    if (EXCLUDED_CATEGORY_FIELDS.has(field.key) || defining.has(field.key) || field.facet || isLocationField(field)) {
       return false;
     }
     if (field.source === "profile") {
@@ -638,23 +648,8 @@ function buildInternalVariation(
 }
 
 function geographyFields(schema: SurveyAnalyticsSchema) {
-  const keys = [
-    "context.country_code",
-    ...schema.supported_geo_levels.map((level) => `geo.${level}.code`),
-    "context.location.best_code",
-  ];
-  const seen = new Set<string>();
-  return keys.flatMap((key) => {
-    if (seen.has(key)) {
-      return [];
-    }
-    const field = schema.fields.find((candidate) => candidate.key === key);
-    if (!field) {
-      return [];
-    }
-    seen.add(key);
-    return [field];
-  });
+  const field = schema.fields.find((candidate) => candidate.key === "context.country_code");
+  return field ? [field] : [];
 }
 
 function buildGeography(

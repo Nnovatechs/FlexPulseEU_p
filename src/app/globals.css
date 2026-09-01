@@ -8015,8 +8015,28 @@ body:has(.analytics-shell) {
   padding: 0.5rem 0.55rem 0.55rem;
 }
 
+.analytics-v2-seg-live-sample .analytics-v2-kpi > strong,
+.analytics-v2-seg-kpi-spinner {
+  min-height: 1.25rem;
+}
+
 .analytics-v2-seg-live-sample .analytics-v2-kpi > strong {
   font-size: 1.05rem;
+}
+
+.analytics-v2-seg-kpi-spinner {
+  display: inline-block;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0.15rem 0;
+  border-radius: 999px;
+  border: 2px solid var(--an-border-mid);
+  border-top-color: var(--an-accent);
+  animation: analytics-v2-health-spin 0.8s linear infinite;
+}
+
+.analytics-v2-seg-live-sample .analytics-v2-kpi.is-updating > small {
+  visibility: hidden;
 }
 
 .analytics-v2-seg-live-sample .analytics-v2-kpi > small {

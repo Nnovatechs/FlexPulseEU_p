@@ -117,6 +117,30 @@ function emptySamplePreview(analysedN: number): SegmentSamplePreview {
   };
 }
 
+function LiveSampleKpi({
+  label,
+  value,
+  hint,
+  updating,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  updating: boolean;
+}) {
+  return (
+    <article className={`analytics-v2-kpi${updating ? " is-updating" : ""}`}>
+      <span>{label}</span>
+      {updating ? (
+        <span className="analytics-v2-seg-kpi-spinner" aria-hidden="true" />
+      ) : (
+        <strong>{value}</strong>
+      )}
+      <small>{hint}</small>
+    </article>
+  );
+}
+
 function DebouncedRangeInputs({
   min,
   max,
@@ -329,7 +353,9 @@ export function SegmentExplorerPanel({
   const [localNotice, setLocalNotice] = useState<string | null>(null);
   const [openNested, setOpenNested] = useState<Record<string, boolean>>({});
   const [liveSample, setLiveSample] = useState<SegmentSamplePreview>(() => emptySamplePreview(catalog.analysedN));
-  const [liveSampleStatus, setLiveSampleStatus] = useState<"ready" | "updating">("ready");
+  const [liveSampleStatus, setLiveSampleStatus] = useState<"ready" | "updating">(() =>
+    isWholeSampleDefinition(definition) ? "ready" : "updating",
+  );
   const sampleRequestRef = useRef(0);
   const [postalMapPreview, setPostalMapPreview] = useState<PostalMapAnalysis | null>(null);
   const postalMapRequestRef = useRef(0);
@@ -404,8 +430,8 @@ export function SegmentExplorerPanel({
 
     const requestId = sampleRequestRef.current + 1;
     sampleRequestRef.current = requestId;
+    setLiveSampleStatus("updating");
     const timer = window.setTimeout(() => {
-      setLiveSampleStatus("updating");
       void previewSegmentSampleAction(surveyId, definition)
         .then((next) => {
           if (sampleRequestRef.current !== requestId) {
@@ -945,23 +971,30 @@ export function SegmentExplorerPanel({
           </div>
             </div>
 
-            <aside className="analytics-v2-seg-live-sample" aria-live="polite">
+            <aside
+              className="analytics-v2-seg-live-sample"
+              aria-live="polite"
+              aria-busy={displayedSampleStatus === "updating"}
+            >
               <div className="analytics-v2-kpi-strip analytics-v2-seg-kpis">
-                <article className="analytics-v2-kpi">
-                  <span>Matched</span>
-                  <strong>{formatCount(displayedSample.matchedN)}</strong>
-                  <small>of {formatCount(displayedSample.analysedN)} analysed</small>
-                </article>
-                <article className="analytics-v2-kpi">
-                  <span>Share</span>
-                  <strong>{formatPercent(displayedSample.share)}</strong>
-                  <small>Current filters</small>
-                </article>
-                <article className="analytics-v2-kpi">
-                  <span>Outside</span>
-                  <strong>{formatCount(displayedSample.outsideN)}</strong>
-                  <small>Disjoint complement</small>
-                </article>
+                <LiveSampleKpi
+                  label="Matched"
+                  value={formatCount(displayedSample.matchedN)}
+                  hint={`of ${formatCount(displayedSample.analysedN)} analysed`}
+                  updating={displayedSampleStatus === "updating"}
+                />
+                <LiveSampleKpi
+                  label="Share"
+                  value={formatPercent(displayedSample.share)}
+                  hint="Current filters"
+                  updating={displayedSampleStatus === "updating"}
+                />
+                <LiveSampleKpi
+                  label="Outside"
+                  value={formatCount(displayedSample.outsideN)}
+                  hint="Disjoint complement"
+                  updating={displayedSampleStatus === "updating"}
+                />
               </div>
               <small>
                 {displayedSampleStatus === "updating"

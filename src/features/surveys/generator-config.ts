@@ -170,7 +170,7 @@ const generatorConceptStrategies: Record<string, GeneratorConceptStrategy> = {
         {
           key: "temporary_thermal_adjustment_acceptance",
           meaning:
-            "Measure willingness to accept a fixed indoor-temperature deviation for a fixed duration during a high-demand period, assuming that the adjustment is technically possible. Use a single-event condition such as '1°C for 1 hour', not an 'up to' range, unless the intent explicitly measures a maximum or threshold. Do not measure the respondent's underlying comfort standard.",
+            "Measure willingness to accept a fixed indoor-temperature deviation of 2°C for 2 hours during a high-demand period, assuming that the adjustment is technically possible. Use this specific single-event condition, not an 'up to' range, unless the intent explicitly measures a maximum or threshold. Do not measure the respondent's underlying comfort standard.",
         },
         {
           key: "inconvenience_acceptance",

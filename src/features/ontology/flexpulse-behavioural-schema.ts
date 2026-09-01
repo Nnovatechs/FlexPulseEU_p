@@ -22,6 +22,36 @@ export type FlexpulseOutputType =
   | "string[]"
   | "enum";
 
+export type FlexpulseMeasurementRole =
+  | "reflective_candidate"
+  | "descriptive_composite"
+  | "conditional_module"
+  | "single_item"
+  | "not_applicable";
+
+export type FlexpulseScoreDirection =
+  | "higher_is_more"
+  | "higher_is_stricter"
+  | "not_directional";
+
+export type FlexpulseConditionalModuleConfig = {
+  grouping_source: "question_intent.facet";
+  catalog_id?: string;
+  expected_components?: string[];
+};
+
+export type FlexpulseAnalysisModel = {
+  measurement_role: FlexpulseMeasurementRole;
+  score_direction: FlexpulseScoreDirection;
+  reliability_applicable: boolean;
+  conditional_module_config?: FlexpulseConditionalModuleConfig;
+  band_labels?: {
+    high: string;
+    medium: string;
+    low: string;
+  };
+};
+
 export type FlexpulseBehaviouralConcept = {
   schema_version: 1;
   namespace: "flexpulse_behavioural_schema";
@@ -32,11 +62,30 @@ export type FlexpulseBehaviouralConcept = {
   concept_role: FlexpulseConceptRole;
   dimension: FlexpulseDimension;
   output_type: FlexpulseOutputType;
+  analysis_model: FlexpulseAnalysisModel;
   validation_constraints?: {
     min?: number;
     max?: number;
     allowed_values?: string[];
   };
+};
+
+const REFLECTIVE_ANALYSIS: FlexpulseAnalysisModel = {
+  measurement_role: "reflective_candidate",
+  score_direction: "higher_is_more",
+  reliability_applicable: true,
+};
+
+const DESCRIPTIVE_ANALYSIS: FlexpulseAnalysisModel = {
+  measurement_role: "descriptive_composite",
+  score_direction: "higher_is_more",
+  reliability_applicable: false,
+};
+
+const NOT_APPLICABLE_ANALYSIS: FlexpulseAnalysisModel = {
+  measurement_role: "not_applicable",
+  score_direction: "not_directional",
+  reliability_applicable: false,
 };
 
 export const FLEXPULSE_DER_ASSET_VALUES = [
@@ -65,6 +114,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "awareness_of_energy_systems",
     output_type: "number",
+    analysis_model: REFLECTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -77,6 +127,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "flexibility_willingness",
     output_type: "number",
+    analysis_model: REFLECTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -90,6 +141,21 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "flexibility_capability",
     output_type: "number",
+    analysis_model: {
+      measurement_role: "conditional_module",
+      score_direction: "higher_is_more",
+      reliability_applicable: false,
+      conditional_module_config: {
+        grouping_source: "question_intent.facet",
+        catalog_id: "declared_flexibility_capability_v1",
+        expected_components: [
+          "operational_control",
+          "temporal_slack",
+          "service_preservation",
+          "household_coordination",
+        ],
+      },
+    },
   },
   {
     schema_version: 1,
@@ -102,6 +168,16 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "thermal_comfort_norms",
     output_type: "number",
+    analysis_model: {
+      measurement_role: "reflective_candidate",
+      score_direction: "higher_is_stricter",
+      reliability_applicable: true,
+      band_labels: {
+        high: "stricter",
+        medium: "intermediate",
+        low: "more permissive",
+      },
+    },
   },
   {
     schema_version: 1,
@@ -114,6 +190,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "tariff_preferences",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -126,6 +203,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "trust_in_automation",
     output_type: "number",
+    analysis_model: REFLECTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -138,6 +216,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "primary_profile_axis",
     dimension: "der_engagement",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -150,6 +229,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "behavioural_modulator",
     dimension: "trust_in_automation",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -162,6 +242,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "behavioural_modulator",
     dimension: "trust_in_automation",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -174,6 +255,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "behavioural_modulator",
     dimension: "tariff_preferences",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -186,6 +268,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "behavioural_modulator",
     dimension: "flexibility_willingness",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -198,6 +281,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "behavioural_modulator",
     dimension: "tariff_preferences",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -210,6 +294,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "behavioural_modulator",
     dimension: "der_engagement",
     output_type: "number",
+    analysis_model: DESCRIPTIVE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -222,6 +307,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "applicability_factor",
     dimension: "der_engagement",
     output_type: "string[]",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
     validation_constraints: {
       allowed_values: [...FLEXPULSE_DER_ASSET_VALUES],
     },
@@ -237,6 +323,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "applicability_factor",
     dimension: "der_engagement",
     output_type: "string[]",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
     validation_constraints: {
       allowed_values: [...FLEXPULSE_DER_ASSET_VALUES],
     },
@@ -252,6 +339,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "applicability_factor",
     dimension: "thermal_comfort_norms",
     output_type: "number",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
     validation_constraints: {
       min: 14,
       max: 26,
@@ -268,6 +356,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "applicability_factor",
     dimension: "thermal_comfort_norms",
     output_type: "number",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
     validation_constraints: {
       min: 18,
       max: 32,
@@ -284,6 +373,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "applicability_factor",
     dimension: "tariff_preferences",
     output_type: "enum",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -296,6 +386,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "context_signal",
     dimension: "response_context",
     output_type: "string",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -308,6 +399,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "context_signal",
     dimension: "response_context",
     output_type: "string",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -320,6 +412,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "context_signal",
     dimension: "response_context",
     output_type: "enum",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -332,6 +425,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "context_signal",
     dimension: "response_context",
     output_type: "string",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -344,6 +438,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "quality_signal",
     dimension: "response_context",
     output_type: "boolean",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
   {
     schema_version: 1,
@@ -356,6 +451,7 @@ export const flexpulseBehaviouralSchemaV1: FlexpulseBehaviouralConcept[] = [
     concept_role: "quality_signal",
     dimension: "response_context",
     output_type: "boolean",
+    analysis_model: NOT_APPLICABLE_ANALYSIS,
   },
 ];
 
@@ -426,4 +522,44 @@ export const flexpulseBehaviouralConceptsByTarget = Object.fromEntries(
 
 export function getFlexpulseBehaviouralConceptByTarget(schemaTarget: string) {
   return flexpulseBehaviouralConceptsByTarget[schemaTarget] ?? null;
+}
+
+export const FLEXPULSE_BEHAVIOURAL_SCHEMA_NAMESPACE = "flexpulse_behavioural_schema" as const;
+
+const FLEXPULSE_BEHAVIOURAL_SCHEMA_BY_VERSION = {
+  1: flexpulseBehaviouralSchemaV1,
+} as const;
+
+export function getFlexpulseBehaviouralSchema(
+  namespace: string,
+  version: number,
+) {
+  if (namespace !== FLEXPULSE_BEHAVIOURAL_SCHEMA_NAMESPACE) {
+    return null;
+  }
+
+  return FLEXPULSE_BEHAVIOURAL_SCHEMA_BY_VERSION[
+    version as keyof typeof FLEXPULSE_BEHAVIOURAL_SCHEMA_BY_VERSION
+  ] ?? null;
+}
+
+export function resolveFlexpulseBehaviouralConcept(input: {
+  schemaNamespace: string;
+  schemaVersion: number;
+  conceptKey: string;
+}) {
+  const schema = getFlexpulseBehaviouralSchema(input.schemaNamespace, input.schemaVersion);
+  if (!schema) {
+    return null;
+  }
+
+  return schema.find((concept) => concept.concept_key === input.conceptKey) ?? null;
+}
+
+export function resolveFlexpulseAnalysisModel(input: {
+  schemaNamespace: string;
+  schemaVersion: number;
+  conceptKey: string;
+}) {
+  return resolveFlexpulseBehaviouralConcept(input)?.analysis_model ?? null;
 }

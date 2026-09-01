@@ -103,6 +103,24 @@ describe("auth actions with controlled signup", () => {
     });
   });
 
+  it("explains when the new password is rejected as compromised", async () => {
+    const updateUser = vi.fn().mockResolvedValue({
+      error: { code: "weak_password", message: "Password is known to be pwned." },
+    });
+    createSupabaseServerClient.mockResolvedValue({
+      auth: { updateUser },
+    });
+
+    const { updatePasswordAction } = await import("@/lib/auth/actions");
+    const formData = new FormData();
+    formData.set("password", "new-secure-password");
+    formData.set("confirmPassword", "new-secure-password");
+
+    await expect(updatePasswordAction(formData)).rejects.toThrow(
+      "redirect:/account/update-password?error=password-compromised",
+    );
+  });
+
   it("rejects mismatched passwords before calling Supabase", async () => {
     const { updatePasswordAction } = await import("@/lib/auth/actions");
     const formData = new FormData();

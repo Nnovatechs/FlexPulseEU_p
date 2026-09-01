@@ -19,4 +19,6 @@ export const appRoutes = {
   publicSurveyPrivacy: (linkToken: string) => `/s/${linkToken}/privacy`,
   publicSurveyThankYou: (linkToken: string) => `/s/${linkToken}/thank-you`,
   surveyAnalytics: (surveyId: string) => `/surveys/${surveyId}/analytics`,
+  surveyAnalyticsV2: (surveyId: string) => `/surveys/${surveyId}/analytics-v2`,
+  instrumentHealthMethodology: "/docs/instrument-health",
 } as const;

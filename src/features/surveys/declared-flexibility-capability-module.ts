@@ -116,6 +116,44 @@ const CAPABILITY_SET_SOURCES: CapabilitySetSource[] = [
   },
 ];
 
+export const DFC_SET_KEYS = CAPABILITY_SET_SOURCES.map((set) => set.set_key);
+export const DFC_ANALYSIS_CATALOG_ID = "declared_flexibility_capability_v1" as const;
+
+export const DFC_MODULE_LABELS: Record<DeclaredFlexibilityCapabilitySetKey, string> = {
+  washing_machine_scheduling: "Washing machine",
+  ev_charging: "EV charging",
+  space_conditioning: "Space conditioning",
+  water_heating: "Water heating",
+  battery_operation: "Battery operation",
+};
+
+export const DFC_COMPONENT_LABELS: Record<DeclaredFlexibilityCapabilityComponent, string> = {
+  operational_control: "Operational control",
+  temporal_slack: "Temporal slack",
+  service_preservation: "Service preservation",
+  household_coordination: "Household coordination",
+};
+
+export type ConditionalModuleAnalysisCatalog = {
+  id: typeof DFC_ANALYSIS_CATALOG_ID;
+  groupingSource: "question_intent.facet";
+  expectedGroups: DeclaredFlexibilityCapabilitySetKey[];
+  expectedComponents: DeclaredFlexibilityCapabilityComponent[];
+  groupLabels: Record<string, string>;
+  componentLabels: Record<string, string>;
+};
+
+export function getDeclaredFlexibilityCapabilityAnalysisCatalog(): ConditionalModuleAnalysisCatalog {
+  return {
+    id: DFC_ANALYSIS_CATALOG_ID,
+    groupingSource: "question_intent.facet",
+    expectedGroups: [...DFC_SET_KEYS],
+    expectedComponents: [...DFC_COMPONENTS],
+    groupLabels: { ...DFC_MODULE_LABELS },
+    componentLabels: { ...DFC_COMPONENT_LABELS },
+  };
+}
+
 const COMPONENT_INTENT_TEMPLATES: Record<
   DeclaredFlexibilityCapabilityComponent,
   (subject: string) => string

@@ -29,6 +29,8 @@
     "eval:dfc": "vitest run tests/evals/surveys/dfc",
     "eval:dfc:ci": "vitest run tests/evals/surveys/dfc",
     "repair:thermal-facet": "tsx scripts/repair-thermal-facet.ts",
+    "repair:flexibility-thermal-intent": "tsx scripts/repair-flexibility-thermal-intent.ts",
+    "prepare:postal-geography": "node --import tsx ./scripts/prepare-postal-geography.ts",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run eval:mapper-profiling:ci && npm run eval:dfc:ci && npm run build"
   },
   "keywords": [],
@@ -41,18 +43,28 @@
     "@fontsource/ibm-plex-sans": "^5.2.8",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.1",
+    "d3-geo": "^3.1.1",
     "next": "^16.2.4",
     "openai": "^6.31.0",
+    "proj4": "^2.21.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "topojson-client": "^3.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@types/d3-geo": "^3.1.1",
     "@types/node": "^25.3.5",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/topojson-client": "^3.1.5",
+    "@types/topojson-server": "^3.0.4",
+    "@types/topojson-simplify": "^3.0.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
+    "fast-xml-parser": "^5.11.0",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

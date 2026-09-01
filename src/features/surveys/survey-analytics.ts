@@ -4,6 +4,7 @@ import type {
   MeasurementPlanEntry,
   PersistedSurvey,
 } from "./generator-types";
+import { normalizePostalAreaKey } from "./analytics/geography/postal-area-key";
 import { getFacetEvidenceLevel } from "./measurement-plan";
 import type { NormalizedLocationLevel } from "./response-enrichment";
 
@@ -39,10 +40,13 @@ export type SurveyAnalyticsFieldType =
 export type SurveyAnalyticsFilterOperator =
   | "eq"
   | "in"
+  | "gt"
   | "gte"
+  | "lt"
   | "lte"
   | "between"
   | "contains"
+  | "not_contains"
   | "is_null"
   | "not_null";
 
@@ -63,6 +67,7 @@ export type SurveyAnalyticsFieldDefinition = {
   metric_kinds: SurveyAnalyticsMetricKind[];
   concept_key?: string;
   concept_role?: string;
+  measurement_role?: string;
   dimension?: string;
   facet?: string;
   evidence_level?: "interpretive_signal" | "facet_subscore";
@@ -71,6 +76,7 @@ export type SurveyAnalyticsFieldDefinition = {
 export type SurveyAnalyticsSchema = {
   survey_id: string;
   schema_namespace: string;
+  schema_version?: number;
   measurement_hash: string | null;
   ready_response_count: number;
   excluded_unmapped_count: number;
@@ -285,10 +291,10 @@ function getFieldOperators(valueType: SurveyAnalyticsFieldType): SurveyAnalytics
   switch (valueType) {
     case "number":
     case "date":
-      return ["eq", "in", "gte", "lte", "between", ...nullOperators];
+      return ["eq", "in", "gt", "gte", "lt", "lte", "between", ...nullOperators];
     case "string[]":
     case "number[]":
-      return ["contains", ...nullOperators];
+      return ["contains", "not_contains", ...nullOperators];
     default:
       return ["eq", "in", ...nullOperators];
   }
@@ -320,6 +326,7 @@ function buildFieldDefinition(input: {
   groupable?: boolean;
   concept_key?: string;
   concept_role?: string;
+  measurement_role?: string;
   dimension?: string;
   facet?: string;
   evidence_level?: "interpretive_signal" | "facet_subscore";
@@ -339,6 +346,7 @@ function buildFieldDefinition(input: {
     metric_kinds: getFieldMetricKinds(input.valueType),
     concept_key: input.concept_key,
     concept_role: input.concept_role,
+    measurement_role: input.measurement_role,
     dimension: input.dimension,
     facet: input.facet,
     evidence_level: input.evidence_level,
@@ -371,6 +379,7 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
       valueType: entry.output_type as SurveyAnalyticsFieldType,
       concept_key: entry.concept_key,
       concept_role: concept.concept_role,
+      measurement_role: concept.analysis_model.measurement_role,
       dimension: concept.dimension,
     });
 
@@ -393,6 +402,7 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
           groupable: false,
           concept_key: entry.concept_key,
           concept_role: concept.concept_role,
+          measurement_role: concept.analysis_model.measurement_role,
           dimension: concept.dimension,
           facet,
           evidence_level: evidenceLevel,
@@ -406,6 +416,7 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
           valueType: "string",
           concept_key: entry.concept_key,
           concept_role: concept.concept_role,
+          measurement_role: concept.analysis_model.measurement_role,
           dimension: concept.dimension,
           facet,
           evidence_level: evidenceLevel,
@@ -427,6 +438,7 @@ function buildProfileFieldDefinitions(survey: PersistedSurvey) {
         valueType: "tag",
         concept_key: entry.concept_key,
         concept_role: concept.concept_role,
+        measurement_role: concept.analysis_model.measurement_role,
         dimension: concept.dimension,
       }),
       ...facetFields,
@@ -522,6 +534,16 @@ function buildStaticFieldDefinitions(survey: PersistedSurvey) {
         }),
       );
     }
+
+    fields.push(
+      buildFieldDefinition({
+        key: "geo.postal_area.area_key",
+        label: "Postal area key",
+        description: "Canonical postal area key shared by analytics and postal map geometry artifacts.",
+        source: "geo",
+        valueType: "string",
+      }),
+    );
   }
 
   if (supportsWeather) {
@@ -567,6 +589,7 @@ export function buildSurveyAnalyticsSchema(input: {
     schema_namespace:
       input.survey.definition_json.survey_meta.measurement_plan_json?.schema_namespace ??
       "flexpulse_behavioural_schema",
+    schema_version: input.survey.definition_json.survey_meta.measurement_plan_json?.schema_version ?? 1,
     measurement_hash: input.survey.measurement_hash ?? null,
     ready_response_count: input.readyResponseCount,
     excluded_unmapped_count: input.excludedUnmappedCount ?? 0,
@@ -607,7 +630,7 @@ function parseProfileFieldKey(field: string) {
   };
 }
 
-function getFieldValue(
+export function getSurveyAnalyticsFieldValue(
   record: SurveyAnalyticsRecord,
   field: string,
 ): AnalyticsFieldValue {
@@ -644,6 +667,17 @@ function getFieldValue(
     case "context.climate.quality_flag":
       return record.mapper_output.context_metadata.climate?.quality_flag ?? null;
     default: {
+      if (field === "geo.postal_area.area_key") {
+        const rawPostalArea =
+          getGeoLevel(record.location_levels, "postal_area")?.code ??
+          record.mapper_output.context_metadata.location?.agg_code ??
+          null;
+        const normalized = normalizePostalAreaKey({
+          countryCode: record.mapper_output.context_metadata.country_code ?? null,
+          rawCode: rawPostalArea,
+        });
+        return normalized.areaKey;
+      }
       const geoMatch = /^geo\.(country|region|city|district|neighbourhood|place|postal_area)\.(code|label)$/.exec(
         field,
       );
@@ -698,7 +732,7 @@ function matchesFilter(
     throw new Error(`Unknown analytics field "${filter.field}".`);
   }
 
-  const value = getFieldValue(record, filter.field);
+  const value = getSurveyAnalyticsFieldValue(record, filter.field);
 
   switch (filter.op) {
     case "is_null":
@@ -715,10 +749,22 @@ function matchesFilter(
       );
     case "contains":
       return Array.isArray(value) && value.includes(filter.value as never);
+    case "not_contains":
+      return Array.isArray(value) && !value.includes(filter.value as never);
+    case "gt": {
+      const left = coerceComparableValue(value, field.value_type);
+      const right = coerceComparableValue(filter.value, field.value_type);
+      return left != null && right != null && left > right;
+    }
     case "gte": {
       const left = coerceComparableValue(value, field.value_type);
       const right = coerceComparableValue(filter.value, field.value_type);
       return left != null && right != null && left >= right;
+    }
+    case "lt": {
+      const left = coerceComparableValue(value, field.value_type);
+      const right = coerceComparableValue(filter.value, field.value_type);
+      return left != null && right != null && left < right;
     }
     case "lte": {
       const left = coerceComparableValue(value, field.value_type);
@@ -866,7 +912,7 @@ function computeMetric(
 
   if (metric.kind === "average") {
     const values = rows
-      .map((row) => getFieldValue(row, metric.field))
+      .map((row) => getSurveyAnalyticsFieldValue(row, metric.field))
       .filter((value): value is number => typeof value === "number");
 
     if (values.length === 0) {
@@ -887,7 +933,7 @@ function computeMetric(
 
   if (metric.kind === "share_equals") {
     const values = rows
-      .map((row) => getFieldValue(row, metric.field))
+      .map((row) => getSurveyAnalyticsFieldValue(row, metric.field))
       .filter((value): value is AnalyticsFieldScalar => !Array.isArray(value) && value != null);
     const matched = values.filter((value) => value === metric.value).length;
 
@@ -900,7 +946,7 @@ function computeMetric(
   }
 
   const values = rows
-    .map((row) => getFieldValue(row, metric.field))
+    .map((row) => getSurveyAnalyticsFieldValue(row, metric.field))
     .filter((value): value is string[] | number[] => Array.isArray(value));
   const matched = values.filter((value) => value.includes(metric.value as never)).length;
 
@@ -910,6 +956,28 @@ function computeMetric(
     sample_size: values.length,
     matched_count: matched,
   };
+}
+
+export function applySurveyAnalyticsFilters(input: {
+  schema: SurveyAnalyticsSchema;
+  rows: SurveyAnalyticsRecord[];
+  filters: SurveyAnalyticsFilter[];
+}) {
+  const fieldsByKey = new Map(input.schema.fields.map((field) => [field.key, field]));
+
+  for (const filter of input.filters) {
+    const field = fieldsByKey.get(filter.field);
+    if (!field) {
+      throw new Error(`Unknown filter field "${filter.field}".`);
+    }
+    if (!field.filter_operators.includes(filter.op)) {
+      throw new Error(`Operator "${filter.op}" is not allowed for field "${filter.field}".`);
+    }
+  }
+
+  return input.rows.filter((row) =>
+    input.filters.every((filter) => matchesFilter(row, filter, fieldsByKey)),
+  );
 }
 
 export function runSurveyAnalyticsQuery(input: {
@@ -932,7 +1000,7 @@ export function runSurveyAnalyticsQuery(input: {
         ? {}
         : Object.fromEntries(
             groupBy.map((field) => {
-              const value = getFieldValue(row, field);
+              const value = getSurveyAnalyticsFieldValue(row, field);
               return [field, Array.isArray(value) ? null : (value ?? null)];
             }),
           );

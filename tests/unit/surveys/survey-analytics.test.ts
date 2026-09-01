@@ -707,4 +707,94 @@ describe("survey analytics", () => {
     expect(applicable.matched_response_count).toBe(2);
     expect(notApplicable.matched_response_count).toBe(1);
   });
+
+  it("supports gt, lt and not_contains operators", () => {
+    const survey = buildSurveyFixture();
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 3 });
+    const rows: SurveyAnalyticsRecord[] = [
+      buildRecord({
+        responseId: "r1",
+        audienceToken: "default",
+        mapperOutput: buildMapperOutput({
+          trust: 4,
+          trustTag: "high",
+          assets: ["ev", "heat_pump"],
+          countryCode: "ES",
+          surveyLanguage: "Spanish",
+          tempOutdoorC: 18,
+          humidityPct: 45,
+          aggCode: "ES:city:madrid",
+          aggLabel: "Madrid",
+          granularity: "city",
+        }),
+        locationLevels: [],
+      }),
+      buildRecord({
+        responseId: "r2",
+        audienceToken: "default",
+        mapperOutput: buildMapperOutput({
+          trust: 2,
+          trustTag: "low",
+          assets: ["heat_pump"],
+          countryCode: "IE",
+          surveyLanguage: "English",
+          tempOutdoorC: 12,
+          humidityPct: 70,
+          aggCode: "IE:city:dublin",
+          aggLabel: "Dublin",
+          granularity: "city",
+        }),
+        locationLevels: [],
+      }),
+      buildRecord({
+        responseId: "r3",
+        audienceToken: "default",
+        mapperOutput: buildMapperOutput({
+          trust: 3,
+          trustTag: "medium",
+          assets: ["ev"],
+          countryCode: "FR",
+          surveyLanguage: "French",
+          tempOutdoorC: 16,
+          humidityPct: 55,
+          aggCode: "FR:city:paris",
+          aggLabel: "Paris",
+          granularity: "city",
+        }),
+        locationLevels: [],
+      }),
+    ];
+
+    const medium = runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query: {
+        filters: [
+          { field: "profile.trust_in_automation.value", op: "gt", value: 2 },
+          { field: "profile.trust_in_automation.value", op: "lt", value: 4 },
+        ],
+        metrics: [{ key: "responses", kind: "count" }],
+      },
+    });
+    const withoutEv = runSurveyAnalyticsQuery({
+      schema,
+      rows,
+      query: {
+        filters: [{ field: "profile.owned_der_assets.value", op: "not_contains", value: "ev" }],
+        metrics: [{ key: "responses", kind: "count" }],
+      },
+    });
+
+    expect(schema.fields.find((field) => field.key === "profile.trust_in_automation.value")?.filter_operators).toEqual(
+      expect.arrayContaining(["gt", "lt"]),
+    );
+    expect(schema.fields.find((field) => field.key === "profile.owned_der_assets.value")?.filter_operators).toEqual(
+      expect.arrayContaining(["contains", "not_contains"]),
+    );
+    expect(schema.fields.find((field) => field.key === "profile.declared_flexibility_capability.value")?.measurement_role).toBe(
+      "conditional_module",
+    );
+    expect(medium.matched_response_count).toBe(1);
+    expect(withoutEv.matched_response_count).toBe(1);
+  });
 });

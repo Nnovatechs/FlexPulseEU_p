@@ -4,6 +4,7 @@ import { getOwnedSurveyById } from "./generator-repository";
 import type { PersistedSurvey } from "./generator-types";
 import type { MapperOutput } from "./generator-types";
 import type { NormalizedLocationLevel } from "./response-enrichment";
+import { readExactCount, selectAllPages, selectByIds } from "./supabase-batch";
 import type { SurveyAnalyticsRecord } from "./survey-analytics";
 
 type SurveyResponseRow = {
@@ -33,6 +34,11 @@ export type OwnedSurveyAnalyticsRuntime = {
   rows: SurveyAnalyticsRecord[];
   excludedUnmappedCount: number;
   readyPipelineCount: number;
+  collectedResponseCount: number;
+  collectedResponseWindow: {
+    firstRespondedAt: string | null;
+    lastRespondedAt: string | null;
+  };
 };
 
 function isNormalizedLocationLevel(value: unknown): value is NormalizedLocationLevel {
@@ -133,44 +139,96 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     | Awaited<ReturnType<typeof createSupabaseServerClient>>
     | ReturnType<typeof createSupabaseAdminClient>,
 ): Promise<OwnedSurveyAnalyticsRuntime> {
-  const { count: readyPipelineCount, error: countError } = await supabase
-    .from("survey_responses")
-    .select("id", { count: "exact", head: true })
-    .eq("survey_id", survey.id)
-    .eq("pipeline_status", "ready");
+  const [
+    { count: readyPipelineCount, error: readyCountError },
+    { count: collectedResponseCount, error: collectedCountError },
+    { data: firstCollectedRaw, error: firstCollectedError },
+    { data: lastCollectedRaw, error: lastCollectedError },
+  ] = await Promise.all([
+    supabase
+      .from("survey_responses")
+      .select("id", { count: "exact" })
+      .eq("survey_id", survey.id)
+      .eq("pipeline_status", "ready")
+      .limit(1),
+    supabase
+      .from("survey_responses")
+      .select("id", { count: "exact" })
+      .eq("survey_id", survey.id)
+      .limit(1),
+    supabase
+      .from("survey_responses")
+      .select("responded_at")
+      .eq("survey_id", survey.id)
+      .order("responded_at", { ascending: true })
+      .limit(1),
+    supabase
+      .from("survey_responses")
+      .select("responded_at")
+      .eq("survey_id", survey.id)
+      .order("responded_at", { ascending: false })
+      .limit(1),
+  ]);
 
-  if (countError) {
-    throw new Error(`Failed to count survey analytics responses: ${countError.message}`);
+  const totalReadyCount = readExactCount(
+    readyPipelineCount,
+    readyCountError,
+    "Failed to count survey analytics responses",
+  );
+  const totalCollectedCount = readExactCount(
+    collectedResponseCount,
+    collectedCountError,
+    "Failed to count collected survey responses",
+  );
+
+  if (firstCollectedError) {
+    throw new Error(`Failed to load first collected response timestamp: ${firstCollectedError.message}`);
   }
 
-  const totalReadyCount = readyPipelineCount ?? 0;
+  if (lastCollectedError) {
+    throw new Error(`Failed to load last collected response timestamp: ${lastCollectedError.message}`);
+  }
+  const collectedResponseWindow = {
+    firstRespondedAt: firstCollectedRaw?.[0]?.responded_at ?? null,
+    lastRespondedAt: lastCollectedRaw?.[0]?.responded_at ?? null,
+  };
+
   if (totalReadyCount === 0) {
     return {
       survey,
       rows: [],
       excludedUnmappedCount: 0,
       readyPipelineCount: 0,
+      collectedResponseCount: totalCollectedCount,
+      collectedResponseWindow,
     };
   }
 
-  const { data: responseRowsRaw, error: responseError } = await supabase
-    .from("survey_responses")
-    .select("id, responded_at, survey_link_id")
-    .eq("survey_id", survey.id)
-    .eq("pipeline_status", "ready")
-    .order("responded_at", { ascending: false });
+  const responseRows = await selectAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("survey_responses")
+      .select("id, responded_at, survey_link_id")
+      .eq("survey_id", survey.id)
+      .eq("pipeline_status", "ready")
+      .order("responded_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
 
-  if (responseError) {
-    throw new Error(`Failed to load survey analytics responses: ${responseError.message}`);
-  }
+    if (error) {
+      throw new Error(`Failed to load survey analytics responses: ${error.message}`);
+    }
 
-  const responseRows = (responseRowsRaw ?? []) as SurveyResponseRow[];
+    return (data ?? []) as SurveyResponseRow[];
+  });
+
   if (responseRows.length === 0) {
     return {
       survey,
       rows: [],
       excludedUnmappedCount: 0,
       readyPipelineCount: totalReadyCount,
+      collectedResponseCount: totalCollectedCount,
+      collectedResponseWindow,
     };
   }
 
@@ -183,42 +241,44 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     ),
   );
 
-  const [{ data: mappingsRaw, error: mappingError }, { data: enrichmentsRaw, error: enrichmentError }] =
-    await Promise.all([
-      supabase
+  const [mappings, enrichments, links] = await Promise.all([
+    selectByIds(responseIds, async (chunk) => {
+      const { data, error } = await supabase
         .from("response_mapping")
         .select("response_id, mapper_output_json")
-        .in("response_id", responseIds),
-      supabase
+        .in("response_id", chunk);
+
+      if (error) {
+        throw new Error(`Failed to load mapped responses: ${error.message}`);
+      }
+
+      return (data ?? []) as ResponseMappingRow[];
+    }),
+    selectByIds(responseIds, async (chunk) => {
+      const { data, error } = await supabase
         .from("response_enrichment")
         .select("response_id, normalized_location_json")
-        .in("response_id", responseIds),
-    ]);
+        .in("response_id", chunk);
 
-  if (mappingError) {
-    throw new Error(`Failed to load mapped responses: ${mappingError.message}`);
-  }
+      if (error) {
+        throw new Error(`Failed to load enrichment records: ${error.message}`);
+      }
 
-  if (enrichmentError) {
-    throw new Error(`Failed to load enrichment records: ${enrichmentError.message}`);
-  }
+      return (data ?? []) as ResponseEnrichmentRow[];
+    }),
+    selectByIds(linkIds, async (chunk) => {
+      const { data, error } = await supabase
+        .from("survey_links")
+        .select("id, audience_token, audience_label")
+        .in("id", chunk);
 
-  const mappings = (mappingsRaw ?? []) as ResponseMappingRow[];
-  const enrichments = (enrichmentsRaw ?? []) as ResponseEnrichmentRow[];
+      if (error) {
+        throw new Error(`Failed to load survey link metadata: ${error.message}`);
+      }
 
-  let links: SurveyLinkLiteRow[] = [];
-  if (linkIds.length > 0) {
-    const { data: linksRaw, error: linkError } = await supabase
-      .from("survey_links")
-      .select("id, audience_token, audience_label")
-      .in("id", linkIds);
-
-    if (linkError) {
-      throw new Error(`Failed to load survey link metadata: ${linkError.message}`);
-    }
-
-    links = (linksRaw ?? []) as SurveyLinkLiteRow[];
-  }
+      return (data ?? []) as SurveyLinkLiteRow[];
+    }),
+  ]);
 
   const mappingsByResponseId = new Map(mappings.map((row) => [row.response_id, row.mapper_output_json]));
   const enrichmentsByResponseId = new Map(
@@ -238,6 +298,8 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     rows,
     excludedUnmappedCount: responseRows.length - rows.length,
     readyPipelineCount: totalReadyCount,
+    collectedResponseCount: totalCollectedCount,
+    collectedResponseWindow,
   };
 }
 

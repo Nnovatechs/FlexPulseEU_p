@@ -18,6 +18,7 @@ import {
   comparisonTrayCount,
   describeReadableConditions,
   emptyComparisonTray,
+  encodeSegmentDefinition,
   getAnalyseActionLabel,
   getComparisonTraySnapshot,
   getConceptDescription,
@@ -353,8 +354,9 @@ export function SegmentExplorerPanel({
   const [localNotice, setLocalNotice] = useState<string | null>(null);
   const [openNested, setOpenNested] = useState<Record<string, boolean>>({});
   const [liveSample, setLiveSample] = useState<SegmentSamplePreview>(() => emptySamplePreview(catalog.analysedN));
-  const [liveSampleStatus, setLiveSampleStatus] = useState<"ready" | "updating">(() =>
-    isWholeSampleDefinition(definition) ? "ready" : "updating",
+  const definitionKey = useMemo(() => encodeSegmentDefinition(definition), [definition]);
+  const [previewedDefinitionKey, setPreviewedDefinitionKey] = useState<string | null>(() =>
+    isWholeSampleDefinition(definition) ? encodeSegmentDefinition(definition) : null,
   );
   const sampleRequestRef = useRef(0);
   const [postalMapPreview, setPostalMapPreview] = useState<PostalMapAnalysis | null>(null);
@@ -430,7 +432,7 @@ export function SegmentExplorerPanel({
 
     const requestId = sampleRequestRef.current + 1;
     sampleRequestRef.current = requestId;
-    setLiveSampleStatus("updating");
+    const requestedKey = encodeSegmentDefinition(definition);
     const timer = window.setTimeout(() => {
       void previewSegmentSampleAction(surveyId, definition)
         .then((next) => {
@@ -438,13 +440,13 @@ export function SegmentExplorerPanel({
             return;
           }
           setLiveSample(next);
-          setLiveSampleStatus("ready");
+          setPreviewedDefinitionKey(requestedKey);
         })
         .catch(() => {
           if (sampleRequestRef.current !== requestId) {
             return;
           }
-          setLiveSampleStatus("ready");
+          setPreviewedDefinitionKey(requestedKey);
         });
     }, SAMPLE_PREVIEW_DELAY_MS);
 
@@ -488,7 +490,8 @@ export function SegmentExplorerPanel({
   const displayedSample = isWholeSampleDefinition(definition)
     ? emptySamplePreview(catalog.analysedN)
     : liveSample;
-  const displayedSampleStatus = isWholeSampleDefinition(definition) ? "ready" : liveSampleStatus;
+  const displayedSampleStatus =
+    isWholeSampleDefinition(definition) || previewedDefinitionKey === definitionKey ? "ready" : "updating";
 
   const handleAnalyse = () => {
     const requestId = analysisRequestRef.current + 1;

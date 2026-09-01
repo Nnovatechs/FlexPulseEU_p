@@ -1,4 +1,4 @@
-import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { appRoutes } from "@/lib/config/routes";
 import { requireCurrentSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -29,19 +29,12 @@ import {
 } from "./analytics/segments";
 import { loadOwnedInstrumentHealthSource } from "./instrument-health-repository";
 import { loadOwnedSurveyAnalyticsRuntimeSnapshot } from "./survey-analytics-repository";
+import { selectAllPages } from "./supabase-batch";
 import {
   getPublicSurveyLinkByToken,
   getPublishedSurveyByIdPublic,
 } from "./public-survey-load";
 import { Survey } from "./types";
-
-const loadCachedSurveyAnalyticsRuntime = unstable_cache(
-  async (surveyId: string, ownerId: string) =>
-    loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, ownerId),
-  ["owned-survey-analytics-runtime"],
-  { revalidate: 60 },
-);
-
 
 function formatQuestionType(value: string) {
   const labels: Record<string, string> = {
@@ -219,23 +212,24 @@ function buildDashboardMetrics(
   };
 }
 
-async function loadOwnedSurveyResponseCounts() {
+async function loadOwnedSurveyResponseCounts(surveyIds: string[]) {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("survey_responses").select("survey_id");
-
-  if (error) {
-    throw new Error(`Failed to load survey response counts: ${error.message}`);
-  }
-
   const counts = new Map<string, number>();
 
-  for (const row of data ?? []) {
-    if (!row.survey_id) {
-      continue;
-    }
+  await Promise.all(
+    surveyIds.map(async (surveyId) => {
+      const { count, error } = await supabase
+        .from("survey_responses")
+        .select("id", { count: "exact", head: true })
+        .eq("survey_id", surveyId);
 
-    counts.set(row.survey_id, (counts.get(row.survey_id) ?? 0) + 1);
-  }
+      if (error) {
+        throw new Error(`Failed to count survey responses: ${error.message}`);
+      }
+
+      counts.set(surveyId, count ?? 0);
+    }),
+  );
 
   return counts;
 }
@@ -255,23 +249,20 @@ async function countOwnedSurveyResponses(surveyId: string) {
 }
 
 export async function getSurveys(): Promise<Survey[]> {
-  const [allSurveys, responseCounts] = await Promise.all([
-    listOwnedSurveys(),
-    loadOwnedSurveyResponseCounts(),
-  ]);
-
+  const allSurveys = await listOwnedSurveys();
   const surveys = allSurveys.filter((survey) => survey.status !== "archived");
+  const responseCounts = await loadOwnedSurveyResponseCounts(surveys.map((survey) => survey.id));
 
   return mapOwnedPersistedSurveys(surveys, responseCounts);
 }
 
 export async function getDashboardData() {
-  const [allSurveys, responseCounts, questionsAnswered] = await Promise.all([
-    listOwnedSurveys(),
-    loadOwnedSurveyResponseCounts(),
+  const allSurveys = await listOwnedSurveys();
+  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
+  const [responseCounts, questionsAnswered] = await Promise.all([
+    loadOwnedSurveyResponseCounts(surveys.map((survey) => survey.id)),
     countOwnedAnsweredQuestions(),
   ]);
-  const surveys = allSurveys.filter((survey) => survey.status !== "archived");
 
   return {
     metrics: buildDashboardMetrics(surveys, questionsAnswered),
@@ -364,13 +355,21 @@ function countAnsweredQuestions(answersJson: unknown) {
 
 async function countOwnedAnsweredQuestions() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("survey_responses").select("answers_json");
+  const rows = await selectAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("survey_responses")
+      .select("id, answers_json")
+      .order("id", { ascending: true })
+      .range(from, to);
 
-  if (error) {
-    throw new Error(`Failed to load dashboard response metrics: ${error.message}`);
-  }
+    if (error) {
+      throw new Error(`Failed to load dashboard response metrics: ${error.message}`);
+    }
 
-  return (data ?? []).reduce(
+    return data ?? [];
+  });
+
+  return rows.reduce(
     (accumulator, row) => accumulator + countAnsweredQuestions(row.answers_json),
     0,
   );
@@ -541,9 +540,10 @@ export async function generateSurveyInstrumentHealthData(surveyId: string) {
   return buildInstrumentHealthData(source);
 }
 
-async function loadSurveyAnalyticsContext(surveyId: string) {
+const loadSurveyAnalyticsContext = cache(async (surveyId: string) => {
   const session = await requireCurrentSession();
-  const runtime = await loadCachedSurveyAnalyticsRuntime(surveyId, session.user.id);
+  // Do not wrap this snapshot in unstable_cache: ~1000 mapped rows exceed Next's 2MB data-cache limit.
+  const runtime = await loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, session.user.id);
   const schema = buildSurveyAnalyticsSchema({
     survey: runtime.survey,
     readyResponseCount: runtime.rows.length,
@@ -555,7 +555,7 @@ async function loadSurveyAnalyticsContext(surveyId: string) {
     ...runtime,
     schema,
   };
-}
+});
 
 function runSurveyAnalyticsFromContext(
   context: Awaited<ReturnType<typeof loadSurveyAnalyticsContext>>,

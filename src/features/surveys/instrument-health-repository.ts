@@ -7,8 +7,7 @@ import type {
   InstrumentHealthSource,
 } from "./analytics/instrument-health";
 import type { SubmittedSurveyAnswer } from "./response-validation";
-
-const IN_FILTER_CHUNK = 200;
+import { selectAllPages, selectByIds } from "./supabase-batch";
 
 type SurveyResponseLiteRow = {
   id: string;
@@ -39,14 +38,6 @@ type FeedbackRow = {
   overlap_or_technical_text: string | null;
 };
 
-function chunkIds(ids: string[]) {
-  const chunks: string[][] = [];
-  for (let index = 0; index < ids.length; index += IN_FILTER_CHUNK) {
-    chunks.push(ids.slice(index, index + IN_FILTER_CHUNK));
-  }
-  return chunks;
-}
-
 function countFilledText(row: FeedbackRow) {
   return [
     row.unclear_questions_text,
@@ -57,39 +48,28 @@ function countFilledText(row: FeedbackRow) {
   ].filter((value) => typeof value === "string" && value.trim().length > 0).length;
 }
 
-async function selectByIds<T>(
-  ids: string[],
-  loadChunk: (chunk: string[]) => Promise<T[]>,
-) {
-  if (ids.length === 0) {
-    return [] as T[];
-  }
-
-  const rows: T[] = [];
-  for (const chunk of chunkIds(ids)) {
-    rows.push(...(await loadChunk(chunk)));
-  }
-  return rows;
-}
-
 export async function loadOwnedInstrumentHealthSource(
   surveyId: string,
 ): Promise<InstrumentHealthSource> {
   const survey = await getOwnedSurveyById(surveyId);
   const supabase = await createSupabaseServerClient();
 
-  const { data: liteRowsRaw, error: liteError } = await supabase
-    .from("survey_responses")
-    .select(
-      "id, pipeline_status, submitted_language, measurement_hash_at_submission, mapping_hash_at_submission",
-    )
-    .eq("survey_id", survey.id);
+  const liteRows = await selectAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("survey_responses")
+      .select(
+        "id, pipeline_status, submitted_language, measurement_hash_at_submission, mapping_hash_at_submission",
+      )
+      .eq("survey_id", survey.id)
+      .order("id", { ascending: true })
+      .range(from, to);
 
-  if (liteError) {
-    throw new Error(`Failed to load instrument health responses: ${liteError.message}`);
-  }
+    if (error) {
+      throw new Error(`Failed to load instrument health responses: ${error.message}`);
+    }
 
-  const liteRows = (liteRowsRaw ?? []) as SurveyResponseLiteRow[];
+    return (data ?? []) as SurveyResponseLiteRow[];
+  });
   const currentMeasurementHash = survey.measurement_hash ?? null;
   const includedIds = liteRows
     .filter((row) => {

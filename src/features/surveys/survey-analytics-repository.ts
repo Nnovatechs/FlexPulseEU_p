@@ -4,6 +4,7 @@ import { getOwnedSurveyById } from "./generator-repository";
 import type { PersistedSurvey } from "./generator-types";
 import type { MapperOutput } from "./generator-types";
 import type { NormalizedLocationLevel } from "./response-enrichment";
+import { selectAllPages, selectByIds } from "./supabase-batch";
 import type { SurveyAnalyticsRecord } from "./survey-analytics";
 
 type SurveyResponseRow = {
@@ -201,18 +202,23 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     };
   }
 
-  const { data: responseRowsRaw, error: responseError } = await supabase
-    .from("survey_responses")
-    .select("id, responded_at, survey_link_id")
-    .eq("survey_id", survey.id)
-    .eq("pipeline_status", "ready")
-    .order("responded_at", { ascending: false });
+  const responseRows = await selectAllPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("survey_responses")
+      .select("id, responded_at, survey_link_id")
+      .eq("survey_id", survey.id)
+      .eq("pipeline_status", "ready")
+      .order("responded_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
 
-  if (responseError) {
-    throw new Error(`Failed to load survey analytics responses: ${responseError.message}`);
-  }
+    if (error) {
+      throw new Error(`Failed to load survey analytics responses: ${error.message}`);
+    }
 
-  const responseRows = (responseRowsRaw ?? []) as SurveyResponseRow[];
+    return (data ?? []) as SurveyResponseRow[];
+  });
+
   if (responseRows.length === 0) {
     return {
       survey,
@@ -233,42 +239,44 @@ async function loadSurveyAnalyticsRuntimeForSurvey(
     ),
   );
 
-  const [{ data: mappingsRaw, error: mappingError }, { data: enrichmentsRaw, error: enrichmentError }] =
-    await Promise.all([
-      supabase
+  const [mappings, enrichments, links] = await Promise.all([
+    selectByIds(responseIds, async (chunk) => {
+      const { data, error } = await supabase
         .from("response_mapping")
         .select("response_id, mapper_output_json")
-        .in("response_id", responseIds),
-      supabase
+        .in("response_id", chunk);
+
+      if (error) {
+        throw new Error(`Failed to load mapped responses: ${error.message}`);
+      }
+
+      return (data ?? []) as ResponseMappingRow[];
+    }),
+    selectByIds(responseIds, async (chunk) => {
+      const { data, error } = await supabase
         .from("response_enrichment")
         .select("response_id, normalized_location_json")
-        .in("response_id", responseIds),
-    ]);
+        .in("response_id", chunk);
 
-  if (mappingError) {
-    throw new Error(`Failed to load mapped responses: ${mappingError.message}`);
-  }
+      if (error) {
+        throw new Error(`Failed to load enrichment records: ${error.message}`);
+      }
 
-  if (enrichmentError) {
-    throw new Error(`Failed to load enrichment records: ${enrichmentError.message}`);
-  }
+      return (data ?? []) as ResponseEnrichmentRow[];
+    }),
+    selectByIds(linkIds, async (chunk) => {
+      const { data, error } = await supabase
+        .from("survey_links")
+        .select("id, audience_token, audience_label")
+        .in("id", chunk);
 
-  const mappings = (mappingsRaw ?? []) as ResponseMappingRow[];
-  const enrichments = (enrichmentsRaw ?? []) as ResponseEnrichmentRow[];
+      if (error) {
+        throw new Error(`Failed to load survey link metadata: ${error.message}`);
+      }
 
-  let links: SurveyLinkLiteRow[] = [];
-  if (linkIds.length > 0) {
-    const { data: linksRaw, error: linkError } = await supabase
-      .from("survey_links")
-      .select("id, audience_token, audience_label")
-      .in("id", linkIds);
-
-    if (linkError) {
-      throw new Error(`Failed to load survey link metadata: ${linkError.message}`);
-    }
-
-    links = (linksRaw ?? []) as SurveyLinkLiteRow[];
-  }
+      return (data ?? []) as SurveyLinkLiteRow[];
+    }),
+  ]);
 
   const mappingsByResponseId = new Map(mappings.map((row) => [row.response_id, row.mapper_output_json]));
   const enrichmentsByResponseId = new Map(

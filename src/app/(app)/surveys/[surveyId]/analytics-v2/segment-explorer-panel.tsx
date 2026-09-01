@@ -389,7 +389,7 @@ export function SegmentExplorerPanel({
   const [previewedDefinitionKey, setPreviewedDefinitionKey] = useState<string | null>(() =>
     isWholeSampleDefinition(definition) ? encodeSegmentDefinition(definition) : null,
   );
-  const [samplePreviewFailed, setSamplePreviewFailed] = useState(false);
+  const [failedPreviewKey, setFailedPreviewKey] = useState<string | null>(null);
   const sampleRequestRef = useRef(0);
   const [postalMapPreview, setPostalMapPreview] = useState<PostalMapAnalysis | null>(null);
   const postalMapRequestRef = useRef(0);
@@ -465,14 +465,13 @@ export function SegmentExplorerPanel({
     const requestId = sampleRequestRef.current + 1;
     sampleRequestRef.current = requestId;
     const requestedKey = encodeSegmentDefinition(definition);
-    setSamplePreviewFailed(false);
     const timer = window.setTimeout(() => {
       void previewSegmentSampleAction(surveyId, definition)
         .then((next) => {
           if (sampleRequestRef.current !== requestId) {
             return;
           }
-          setSamplePreviewFailed(false);
+          setFailedPreviewKey((current) => (current === requestedKey ? null : current));
           setLiveSample(next);
           setPreviewedDefinitionKey(requestedKey);
         })
@@ -480,7 +479,7 @@ export function SegmentExplorerPanel({
           if (sampleRequestRef.current !== requestId) {
             return;
           }
-          setSamplePreviewFailed(true);
+          setFailedPreviewKey(requestedKey);
         });
     }, SAMPLE_PREVIEW_DELAY_MS);
 
@@ -535,7 +534,7 @@ export function SegmentExplorerPanel({
   const displayedSampleStatus =
     isWholeSampleDefinition(definition) || previewedDefinitionKey === definitionKey
       ? "ready"
-      : samplePreviewFailed
+      : failedPreviewKey === definitionKey
         ? "error"
         : "updating";
 

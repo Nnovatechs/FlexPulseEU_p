@@ -97,6 +97,32 @@ function dimensionFields(dimension: SegmentCatalogDimension) {
 
 const RANGE_COMMIT_DELAY_MS = 400;
 const SAMPLE_PREVIEW_DELAY_MS = 280;
+const COMPARE_FEEDBACK_MS = 2400;
+
+function compareSlotLabel(slot: 0 | 1) {
+  return slot === 0 ? "A" : "B";
+}
+
+function CompareInlineStatus({
+  feedback,
+}: {
+  feedback: { tone: "ok" | "warn"; label: string } | null;
+}) {
+  if (!feedback) {
+    return null;
+  }
+
+  return (
+    <span className={`analytics-v2-seg-action-status analytics-v2-seg-action-status--${feedback.tone}`} role="status">
+      {feedback.tone === "ok" ? (
+        <span className="analytics-v2-seg-action-status__mark" aria-hidden="true">
+          ✓
+        </span>
+      ) : null}
+      {feedback.label}
+    </span>
+  );
+}
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("en-GB").format(value);
@@ -352,6 +378,11 @@ export function SegmentExplorerPanel({
   );
   const [saveName, setSaveName] = useState("");
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  const [compareFeedback, setCompareFeedback] = useState<{
+    tone: "ok" | "warn";
+    label: string;
+    slot: 0 | 1 | null;
+  } | null>(null);
   const [openNested, setOpenNested] = useState<Record<string, boolean>>({});
   const [liveSample, setLiveSample] = useState<SegmentSamplePreview>(() => emptySamplePreview(catalog.analysedN));
   const definitionKey = useMemo(() => encodeSegmentDefinition(definition), [definition]);
@@ -487,6 +518,14 @@ export function SegmentExplorerPanel({
     };
   }, [active, postalAreaField, postalMapBaseline.key, surveyId]);
 
+  useEffect(() => {
+    if (compareFeedback == null) {
+      return;
+    }
+    const timer = window.setTimeout(() => setCompareFeedback(null), COMPARE_FEEDBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [compareFeedback]);
+
   const displayedSample = isWholeSampleDefinition(definition)
     ? emptySamplePreview(catalog.analysedN)
     : liveSample;
@@ -522,22 +561,31 @@ export function SegmentExplorerPanel({
     onTrayChange(next);
   };
 
-  const handleAddToComparison = (replaceSlot?: 0 | 1, source: "draft" | "analysed" = "analysed") => {
-    const target = source === "draft" ? definition : analysedDefinition;
-    if (!target) {
-      return;
-    }
-    const result = addToComparisonTray(tray, target, replaceSlot);
+  const handleAddToComparison = (replaceSlot?: 0 | 1) => {
+    const currentTray = getComparisonTraySnapshot(surveyId, catalog.measurementHash, schema);
+    const result = addToComparisonTray(currentTray, definition, replaceSlot);
     if (!result.ok) {
-      setLocalNotice(
-        result.reason === "duplicate"
-          ? "That exact definition is already in Compare."
-          : "Compare already holds two segments. Choose which slot to replace.",
-      );
+      setCompareFeedback({
+        tone: "warn",
+        slot: result.reason === "duplicate" ? result.slot : null,
+        label:
+          result.reason === "duplicate"
+            ? `Already ${compareSlotLabel(result.slot)}`
+            : "Choose A or B",
+      });
       return;
     }
     persistTray(result.tray);
-    setLocalNotice(null);
+    setCompareFeedback({
+      tone: "ok",
+      slot: result.slot,
+      label:
+        result.action === "replaced"
+          ? `Replaced ${compareSlotLabel(result.slot)}`
+          : result.action === "already"
+            ? `Already ${compareSlotLabel(result.slot)}`
+            : `Added as ${compareSlotLabel(result.slot)}`,
+    });
   };
 
   const handleOpenComparison = () => {
@@ -638,21 +686,33 @@ export function SegmentExplorerPanel({
               {comparisonFull ? (
                 <span className="analytics-v2-seg-replace">
                   Replace
-                  <button type="button" className="analytics-v2-seg-chip" onClick={() => handleAddToComparison(0, "draft")}>
+                  <button
+                    type="button"
+                    className={`analytics-v2-seg-chip${compareFeedback?.tone === "ok" && compareFeedback.slot === 0 ? " is-just-updated" : ""}`}
+                    onClick={() => handleAddToComparison(0)}
+                  >
                     A
                   </button>
-                  <button type="button" className="analytics-v2-seg-chip" onClick={() => handleAddToComparison(1, "draft")}>
+                  <button
+                    type="button"
+                    className={`analytics-v2-seg-chip${compareFeedback?.tone === "ok" && compareFeedback.slot === 1 ? " is-just-updated" : ""}`}
+                    onClick={() => handleAddToComparison(1)}
+                  >
                     B
                   </button>
+                  <CompareInlineStatus feedback={compareFeedback} />
                 </span>
               ) : (
-                <button
-                  type="button"
-                  className="button button--ghost"
-                  onClick={() => handleAddToComparison(undefined, "draft")}
-                >
-                  Add to Compare
-                </button>
+                <span className="analytics-v2-seg-replace">
+                  <button
+                    type="button"
+                    className="button button--ghost"
+                    onClick={() => handleAddToComparison()}
+                  >
+                    Add to Compare
+                  </button>
+                  <CompareInlineStatus feedback={compareFeedback} />
+                </span>
               )}
               <button type="button" className="button button--ghost" onClick={handleOpenComparison}>
                 Open Compare {trayCount}/2
@@ -1036,6 +1096,7 @@ export function SegmentExplorerPanel({
           schema={schema}
           comparisonCount={trayCount}
           comparisonFull={comparisonFull}
+          compareFeedback={compareFeedback}
           onAddToComparison={handleAddToComparison}
           onOpenComparison={handleOpenComparison}
           draftDefinition={definition}

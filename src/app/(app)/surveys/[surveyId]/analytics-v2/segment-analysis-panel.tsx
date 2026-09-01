@@ -806,6 +806,7 @@ type SegmentAnalysisPanelProps = {
   schema: SurveyAnalyticsSchema;
   comparisonCount: number;
   comparisonFull: boolean;
+  compareFeedback?: { tone: "ok" | "warn"; label: string; slot: 0 | 1 | null } | null;
   onAddToComparison: (replaceSlot?: 0 | 1) => void;
   onOpenComparison: () => void;
   onExploreSubgroup?: (field: string, band: SegmentBandKey) => void;
@@ -830,6 +831,7 @@ export function SegmentAnalysisPanel({
   schema,
   comparisonCount,
   comparisonFull,
+  compareFeedback = null,
   onAddToComparison,
   onOpenComparison,
   onExploreSubgroup,
@@ -1022,25 +1024,57 @@ export function SegmentAnalysisPanel({
             {comparisonFull ? (
               <span className="analytics-v2-seg-replace">
                 Replace
-                <button type="button" className="analytics-v2-seg-chip" disabled={dirty} onClick={() => onAddToComparison(0)}>
+                <button
+                  type="button"
+                  className={`analytics-v2-seg-chip${compareFeedback?.tone === "ok" && compareFeedback.slot === 0 ? " is-just-updated" : ""}`}
+                  onClick={() => onAddToComparison(0)}
+                >
                   A
                 </button>
-                <button type="button" className="analytics-v2-seg-chip" disabled={dirty} onClick={() => onAddToComparison(1)}>
+                <button
+                  type="button"
+                  className={`analytics-v2-seg-chip${compareFeedback?.tone === "ok" && compareFeedback.slot === 1 ? " is-just-updated" : ""}`}
+                  onClick={() => onAddToComparison(1)}
+                >
                   B
                 </button>
+                {compareFeedback ? (
+                  <span
+                    className={`analytics-v2-seg-action-status analytics-v2-seg-action-status--${compareFeedback.tone}`}
+                    role="status"
+                  >
+                    {compareFeedback.tone === "ok" ? (
+                      <span className="analytics-v2-seg-action-status__mark" aria-hidden="true">
+                        ✓
+                      </span>
+                    ) : null}
+                    {compareFeedback.label}
+                  </span>
+                ) : null}
               </span>
-            ) : null}
-            <button
-              type="button"
-              className="analytics-v2-seg-compare"
-              disabled={dirty}
-              onClick={() => onAddToComparison()}
-            >
-              Add to comparison
-              <span className="analytics-v2-seg-compare__arrow" aria-hidden="true">
-                »
+            ) : (
+              <span className="analytics-v2-seg-replace">
+                <button type="button" className="analytics-v2-seg-compare" onClick={() => onAddToComparison()}>
+                  Add to comparison
+                  <span className="analytics-v2-seg-compare__arrow" aria-hidden="true">
+                    »
+                  </span>
+                </button>
+                {compareFeedback ? (
+                  <span
+                    className={`analytics-v2-seg-action-status analytics-v2-seg-action-status--${compareFeedback.tone}`}
+                    role="status"
+                  >
+                    {compareFeedback.tone === "ok" ? (
+                      <span className="analytics-v2-seg-action-status__mark" aria-hidden="true">
+                        ✓
+                      </span>
+                    ) : null}
+                    {compareFeedback.label}
+                  </span>
+                ) : null}
               </span>
-            </button>
+            )}
           </div>
         </>
       ) : null}

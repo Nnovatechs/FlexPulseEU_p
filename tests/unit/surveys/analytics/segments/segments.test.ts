@@ -805,15 +805,36 @@ describe("segment summary, storage and comparison", () => {
       return;
     }
     const duplicate = addToComparisonTray(first.tray, first.tray.slots[0]!);
-    expect(duplicate).toEqual({ ok: false, reason: "duplicate" });
+    expect(duplicate).toEqual({ ok: false, reason: "duplicate", slot: 0 });
     const whole = addToComparisonTray(first.tray, definition());
     expect(whole.ok).toBe(true);
     if (!whole.ok) {
       return;
     }
+    expect(whole.action).toBe("added");
+    expect(whole.slot).toBe(1);
     expect(whole.tray.slots[1] && isWholeSampleDefinition(whole.tray.slots[1])).toBe(true);
     const full = addToComparisonTray(whole.tray, toggleSemanticBand(definition(), "profile.trust_in_automation.value", "low"));
     expect(full).toEqual({ ok: false, reason: "full" });
+    const replaced = addToComparisonTray(
+      whole.tray,
+      toggleSemanticBand(definition(), "profile.trust_in_automation.value", "low"),
+      1,
+    );
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) {
+      return;
+    }
+    expect(replaced.action).toBe("replaced");
+    expect(replaced.slot).toBe(1);
+    const afterRemovingB = removeComparisonSlot(replaced.tray, 1);
+    const readded = addToComparisonTray(
+      afterRemovingB,
+      toggleSemanticBand(definition(), "profile.trust_in_automation.value", "low"),
+    );
+    expect(readded).toEqual(
+      expect.objectContaining({ ok: true, slot: 1, action: "added" }),
+    );
     writeComparisonTray(survey.id, measurementHash, whole.tray, adapter);
     expect(readComparisonTray(survey.id, measurementHash, adapter).slots[0]).not.toBeNull();
     expect(removeComparisonSlot(whole.tray, 0).slots[0]).toBeNull();

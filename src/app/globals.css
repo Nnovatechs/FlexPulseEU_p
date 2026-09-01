@@ -7874,6 +7874,40 @@ body:has(.analytics-shell) {
   background: color-mix(in srgb, var(--an-accent, #7dd3fc) 16%, transparent);
 }
 
+.analytics-v2-seg-chip.is-just-updated {
+  border-color: var(--an-status-ok);
+  color: var(--an-text-strong);
+  background: var(--an-status-ok-bg);
+}
+
+.analytics-v2-seg-action-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--an-status-ok);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.analytics-v2-seg-action-status--warn {
+  color: var(--an-status-warn);
+}
+
+.analytics-v2-seg-action-status__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  background: var(--an-status-ok-bg);
+  border: 1px solid var(--an-status-ok-border);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
 .analytics-v2-seg-saveblock {
   display: flex;
   flex-direction: column;

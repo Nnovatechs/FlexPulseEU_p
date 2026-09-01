@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/layout/brand-logo";
+import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
 import { requestPasswordResetAction } from "@/lib/auth/actions";
 import { appRoutes } from "@/lib/config/routes";
 
@@ -46,9 +50,13 @@ export default async function ForgotPasswordPage({
               <input name="email" type="email" autoComplete="email" required />
             </label>
 
-            <button type="submit" className="button button--primary button--full">
+            <PendingSubmitButton className="button button--primary button--full">
               Send recovery link
-            </button>
+            </PendingSubmitButton>
+            <FormPendingOverlay
+              title="Sending recovery link"
+              description="Please wait…"
+            />
           </form>
 
           <Link href={appRoutes.login} className="button button--ghost button--full">

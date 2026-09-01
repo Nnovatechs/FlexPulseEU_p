@@ -1,5 +1,9 @@
 import Link from "next/link";
 import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
+import {
   signInWithPasswordAction,
   signUpWithPasswordAction,
 } from "@/lib/auth/actions";
@@ -114,9 +118,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </label>
             ) : null}
 
-            <button type="submit" className="button button--primary button--full">
+            <PendingSubmitButton className="button button--primary button--full">
               {isSignUpMode ? "Create account" : "Sign in"}
-            </button>
+            </PendingSubmitButton>
+            <FormPendingOverlay
+              title={isSignUpMode ? "Creating account" : "Signing in"}
+              description={
+                isSignUpMode
+                  ? "Setting up your access…"
+                  : "Opening the workspace…"
+              }
+            />
           </form>
 
           {!isSignUpMode ? (

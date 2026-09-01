@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/layout/brand-logo";
+import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
 import { updatePasswordAction } from "@/lib/auth/actions";
 import { requireCurrentSession } from "@/lib/auth/session";
 import { appRoutes } from "@/lib/config/routes";
@@ -82,9 +86,13 @@ export default async function UpdatePasswordPage({
                   />
                 </label>
 
-                <button type="submit" className="button button--primary button--full">
+                <PendingSubmitButton className="button button--primary button--full">
                   Update password
-                </button>
+                </PendingSubmitButton>
+                <FormPendingOverlay
+                  title="Updating password"
+                  description="Saving your new password…"
+                />
               </form>
 
               {resolvedSearchParams.error === "update-failed" ? (

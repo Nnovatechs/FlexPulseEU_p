@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
 import { acceptTermsAction } from "@/features/access/actions";
 import { isTermsAcceptanceRequired } from "@/features/access/terms-config";
 import { getCurrentTermsAcceptance } from "@/features/access/repository";
@@ -143,10 +147,14 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
                   <span>{TERMS_ACCEPTANCE_STATEMENT}</span>
                 </label>
                 <div className="terms-action-card__actions">
-                  <button type="submit" className="button button--primary">
+                  <PendingSubmitButton className="button button--primary">
                     Accept terms
-                  </button>
+                  </PendingSubmitButton>
                 </div>
+                <FormPendingOverlay
+                  title="Accepting terms"
+                  description="Opening the workspace…"
+                />
               </form>
             </section>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { geoMercator, geoPath } from "d3-geo";
+import { geoArea, geoMercator, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 
 export type CountryCode = "ES" | "FR" | "IE";
@@ -29,6 +29,7 @@ type CountryFeature = {
 };
 
 type Frame = [[number, number], [number, number]];
+type PolygonCoordinates = number[][][];
 
 type TopologyPayload = {
   type: "Topology";
@@ -38,6 +39,51 @@ type TopologyPayload = {
 };
 
 const countryMapPromiseCache = new Map<CountryCode, Promise<CountryMapData>>();
+const MAX_PROVINCE_STERADIANS = 0.01;
+
+function polygonSphericalArea(coordinates: PolygonCoordinates) {
+  return geoArea({
+    type: "Feature",
+    properties: {},
+    geometry: { type: "Polygon", coordinates },
+  } as never);
+}
+
+function sanitizePolygon(coordinates: PolygonCoordinates) {
+  const area = polygonSphericalArea(coordinates);
+  if (area > MAX_PROVINCE_STERADIANS) {
+    const reversed = coordinates.map((ring, index) => (index === 0 ? [...ring].reverse() : ring));
+    const reversedArea = polygonSphericalArea(reversed);
+    return reversedArea > 0 && reversedArea <= MAX_PROVINCE_STERADIANS ? reversed : null;
+  }
+  return area > 0 ? coordinates : null;
+}
+
+export function sanitizePostalAreaFeatures(features: CountryFeature[]): CountryFeature[] {
+  return features.map((entry) => {
+    const geometry = entry.geometry as { type?: string; coordinates?: unknown };
+    const polygons: PolygonCoordinates[] =
+      geometry.type === "Polygon"
+        ? [geometry.coordinates as PolygonCoordinates]
+        : geometry.type === "MultiPolygon"
+          ? (geometry.coordinates as PolygonCoordinates[])
+          : [];
+    const next = polygons.flatMap((polygon) => {
+      const sanitized = sanitizePolygon(polygon);
+      return sanitized ? [sanitized] : [];
+    });
+    if (next.length === 0) {
+      return entry;
+    }
+    return {
+      ...entry,
+      geometry:
+        next.length === 1
+          ? { type: "Polygon", coordinates: next[0] }
+          : { type: "MultiPolygon", coordinates: next },
+    };
+  });
+}
 
 function projectShapes(features: CountryFeature[], frame: Frame) {
   if (features.length === 0) {
@@ -92,12 +138,12 @@ function buildFranceMapData(features: CountryFeature[]): CountryMapData {
     ]),
   ];
   const frames = buildFranceInsetFrames();
-  overseas.forEach((feature, index) => {
+  overseas.forEach((entry, index) => {
     const frame = frames[index];
     if (!frame) {
       return;
     }
-    shapes.push(...projectShapes([feature], frame));
+    shapes.push(...projectShapes([entry], frame));
   });
   return {
     countryCode: "FR",
@@ -115,15 +161,16 @@ async function buildCountryMapData(countryCode: CountryCode): Promise<CountryMap
   const collection = feature(topology as never, topology.objects.postalAreas as never) as unknown as {
     features: CountryFeature[];
   };
+  const features = sanitizePostalAreaFeatures(collection.features);
   if (countryCode === "FR") {
-    return buildFranceMapData(collection.features);
+    return buildFranceMapData(features);
   }
   const width = 640;
   const height = 420;
   return {
     countryCode,
     viewBox: `0 0 ${width} ${height}`,
-    shapes: projectShapes(collection.features, [
+    shapes: projectShapes(features, [
       [14, 14],
       [width - 14, height - 14],
     ]),

@@ -289,32 +289,46 @@ export function writeComparisonTray(
   notifySegmentStorage();
 }
 
+function matchingComparisonSlot(tray: ComparisonTrayState, definition: SegmentDefinition): 0 | 1 | null {
+  const index = tray.slots.findIndex((slot) => slot != null && segmentDefinitionsEqual(slot, definition));
+  return index === 0 || index === 1 ? index : null;
+}
+
 export function addToComparisonTray(
   tray: ComparisonTrayState,
   definition: SegmentDefinition,
   replaceSlot?: 0 | 1,
 ):
-  | { ok: true; tray: ComparisonTrayState }
-  | { ok: false; reason: "duplicate" | "full" } {
+  | { ok: true; tray: ComparisonTrayState; slot: 0 | 1; action: "added" | "replaced" | "already" }
+  | { ok: false; reason: "duplicate"; slot: 0 | 1 }
+  | { ok: false; reason: "full" } {
   const normalized = normalizeSegmentDefinition(definition);
-  if (tray.slots.some((slot) => slot != null && segmentDefinitionsEqual(slot, normalized))) {
-    return { ok: false, reason: "duplicate" };
-  }
+  const existingSlot = matchingComparisonSlot(tray, normalized);
 
   if (replaceSlot != null) {
+    if (existingSlot === replaceSlot) {
+      return { ok: true, tray, slot: replaceSlot, action: "already" };
+    }
+    if (existingSlot != null) {
+      return { ok: false, reason: "duplicate", slot: existingSlot };
+    }
     const slots: ComparisonTrayState["slots"] = [...tray.slots];
     slots[replaceSlot] = normalized;
-    return { ok: true, tray: { version: 1, slots } };
+    return { ok: true, tray: { version: 1, slots }, slot: replaceSlot, action: "replaced" };
+  }
+
+  if (existingSlot != null) {
+    return { ok: false, reason: "duplicate", slot: existingSlot };
   }
 
   const emptyIndex = tray.slots.findIndex((slot) => slot == null);
-  if (emptyIndex < 0) {
+  if (emptyIndex !== 0 && emptyIndex !== 1) {
     return { ok: false, reason: "full" };
   }
 
   const slots: ComparisonTrayState["slots"] = [...tray.slots];
   slots[emptyIndex] = normalized;
-  return { ok: true, tray: { version: 1, slots } };
+  return { ok: true, tray: { version: 1, slots }, slot: emptyIndex, action: "added" };
 }
 
 export function removeComparisonSlot(tray: ComparisonTrayState, slot: 0 | 1): ComparisonTrayState {

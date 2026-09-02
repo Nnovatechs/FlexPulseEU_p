@@ -106,4 +106,35 @@ describe("dashboard QA synthetic dataset", () => {
       dataset.records[0]?.mapperOutput.profile.trust_in_automation?.value,
     );
   });
+
+  it("maps household applicability factors without mixing interested assets into owned inventory", () => {
+    const keys = dataset.survey.definition_json.survey_meta.behavioural_concept_keys ?? [];
+    expect(keys).toEqual(expect.arrayContaining([
+      "owned_der_assets",
+      "interested_der_assets",
+      "winter_comfort_setpoint_c",
+      "summer_comfort_setpoint_c",
+      "preferred_tariff_model",
+    ]));
+
+    const mapped = dataset.records.filter((record) => {
+      const profile = record.mapperOutput.profile;
+      return (
+        Array.isArray(profile.owned_der_assets?.value) &&
+        Array.isArray(profile.interested_der_assets?.value) &&
+        typeof profile.winter_comfort_setpoint_c?.value === "number" &&
+        typeof profile.summer_comfort_setpoint_c?.value === "number" &&
+        typeof profile.preferred_tariff_model?.value === "string"
+      );
+    });
+    expect(mapped).toHaveLength(DASHBOARD_QA_RESPONSE_COUNT);
+
+    const limited = dataset.records.filter((record) => record.archetypeKey === "willing_asset_limited");
+    expect(limited.length).toBeGreaterThan(0);
+    expect(limited.every((record) => {
+      const owned = record.mapperOutput.profile.owned_der_assets?.value;
+      const interested = record.mapperOutput.profile.interested_der_assets?.value;
+      return Array.isArray(owned) && owned.length === 0 && Array.isArray(interested) && interested.includes("ev");
+    })).toBe(true);
+  });
 });

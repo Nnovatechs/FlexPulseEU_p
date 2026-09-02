@@ -47,6 +47,10 @@ type LikertCenters = {
 type ArchetypePlan = {
   key: DashboardQaArchetypeKey;
   assets: string[];
+  interestedAssets: string[];
+  winterSetpoint: number;
+  summerSetpoint: number;
+  tariffModel: "same_price" | "time_of_use" | "shift_rewards" | "dynamic_price" | "not_sure";
   centers: LikertCenters;
 };
 
@@ -54,6 +58,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "enabled_multi_asset_adopter",
     assets: ["washing_machine", "ev", "heat_pump", "hot_water_tank", "battery_storage", "pv_system"],
+    interestedAssets: ["ev", "heat_pump", "battery_storage", "pv_system", "thermal_storage"],
+    winterSetpoint: 19,
+    summerSetpoint: 24,
+    tariffModel: "shift_rewards",
     centers: {
       awareness_of_energy_systems: 5,
       flexibility_willingness: 5,
@@ -73,6 +81,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "willing_asset_limited",
     assets: ["none_of_these"],
+    interestedAssets: ["ev", "heat_pump"],
+    winterSetpoint: 20,
+    summerSetpoint: 25,
+    tariffModel: "time_of_use",
     centers: {
       awareness_of_energy_systems: 4,
       flexibility_willingness: 5,
@@ -92,6 +104,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "capable_routine_constrained",
     assets: ["washing_machine", "ev"],
+    interestedAssets: ["ev", "washing_machine"],
+    winterSetpoint: 20,
+    summerSetpoint: 25,
+    tariffModel: "time_of_use",
     centers: {
       awareness_of_energy_systems: 4,
       flexibility_willingness: 2,
@@ -105,12 +121,16 @@ const ARCHETYPES: ArchetypePlan[] = [
       event_frequency_tolerance: 3,
       savings_motivation: 3,
       routine_dependency: 5,
-      dfc: 5,
+      dfc: 4,
     },
   },
   {
     key: "comfort_protective",
     assets: ["heat_pump", "air_conditioning"],
+    interestedAssets: ["heat_pump", "air_conditioning"],
+    winterSetpoint: 17,
+    summerSetpoint: 27,
+    tariffModel: "same_price",
     centers: {
       awareness_of_energy_systems: 3,
       flexibility_willingness: 2,
@@ -130,6 +150,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "automation_sceptical",
     assets: ["ev"],
+    interestedAssets: ["ev"],
+    winterSetpoint: 20,
+    summerSetpoint: 25,
+    tariffModel: "same_price",
     centers: {
       awareness_of_energy_systems: 3,
       flexibility_willingness: 3,
@@ -149,6 +173,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "explainability_seeking",
     assets: ["washing_machine"],
+    interestedAssets: ["washing_machine", "battery_storage"],
+    winterSetpoint: 19,
+    summerSetpoint: 24,
+    tariffModel: "time_of_use",
     centers: {
       awareness_of_energy_systems: 4,
       flexibility_willingness: 3,
@@ -168,6 +196,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "savings_led_dynamic_tariff",
     assets: ["battery_storage", "pv_system"],
+    interestedAssets: ["battery_storage", "pv_system", "ev"],
+    winterSetpoint: 18,
+    summerSetpoint: 26,
+    tariffModel: "dynamic_price",
     centers: {
       awareness_of_energy_systems: 4,
       flexibility_willingness: 4,
@@ -187,6 +219,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "bill_stability_risk_averse",
     assets: ["hot_water_tank"],
+    interestedAssets: ["hot_water_tank"],
+    winterSetpoint: 21,
+    summerSetpoint: 24,
+    tariffModel: "same_price",
     centers: {
       awareness_of_energy_systems: 3,
       flexibility_willingness: 3,
@@ -206,6 +242,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "event_fatigue",
     assets: ["washing_machine", "heat_pump"],
+    interestedAssets: ["washing_machine"],
+    winterSetpoint: 20,
+    summerSetpoint: 25,
+    tariffModel: "time_of_use",
     centers: {
       awareness_of_energy_systems: 3,
       flexibility_willingness: 3,
@@ -225,6 +265,10 @@ const ARCHETYPES: ArchetypePlan[] = [
   {
     key: "low_awareness_low_engagement",
     assets: ["none_of_these"],
+    interestedAssets: ["none_of_these"],
+    winterSetpoint: 20,
+    summerSetpoint: 25,
+    tariffModel: "not_sure",
     centers: {
       awareness_of_energy_systems: 2,
       flexibility_willingness: 2,
@@ -345,6 +389,40 @@ function buildLikertAnswers(
   return answers;
 }
 
+function clampSetpoint(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function buildHouseholdAnswers(
+  survey: PersistedSurvey,
+  plan: ArchetypePlan,
+  seedBase: number,
+  variant: number,
+) {
+  const answers: Record<string, SubmittedSurveyAnswer> = {};
+  const interestedKey = questionKeysForConcept(survey, "interested_der_assets")[0];
+  const winterKey = questionKeysForConcept(survey, "winter_comfort_setpoint_c")[0];
+  const summerKey = questionKeysForConcept(survey, "summer_comfort_setpoint_c")[0];
+  const tariffKey = questionKeysForConcept(survey, "preferred_tariff_model")[0];
+  const winterJitter = seededUnit(seedBase + 3) < 0.2 ? -1 : seededUnit(seedBase + 5) > 0.85 ? 1 : 0;
+  const summerJitter = seededUnit(seedBase + 7) < 0.2 ? -1 : seededUnit(seedBase + 9) > 0.85 ? 1 : 0;
+  const tariffShift = variant % 6 === 0 && plan.tariffModel === "dynamic_price" ? "shift_rewards" : plan.tariffModel;
+
+  if (interestedKey) {
+    answers[interestedKey] = plan.interestedAssets;
+  }
+  if (winterKey) {
+    answers[winterKey] = clampSetpoint(plan.winterSetpoint + winterJitter, 14, 26);
+  }
+  if (summerKey) {
+    answers[summerKey] = clampSetpoint(plan.summerSetpoint + summerJitter, 18, 32);
+  }
+  if (tariffKey) {
+    answers[tariffKey] = tariffShift;
+  }
+  return answers;
+}
+
 function buildDfcAnswers(assets: string[], center: number, seedBase: number) {
   const answers: Record<string, SubmittedSurveyAnswer> = {
     [DFC_INVENTORY_QUESTION_KEY]: assets,
@@ -447,6 +525,7 @@ export function buildDashboardQaSyntheticDataset(input: {
         const seedBase = (index + 1) * 97;
         const answers = {
           ...buildLikertAnswers(survey, archetype.centers, seedBase, country, variant),
+          ...buildHouseholdAnswers(survey, archetype, seedBase + 200, variant),
           ...buildDfcAnswers(archetype.assets, archetype.centers.dfc, seedBase + 400),
         };
         const locationLevels = buildLocationLevels(country, id);

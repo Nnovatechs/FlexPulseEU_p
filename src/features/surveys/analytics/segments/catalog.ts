@@ -24,8 +24,15 @@ import type {
   SegmentCatalogContextField,
   SegmentCatalogDimension,
   SegmentCatalogFacetField,
+  SegmentCatalogHouseholdCondition,
   SegmentCatalogScoreField,
 } from "./types";
+import {
+  getHouseholdConditionValueLabel,
+  isOwnedDerAssetsConcept,
+  listHouseholdConditionPresentations,
+  type HouseholdConditionPresentation,
+} from "./household-conditions";
 
 const EXCLUDED_FIELD_KEYS = new Set([
   "response.audience_token",
@@ -166,6 +173,62 @@ function buildPostalAreaChoiceField(
   };
 }
 
+function buildHouseholdCatalogCondition(
+  field: SurveyAnalyticsFieldDefinition,
+  presentation: HouseholdConditionPresentation,
+  rows: SurveyAnalyticsRecord[],
+  context: SegmentLabelContext,
+): SegmentCatalogHouseholdCondition | null {
+  const label = getConceptLabel(presentation.conceptKey, context);
+
+  if (presentation.control === "numeric_range") {
+    if (!hasUsableNumericCoverage(rows, field.key) || presentation.scaleMin == null || presentation.scaleMax == null) {
+      return null;
+    }
+    return {
+      kind: "numeric_range",
+      conceptKey: presentation.conceptKey,
+      field: field.key,
+      label,
+      unit: presentation.unit ?? "",
+      scaleMin: presentation.scaleMin,
+      scaleMax: presentation.scaleMax,
+    };
+  }
+
+  if (presentation.control === "membership") {
+    const values = uniqueArrayStrings(rows, field.key);
+    if (values.length === 0) {
+      return null;
+    }
+    return {
+      kind: "membership",
+      conceptKey: presentation.conceptKey,
+      field: field.key,
+      label,
+      values: values.map((value) => ({
+        value,
+        label: getHouseholdConditionValueLabel(presentation.conceptKey, value),
+      })),
+    };
+  }
+
+  const values = uniqueStrings(rows, field.key);
+  if (values.length === 0) {
+    return null;
+  }
+  return {
+    kind: "choice",
+    conceptKey: presentation.conceptKey,
+    field: field.key,
+    label,
+    values: values.map((value) => ({
+      value,
+      label: getHouseholdConditionValueLabel(presentation.conceptKey, value),
+    })),
+  };
+}
+
 function hasUsableNumericCoverage(rows: SurveyAnalyticsRecord[], field: string) {
   return uniqueFiniteNumbers(rows, field).length > 0;
 }
@@ -194,6 +257,7 @@ export function buildSegmentCatalog({
       overall: null,
       facets: [],
       supportingFactors: [],
+      householdConditions: [],
       conditionalModules: [],
     };
     dimensions.set(dimension, created);
@@ -270,8 +334,30 @@ export function buildSegmentCatalog({
     group.facets = [];
   }
 
+  for (const presentation of listHouseholdConditionPresentations()) {
+    const field = profileFields.find(
+      (candidate) =>
+        candidate.concept_key === presentation.conceptKey &&
+        !candidate.facet &&
+        candidate.key.endsWith(".value"),
+    );
+    if (!field) {
+      continue;
+    }
+
+    const item = buildHouseholdCatalogCondition(field, presentation, rows, context);
+    if (!item) {
+      continue;
+    }
+
+    ensureDimension(presentation.groupingDimension).householdConditions.push(item);
+  }
+
   const assetField = profileFields.find(
-    (field) => field.concept_role === "applicability_factor" && field.value_type === "string[]",
+    (field) =>
+      isOwnedDerAssetsConcept(field.concept_key) &&
+      field.value_type === "string[]" &&
+      field.key.endsWith(".value"),
   );
   const assetValues = assetField ? uniqueArrayStrings(rows, assetField.key) : [];
 

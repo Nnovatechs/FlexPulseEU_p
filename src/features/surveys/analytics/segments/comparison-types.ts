@@ -164,6 +164,50 @@ export type ComparisonRules = {
   effectSizesRequireDisjoint: true;
 };
 
+export type ComparisonHouseholdNumericDifference = {
+  conceptKey: string;
+  field: string;
+  label: string;
+  unit: string;
+  medianA: number | null;
+  medianB: number | null;
+  q1A: number | null;
+  q3A: number | null;
+  q1B: number | null;
+  q3B: number | null;
+  applicableNA: number;
+  applicableNB: number;
+  missingNA: number;
+  missingNB: number;
+};
+
+export type ComparisonHouseholdCategoryDifference = {
+  conceptKey: string;
+  field: string;
+  label: string;
+  kind: "categorical" | "membership";
+  applicableNA: number;
+  applicableNB: number;
+  missingNA: number;
+  missingNB: number;
+  values: Array<{
+    value: string;
+    valueLabel: string;
+    shareA: number | null;
+    shareB: number | null;
+    countA: number | null;
+    countB: number | null;
+    deltaPercentagePoints: number | null;
+    disclosure: "visible" | "suppressed";
+  }>;
+};
+
+export type ComparisonHouseholdConditionsBlock = {
+  label: string;
+  numerics: ComparisonHouseholdNumericDifference[];
+  categories: ComparisonHouseholdCategoryDifference[];
+};
+
 export type SegmentComparisonResult = {
   generatedAt: string;
   definitionA: SegmentDefinition;
@@ -175,6 +219,7 @@ export type SegmentComparisonResult = {
   scoreDifferences: ComparisonScoreDifference[];
   definitionDifferences: ComparisonScoreDifference[];
   compositionDifferences: ComparisonCompositionDifference[];
+  householdConditions: ComparisonHouseholdConditionsBlock | null;
   dfc: ComparisonDfcSummary | null;
   profileAxes: ComparisonProfileAxis[];
   geography: ComparisonGeographyRow[];

@@ -586,6 +586,64 @@ export function ComparisonPanel({
                 </details>
               </CompareSection>
 
+              {result.householdConditions ? (
+                <CompareSection
+                  title={result.householdConditions.label}
+                  tip="Factual household conditions and stated settings. Medians and shares use applicable n; missing answers are listed separately. These rows are descriptive context, not evidence that one segment is better. Interested assets are not treated as owned inventory."
+                >
+                  {result.householdConditions.numerics.length > 0 ? (
+                    <RankedTable
+                      items={result.householdConditions.numerics}
+                      columns={[
+                        { key: "name", header: "Setting", render: (row) => row.label },
+                        {
+                          key: "a",
+                          header: "Median A",
+                          render: (row) =>
+                            row.medianA == null ? "n/a" : `${row.medianA.toFixed(0)}${row.unit ? ` ${row.unit}` : ""}`,
+                        },
+                        {
+                          key: "b",
+                          header: "Median B",
+                          render: (row) =>
+                            row.medianB == null ? "n/a" : `${row.medianB.toFixed(0)}${row.unit ? ` ${row.unit}` : ""}`,
+                        },
+                        {
+                          key: "iqr",
+                          header: "IQR A / B",
+                          render: (row) =>
+                            `${row.q1A == null || row.q3A == null ? "n/a" : `${row.q1A.toFixed(0)}–${row.q3A.toFixed(0)}`} / ${row.q1B == null || row.q3B == null ? "n/a" : `${row.q1B.toFixed(0)}–${row.q3B.toFixed(0)}`}`,
+                        },
+                        {
+                          key: "n",
+                          header: "Applicable / missing A · B",
+                          render: (row) =>
+                            `${formatCount(row.applicableNA)}/${formatCount(row.missingNA)} · ${formatCount(row.applicableNB)}/${formatCount(row.missingNB)}`,
+                        },
+                      ]}
+                    />
+                  ) : null}
+                  {result.householdConditions.categories.map((group) => (
+                    <div key={group.field} className="analytics-v2-seg-stack">
+                      <strong>{group.label}</strong>
+                      <small>
+                        applicable n A/B {formatCount(group.applicableNA)}/{formatCount(group.applicableNB)} ·
+                        missing/no answer {formatCount(group.missingNA)}/{formatCount(group.missingNB)}
+                      </small>
+                      <RankedTable
+                        items={group.values}
+                        columns={[
+                          { key: "name", header: "Value", render: (row) => row.valueLabel },
+                          { key: "a", header: "% A", render: (row) => formatPercent(row.shareA) },
+                          { key: "b", header: "% B", render: (row) => formatPercent(row.shareB) },
+                          { key: "pp", header: "Δ pp", render: (row) => formatPp(row.deltaPercentagePoints) },
+                        ]}
+                      />
+                    </div>
+                  ))}
+                </CompareSection>
+              ) : null}
+
               {result.definitionDifferences.length > 0 ? (
                 <CompareSection
                   title="Definition-linked differences"

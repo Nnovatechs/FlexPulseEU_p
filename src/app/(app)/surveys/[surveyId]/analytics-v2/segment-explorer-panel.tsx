@@ -12,6 +12,7 @@ import {
 } from "@/features/surveys/segment-explorer-actions";
 import {
   MAX_SEGMENT_CONDITIONS,
+  HOUSEHOLD_CONDITIONS_FILTER_GROUP_LABEL,
   addToComparisonTray,
   canRunSegmentAnalysis,
   clearScoreCondition,
@@ -92,6 +93,7 @@ function dimensionFields(dimension: SegmentCatalogDimension) {
     ...dimension.facets.map((facet) => facet.field),
     ...dimension.conditionalModules.map((module) => module.field),
     ...dimension.supportingFactors.map((factor) => factor.overall.field),
+    ...dimension.householdConditions.map((condition) => condition.field),
   ].filter((field): field is string => Boolean(field));
 }
 
@@ -847,6 +849,109 @@ export function SegmentExplorerPanel({
                         </FilterRow>
                       </div>
                     ))}
+                  </details>
+                ) : null}
+
+                {selectedDimension.householdConditions.length > 0 ? (
+                  <details
+                    className="analytics-v2-seg-nested"
+                    open={openNested[`${selectedDimension.dimension}:household`] === true}
+                    onToggle={(event) => {
+                      const open = detailsOpen(event);
+                      setOpenNested((current) => ({
+                        ...current,
+                        [`${selectedDimension.dimension}:household`]: open,
+                      }));
+                    }}
+                  >
+                    <summary>
+                      {HOUSEHOLD_CONDITIONS_FILTER_GROUP_LABEL} · {selectedDimension.householdConditions.length}
+                    </summary>
+                    {selectedDimension.householdConditions.map((condition) => {
+                      if (condition.kind === "numeric_range") {
+                        const range = getFieldRange(definition, condition.field);
+                        return (
+                          <FilterRow key={condition.field} label={`${condition.label}${condition.unit ? ` (${condition.unit})` : ""}`}>
+                            <DebouncedRangeInputs
+                              min={range?.min ?? null}
+                              max={range?.max ?? null}
+                              scaleMin={condition.scaleMin}
+                              scaleMax={condition.scaleMax}
+                              onCommit={(nextMin, nextMax) =>
+                                onDefinitionChange(
+                                  setNumericRange(definition, condition.field, nextMin, nextMax, condition),
+                                )
+                              }
+                            />
+                          </FilterRow>
+                        );
+                      }
+
+                      if (condition.kind === "choice") {
+                        return (
+                          <FilterRow key={condition.field} label={condition.label}>
+                            <div className="analytics-v2-seg-bands">
+                              {condition.values.map((option) => {
+                                const selectedValue = getFieldInValues(definition, condition.field).includes(
+                                  option.value,
+                                );
+                                return (
+                                  <button
+                                    key={option.value}
+                                    type="button"
+                                    className={`analytics-v2-seg-chip${selectedValue ? " is-active" : ""}`}
+                                    onClick={() =>
+                                      onDefinitionChange(
+                                        toggleInValue(definition, condition.field, option.value, {
+                                          allValues: condition.values.map((entry) => entry.value),
+                                        }),
+                                      )
+                                    }
+                                  >
+                                    {option.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </FilterRow>
+                        );
+                      }
+
+                      return (
+                        <div key={condition.field} className="analytics-v2-seg-stack">
+                          {(["contains", "not_contains"] as const).map((mode) => (
+                            <FilterRow
+                              key={`${condition.field}:${mode}`}
+                              label={`${condition.label} · ${mode === "contains" ? "Includes" : "Does not include"}`}
+                            >
+                              <div className="analytics-v2-seg-bands">
+                                {condition.values.map((option) => {
+                                  const selectedValue = getMembershipValues(
+                                    definition,
+                                    condition.field,
+                                    mode,
+                                  ).includes(option.value);
+                                  return (
+                                    <button
+                                      key={`${mode}:${option.value}`}
+                                      type="button"
+                                      className={`analytics-v2-seg-chip${selectedValue ? " is-active" : ""}`}
+                                      onClick={() =>
+                                        onDefinitionChange(
+                                          toggleMembership(definition, condition.field, option.value, mode),
+                                        )
+                                      }
+                                    >
+                                      {option.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </FilterRow>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </details>
                 ) : null}
               </>

@@ -1,4 +1,5 @@
-import { getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
+import { FLEXPULSE_DER_ASSET_VALUES, getFlexpulseBehaviouralConcept } from "@/features/ontology/flexpulse-behavioural-schema";
+import { CANONICAL_DER_ASSET_OPTION_LABELS } from "@/features/surveys/asset-option-labels";
 import {
   createDeclaredFlexibilityCapabilityDefinitionArtifacts,
 } from "@/features/surveys/declared-flexibility-capability-module";
@@ -15,6 +16,7 @@ import {
   type SurveyMappingDefinition,
   type SurveyQuestionDefinition,
 } from "@/features/surveys/generator-types";
+import { CANONICAL_PREFERRED_TARIFF_OPTION_LABELS } from "@/features/surveys/tariff-option-labels";
 import {
   DASHBOARD_QA_FIXTURE_KIND,
   DASHBOARD_QA_SURVEY_NAME,
@@ -136,6 +138,151 @@ function slotKeyFor(conceptKey: string, index: number) {
   return `SLOT_DQA_${conceptKey.toUpperCase()}_${String(index + 1).padStart(2, "0")}`;
 }
 
+const HOUSEHOLD_TARIFF_VALUES = [
+  "same_price",
+  "time_of_use",
+  "shift_rewards",
+  "dynamic_price",
+  "not_sure",
+] as const;
+
+function appendHouseholdApplicabilityQuestions(input: {
+  questions: SurveyQuestionDefinition[];
+  mappings: SurveyMappingDefinition[];
+  planEntries: MeasurementPlanEntry[];
+  startOrder: number;
+}) {
+  let order = input.startOrder;
+  const interestedKey = questionKeyFor("interested_der_assets", 0);
+  input.questions.push({
+    question_key: interestedKey,
+    type: "multiple_choice",
+    required: true,
+    order: order++,
+    exclusive_option_keys: ["none_of_these", "not_sure"],
+    options: [
+      ...FLEXPULSE_DER_ASSET_VALUES.map((asset) => ({ option_key: asset, value: asset })),
+      { option_key: "none_of_these", value: "none_of_these" },
+      { option_key: "not_sure", value: "not_sure" },
+    ],
+  });
+  input.mappings.push({
+    question_key: interestedKey,
+    ontology_target: conceptTarget("interested_der_assets"),
+    expected_type: "string[]",
+    required_for_mapping: true,
+    transform_strategy: {
+      kind: "enum_lookup",
+      option_to_value: Object.fromEntries(FLEXPULSE_DER_ASSET_VALUES.map((asset) => [asset, asset])),
+    },
+    validation_constraints: { allowed_values: [...FLEXPULSE_DER_ASSET_VALUES] },
+  });
+  input.planEntries.push({
+    concept_key: "interested_der_assets",
+    evidence_source: "survey_questions",
+    measurement_type: "multi_choice_tag_set",
+    output_type: "string[]",
+    aggregation_rule: "set_union",
+    threshold_profile: "asset_inventory",
+    minimum_answer_count: 1,
+    question_keys: [interestedKey],
+    required_question_keys: [interestedKey],
+    question_intents: [
+      {
+        slot_key: slotKeyFor("interested_der_assets", 0),
+        question_key: interestedKey,
+        facet: "asset_interest",
+        intent: "Capture DER assets the household is interested in adopting or using.",
+        polarity: "neutral",
+      },
+    ],
+  });
+
+  for (const spec of [
+    { conceptKey: "winter_comfort_setpoint_c", min: 14, max: 26 },
+    { conceptKey: "summer_comfort_setpoint_c", min: 18, max: 32 },
+  ] as const) {
+    const questionKey = questionKeyFor(spec.conceptKey, 0);
+    input.questions.push({
+      question_key: questionKey,
+      type: "numeric",
+      required: true,
+      order: order++,
+      numeric: { min: spec.min, max: spec.max, unit: "°C" },
+    });
+    input.mappings.push({
+      question_key: questionKey,
+      ontology_target: conceptTarget(spec.conceptKey),
+      expected_type: "number",
+      required_for_mapping: true,
+      transform_strategy: { kind: "numeric_range", min: spec.min, max: spec.max, unit: "celsius" },
+      validation_constraints: { min: spec.min, max: spec.max },
+    });
+    input.planEntries.push({
+      concept_key: spec.conceptKey,
+      evidence_source: "survey_questions",
+      measurement_type: "numeric_direct",
+      output_type: "number",
+      aggregation_rule: "identity",
+      threshold_profile: "none",
+      minimum_answer_count: 1,
+      question_keys: [questionKey],
+      required_question_keys: [questionKey],
+      question_intents: [
+        {
+          slot_key: slotKeyFor(spec.conceptKey, 0),
+          question_key: questionKey,
+          facet: "setpoint",
+          intent: `Capture the household ${spec.conceptKey.replaceAll("_", " ")}.`,
+          polarity: "neutral",
+        },
+      ],
+    });
+  }
+
+  const tariffKey = questionKeyFor("preferred_tariff_model", 0);
+  input.questions.push({
+    question_key: tariffKey,
+    type: "single_choice",
+    required: true,
+    order: order++,
+    options: HOUSEHOLD_TARIFF_VALUES.map((value) => ({ option_key: value, value })),
+  });
+  input.mappings.push({
+    question_key: tariffKey,
+    ontology_target: conceptTarget("preferred_tariff_model"),
+    expected_type: "string",
+    required_for_mapping: true,
+    transform_strategy: {
+      kind: "enum_lookup",
+      option_to_value: Object.fromEntries(HOUSEHOLD_TARIFF_VALUES.map((value) => [value, value])),
+    },
+    validation_constraints: { allowed_values: [...HOUSEHOLD_TARIFF_VALUES] },
+  });
+  input.planEntries.push({
+    concept_key: "preferred_tariff_model",
+    evidence_source: "survey_questions",
+    measurement_type: "single_choice_enum",
+    output_type: "enum",
+    aggregation_rule: "identity",
+    threshold_profile: "none",
+    minimum_answer_count: 1,
+    question_keys: [tariffKey],
+    required_question_keys: [tariffKey],
+    question_intents: [
+      {
+        slot_key: slotKeyFor("preferred_tariff_model", 0),
+        question_key: tariffKey,
+        facet: "stated_tariff_model",
+        intent: "Capture the stated preferred tariff model as a factual household setting.",
+        polarity: "neutral",
+      },
+    ],
+  });
+
+  return order;
+}
+
 export function buildDashboardQaSurveyFixture(input: {
   surveyId: string;
   ownerUserId: string;
@@ -189,6 +336,13 @@ export function buildDashboardQaSurveyFixture(input: {
     });
   }
 
+  order = appendHouseholdApplicabilityQuestions({
+    questions,
+    mappings,
+    planEntries,
+    startOrder: order,
+  });
+
   const dfc = createDeclaredFlexibilityCapabilityDefinitionArtifacts(order);
   questions.push(...dfc.questions);
   mappings.push(...dfc.mappingContract.mappings);
@@ -221,7 +375,16 @@ export function buildDashboardQaSurveyFixture(input: {
       questions: Object.fromEntries(
         questions.map((question) => [
           question.question_key,
-          { title: question.question_key.replaceAll("_", " ") },
+          {
+            title: question.question_key.replaceAll("_", " "),
+            options: Object.fromEntries(
+              (question.options ?? []).map((option) => {
+                const assetLabel = CANONICAL_DER_ASSET_OPTION_LABELS[language]?.[option.value];
+                const tariffLabel = CANONICAL_PREFERRED_TARIFF_OPTION_LABELS[language]?.[option.value];
+                return [option.option_key, assetLabel ?? tariffLabel ?? option.value];
+              }),
+            ),
+          },
         ]),
       ),
     };

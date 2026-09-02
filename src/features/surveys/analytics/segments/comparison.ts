@@ -24,6 +24,14 @@ import {
   SINGLE_ITEM_SIGNAL_LABEL,
   type SegmentLabelContext,
 } from "./labels";
+import {
+  HOUSEHOLD_CONDITIONS_SECTION_LABEL,
+  getHouseholdConditionValueLabel,
+  isHouseholdConditionField,
+  isOwnedDerAssetsConcept,
+  isOwnedDerAssetsField,
+  listHouseholdConditionPresentations,
+} from "./household-conditions";
 import { isUsableWeatherQuality } from "./presentation";
 import { describeReadableConditions, segmentLabelContext } from "./readable-conditions";
 import {
@@ -37,6 +45,9 @@ import type {
   ComparisonDfcModule,
   ComparisonDfcSummary,
   ComparisonGeographyRow,
+  ComparisonHouseholdCategoryDifference,
+  ComparisonHouseholdConditionsBlock,
+  ComparisonHouseholdNumericDifference,
   ComparisonInsight,
   ComparisonOverlapRelation,
   ComparisonProfileAxis,
@@ -326,8 +337,11 @@ function collectCategoryValues(rows: SurveyAnalyticsRecord[], field: SurveyAnaly
 }
 
 function categoryValueLabel(field: SurveyAnalyticsFieldDefinition, value: string) {
-  if (field.concept_key === "owned_der_assets" || field.key.includes("owned_der_assets")) {
-    return getAssetValueLabel(value);
+  if (field.concept_key && (isOwnedDerAssetsField(field) || isHouseholdConditionField(field))) {
+    if (isOwnedDerAssetsField(field)) {
+      return getAssetValueLabel(value);
+    }
+    return getHouseholdConditionValueLabel(field.concept_key, value);
   }
   return getChoiceValueLabel(value);
 }
@@ -336,7 +350,7 @@ function compositionFamily(
   field: SurveyAnalyticsFieldDefinition,
   geoKeys: Set<string>,
 ): ComparisonCompositionDifference["family"] {
-  if (field.concept_role === "applicability_factor" || field.key.includes("owned_der_assets")) {
+  if (isOwnedDerAssetsField(field)) {
     return "asset";
   }
   if (geoKeys.has(field.key)) {
@@ -358,8 +372,11 @@ function buildCompositionRows(
     if (EXCLUDED_CATEGORY_FIELDS.has(field.key) || field.facet || isLocationField(field)) {
       return false;
     }
-    if (field.concept_role === "applicability_factor" && field.value_type === "string[]") {
+    if (isOwnedDerAssetsConcept(field.concept_key) && field.value_type === "string[]") {
       return true;
+    }
+    if (isHouseholdConditionField(field)) {
+      return false;
     }
     if (geoKeys.has(field.key)) {
       return false;
@@ -769,6 +786,125 @@ function buildInsights(input: {
   return insights.slice(0, 3);
 }
 
+function missingCount(rowCount: number, applicableN: number) {
+  return Math.max(rowCount - applicableN, 0);
+}
+
+function buildHouseholdConditionComparison(
+  schema: SurveyAnalyticsSchema,
+  rowsA: SurveyAnalyticsRecord[],
+  rowsB: SurveyAnalyticsRecord[],
+  context: SegmentLabelContext,
+): ComparisonHouseholdConditionsBlock | null {
+  const numerics: ComparisonHouseholdNumericDifference[] = [];
+  const categories: ComparisonHouseholdCategoryDifference[] = [];
+
+  for (const presentation of listHouseholdConditionPresentations()) {
+    const field = schema.fields.find(
+      (candidate) =>
+        candidate.concept_key === presentation.conceptKey &&
+        !candidate.facet &&
+        candidate.key.endsWith(".value"),
+    );
+    if (!field) {
+      continue;
+    }
+
+    if (presentation.control === "numeric_range") {
+      const valuesA = numericFieldValues(rowsA, field.key);
+      const valuesB = numericFieldValues(rowsB, field.key);
+      if (valuesA.length === 0 && valuesB.length === 0) {
+        continue;
+      }
+      const snapA = snapshot(valuesA);
+      const snapB = snapshot(valuesB);
+      numerics.push({
+        conceptKey: presentation.conceptKey,
+        field: field.key,
+        label: getConceptLabel(presentation.conceptKey, context),
+        unit: presentation.unit ?? "",
+        medianA: snapA?.median ?? null,
+        medianB: snapB?.median ?? null,
+        q1A: snapA?.q1 ?? null,
+        q3A: snapA?.q3 ?? null,
+        q1B: snapB?.q1 ?? null,
+        q3B: snapB?.q3 ?? null,
+        applicableNA: valuesA.length,
+        applicableNB: valuesB.length,
+        missingNA: missingCount(rowsA.length, valuesA.length),
+        missingNB: missingCount(rowsB.length, valuesB.length),
+      });
+      continue;
+    }
+
+    const groupA = collectCategoryValues(rowsA, field);
+    const groupB = collectCategoryValues(rowsB, field);
+    if (groupA.applicableN === 0 && groupB.applicableN === 0) {
+      continue;
+    }
+    const valueKeys = new Set([...groupA.counts.keys(), ...groupB.counts.keys()]);
+    const raw = Array.from(valueKeys).map((value) => ({
+      value,
+      countA: groupA.counts.get(value) ?? 0,
+      countB: groupB.counts.get(value) ?? 0,
+    }));
+    const suppressedA = discloseExclusiveCounts(
+      raw.map((item) => ({ key: item.value, count: item.countA })),
+      rowsA.length,
+    );
+    const suppressedB = discloseExclusiveCounts(
+      raw.map((item) => ({ key: item.value, count: item.countB })),
+      rowsB.length,
+    );
+    categories.push({
+      conceptKey: presentation.conceptKey,
+      field: field.key,
+      label: getConceptLabel(presentation.conceptKey, context),
+      kind: presentation.control === "membership" ? "membership" : "categorical",
+      applicableNA: groupA.applicableN,
+      applicableNB: groupB.applicableN,
+      missingNA: missingCount(rowsA.length, groupA.applicableN),
+      missingNB: missingCount(rowsB.length, groupB.applicableN),
+      values: raw
+        .map((item) => {
+          const hideA = suppressedA.has(item.value);
+          const hideB = suppressedB.has(item.value);
+          const shareA = groupA.applicableN === 0 ? 0 : item.countA / groupA.applicableN;
+          const shareB = groupB.applicableN === 0 ? 0 : item.countB / groupB.applicableN;
+          const suppressed = hideA || hideB;
+          return {
+            value: item.value,
+            valueLabel: getHouseholdConditionValueLabel(presentation.conceptKey, item.value),
+            shareA: hideA ? null : shareA,
+            shareB: hideB ? null : shareB,
+            countA: hideA ? null : item.countA,
+            countB: hideB ? null : item.countB,
+            deltaPercentagePoints: suppressed ? null : (shareA - shareB) * 100,
+            disclosure: suppressed ? ("suppressed" as const) : ("visible" as const),
+          };
+        })
+        .sort((left, right) => {
+          const leftDelta = Math.abs(left.deltaPercentagePoints ?? 0);
+          const rightDelta = Math.abs(right.deltaPercentagePoints ?? 0);
+          if (rightDelta !== leftDelta) {
+            return rightDelta - leftDelta;
+          }
+          return left.value.localeCompare(right.value);
+        }),
+    });
+  }
+
+  if (numerics.length === 0 && categories.length === 0) {
+    return null;
+  }
+
+  return {
+    label: HOUSEHOLD_CONDITIONS_SECTION_LABEL,
+    numerics,
+    categories,
+  };
+}
+
 export function buildSegmentComparison(input: {
   schema: SurveyAnalyticsSchema;
   rows: SurveyAnalyticsRecord[];
@@ -865,6 +1001,9 @@ export function buildSegmentComparison(input: {
     : buildCompositionRows(input.schema, rowsA, rowsB, definitions, context).filter(
         (row) => !row.definitionDifference && row.deltaPercentagePoints !== 0,
       );
+  const householdConditions = blockedReason
+    ? null
+    : buildHouseholdConditionComparison(input.schema, rowsA, rowsB, context);
   const assetCompositionDiffers = compositionDifferences.some(
     (row) =>
       row.family === "asset" &&
@@ -914,6 +1053,7 @@ export function buildSegmentComparison(input: {
     scoreDifferences,
     definitionDifferences,
     compositionDifferences,
+    householdConditions,
     dfc,
     profileAxes,
     geography,

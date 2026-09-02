@@ -13,6 +13,7 @@ export * from "./presentation";
 export * from "./semantic";
 export * from "./compiler";
 export * from "./conditions";
+export * from "./household-conditions";
 export * from "./labels";
 export * from "./local-storage";
 export * from "./normalize";

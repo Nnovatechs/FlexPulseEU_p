@@ -364,16 +364,24 @@ function countAnsweredQuestions(answersJson: unknown) {
 
 async function countOwnedAnsweredQuestions() {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.from("survey_responses").select("answers_json");
+  const surveys = await listOwnedSurveys();
+  const countedSurveyIds = new Set(
+    surveys.filter((survey) => survey.status !== "archived").map((survey) => survey.id),
+  );
+  const { data, error } = await supabase
+    .from("survey_responses")
+    .select("survey_id, answers_json");
 
   if (error) {
     throw new Error(`Failed to load dashboard response metrics: ${error.message}`);
   }
 
-  return (data ?? []).reduce(
-    (accumulator, row) => accumulator + countAnsweredQuestions(row.answers_json),
-    0,
-  );
+  return (data ?? []).reduce((accumulator, row) => {
+    if (!row.survey_id || !countedSurveyIds.has(row.survey_id)) {
+      return accumulator;
+    }
+    return accumulator + countAnsweredQuestions(row.answers_json);
+  }, 0);
 }
 
 export async function getDashboardMetrics() {

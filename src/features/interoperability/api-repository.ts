@@ -205,6 +205,7 @@ export async function listOwnedSurveysForApi(input: {
       "id, name, status, created_at, updated_at, published_at, default_language, supported_languages, mapping_hash, measurement_hash",
     )
     .eq("created_by", input.ownerUserId)
+    .neq("status", "archived")
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(input.limit + 1);

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getSegmentExplorerBootstrap, getSurveyAnalyticsOverviewData } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
+import { isDashboardQaSandboxSurvey } from "@/features/surveys/dashboard-qa/survey-fixture";
+import { InternalQaDataBanner } from "@/components/surveys/internal-qa-data-banner";
 import { AnalyticsV2Workbench } from "./analytics-v2-workbench";
 
 type SurveyAnalyticsV2PageProps = {
@@ -38,6 +40,7 @@ export default async function SurveyAnalyticsV2Page({
         </header>
 
         <div className="analytics-sections-body analytics-sections-body--v2">
+          {isDashboardQaSandboxSurvey(survey) ? <InternalQaDataBanner /> : null}
           <AnalyticsV2Workbench
             surveyId={survey.id}
             surveyTitle={survey.name}

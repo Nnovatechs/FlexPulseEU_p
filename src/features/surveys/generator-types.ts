@@ -222,6 +222,10 @@ export type SurveyDefinition = {
     validation_result?: ContentValidationResult;
     multilingual_validation_result?: MultilingualValidationResult;
     expert_review_result?: ExpertReviewResult;
+    internal_qa?: {
+      kind: string;
+      synthetic: boolean;
+    };
   };
   questions: SurveyQuestionDefinition[];
   translations: Record<SurveyLanguageCode, SurveyLanguageTranslations>;

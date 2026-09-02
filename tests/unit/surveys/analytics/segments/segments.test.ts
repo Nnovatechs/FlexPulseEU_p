@@ -645,7 +645,10 @@ describe("segment catalog", () => {
     });
 
     expect(withValues.context.some((field) => field.field === "context.climate.temp_outdoor_c")).toBe(true);
-    expect(withValues.geography.length).toBeGreaterThan(0);
+    expect(withValues.geography.map((field) => field.field)).toEqual([
+      "context.country_code",
+      "geo.postal_area.area_key",
+    ]);
     expect(emptyOptional.context.some((field) => field.field.includes("climate"))).toBe(false);
     expect(emptyOptional.geography).toEqual([]);
   });
@@ -840,15 +843,36 @@ describe("segment summary, storage and comparison", () => {
       return;
     }
     const duplicate = addToComparisonTray(first.tray, first.tray.slots[0]!);
-    expect(duplicate).toEqual({ ok: false, reason: "duplicate" });
+    expect(duplicate).toEqual({ ok: false, reason: "duplicate", slot: 0 });
     const whole = addToComparisonTray(first.tray, definition());
     expect(whole.ok).toBe(true);
     if (!whole.ok) {
       return;
     }
+    expect(whole.action).toBe("added");
+    expect(whole.slot).toBe(1);
     expect(whole.tray.slots[1] && isWholeSampleDefinition(whole.tray.slots[1])).toBe(true);
     const full = addToComparisonTray(whole.tray, toggleSemanticBand(definition(), "profile.trust_in_automation.value", "low"));
     expect(full).toEqual({ ok: false, reason: "full" });
+    const replaced = addToComparisonTray(
+      whole.tray,
+      toggleSemanticBand(definition(), "profile.trust_in_automation.value", "low"),
+      1,
+    );
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) {
+      return;
+    }
+    expect(replaced.action).toBe("replaced");
+    expect(replaced.slot).toBe(1);
+    const afterRemovingB = removeComparisonSlot(replaced.tray, 1);
+    const readded = addToComparisonTray(
+      afterRemovingB,
+      toggleSemanticBand(definition(), "profile.trust_in_automation.value", "low"),
+    );
+    expect(readded).toEqual(
+      expect.objectContaining({ ok: true, slot: 1, action: "added" }),
+    );
     writeComparisonTray(survey.id, measurementHash, whole.tray, adapter);
     expect(readComparisonTray(survey.id, measurementHash, adapter).slots[0]).not.toBeNull();
     expect(removeComparisonSlot(whole.tray, 0).slots[0]).toBeNull();
@@ -1324,7 +1348,9 @@ describe("segment analysis context", () => {
     expect(countries[0]?.analysedCount).toBe(5);
     expect(countries[0]?.penetration).toBe(1);
     expect(result.geography.map((row) => row.value)).not.toContain("FR");
+    expect(result.geography.every((row) => row.field === "context.country_code")).toBe(true);
     expect(result.geography.every((row) => row.analysedCount >= SEGMENT_CELL_MIN_N)).toBe(true);
+    expect(result.geography.some((row) => row.field.includes("postal"))).toBe(false);
   });
 
   it("exposes valid weather context and Spearman pairs when the sample is large enough", () => {

@@ -6,6 +6,23 @@ import { appRoutes } from "@/lib/config/routes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSignupEnabled } from "./config";
 
+function getPasswordUpdateErrorKey(error: { code?: string; message?: string }) {
+  const code = error.code?.toLowerCase() ?? "";
+  const message = error.message?.toLowerCase() ?? "";
+
+  if (
+    code === "weak_password" ||
+    message.includes("pwned") ||
+    message.includes("leaked") ||
+    message.includes("compromised") ||
+    message.includes("weak password")
+  ) {
+    return "password-compromised";
+  }
+
+  return "update-failed";
+}
+
 function getSafeRedirectPath(value: FormDataEntryValue | null): string {
   const nextPath = String(value ?? "").trim();
 
@@ -118,7 +135,8 @@ export async function updatePasswordAction(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
-    redirect(`${appRoutes.updatePassword}?error=update-failed`);
+    console.error("Password update failed:", error.code, error.message);
+    redirect(`${appRoutes.updatePassword}?error=${getPasswordUpdateErrorKey(error)}`);
   }
 
   redirect(`${appRoutes.updatePassword}?message=password-updated`);

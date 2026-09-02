@@ -421,6 +421,36 @@ describe("segment comparison", () => {
     expect(result.insights.filter((item) => item.conceptKeys.includes("trust_in_automation"))).toHaveLength(1);
   });
 
+  it("does not claim a higher score when medians tie", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 14 });
+    const rows = [
+      ...Array.from({ length: 7 }, (_, index) =>
+        record(`a${index}`, mapperOutput({ trust: 3, country: "ES" })),
+      ),
+      record("b0", mapperOutput({ trust: 1, country: "FR" })),
+      record("b1", mapperOutput({ trust: 1, country: "FR" })),
+      record("b2", mapperOutput({ trust: 1, country: "FR" })),
+      record("b3", mapperOutput({ trust: 3, country: "FR" })),
+      record("b4", mapperOutput({ trust: 3, country: "FR" })),
+      record("b5", mapperOutput({ trust: 3, country: "FR" })),
+      record("b6", mapperOutput({ trust: 5, country: "FR" })),
+    ];
+    const result = buildSegmentComparison({
+      schema,
+      rows,
+      definitionA: spain,
+      definitionB: definition([{ kind: "eq", field: "context.country_code", value: "FR" }]),
+    });
+    const trust = result.scoreDifferences.find((row) => row.conceptKey === "trust_in_automation");
+    expect(trust?.medianDelta).toBe(0);
+    expect(trust?.cliffsDelta).not.toBeNull();
+    expect(Math.abs(trust?.cliffsDelta ?? 0)).toBeGreaterThanOrEqual(0.15);
+    const insight = result.insights.find((item) => item.conceptKeys.includes("trust_in_automation"));
+    expect(insight?.observedPattern).toMatch(/medians are the same/i);
+    expect(insight?.observedPattern.toLowerCase()).not.toMatch(/\bhigher\b/);
+  });
+
   it("omits a category used as a filter from composition differences", () => {
     const survey = buildSurvey([trustConcept, assetsConcept]);
     const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 10 });

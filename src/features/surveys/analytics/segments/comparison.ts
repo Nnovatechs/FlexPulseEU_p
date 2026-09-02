@@ -56,7 +56,11 @@ const EXCLUDED_CATEGORY_FIELDS = new Set([
 ]);
 
 function scoreInsightCopy(row: ComparisonScoreDifference, side: "A" | "B") {
-  const observed = `Segment ${side} reports a higher ${row.label.toLowerCase()} than the other segment (Δ median ${row.medianDelta.toFixed(2)}, δ=${row.cliffsDelta?.toFixed(2)}, n=${row.applicableNA}/${row.applicableNB}).`;
+  const stats = `(Δ median ${row.medianDelta.toFixed(2)}, δ=${row.cliffsDelta?.toFixed(2)}, n=${row.applicableNA}/${row.applicableNB})`;
+  const observed =
+    row.medianDelta === 0
+      ? `The ${row.label.toLowerCase()} distributions differ between the segments although the medians are the same ${stats}.`
+      : `Segment ${side} reports a higher ${row.label.toLowerCase()} than the other segment ${stats}.`;
   const direction = row.directionNote ? ` ${row.directionNote}` : "";
   if (row.kind === "primary_axis") {
     return {

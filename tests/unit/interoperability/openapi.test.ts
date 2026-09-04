@@ -28,5 +28,38 @@ describe("interoperability openapi", () => {
         },
       },
     });
+
+    const surveys = document.paths as Record<string, { get?: { responses: Record<string, unknown> } }>;
+    expect(surveys["/surveys"]?.get?.responses).toMatchObject({
+      "401": expect.any(Object),
+      "403": expect.any(Object),
+      "429": expect.any(Object),
+    });
+    expect(surveys["/surveys/{surveyId}/profiles"]?.get?.responses).toMatchObject({
+      "413": expect.any(Object),
+      "429": expect.any(Object),
+    });
+    expect(surveys["/surveys/{surveyId}/responses"]?.get?.responses).toMatchObject({
+      "413": expect.any(Object),
+    });
+    expect(
+      (surveys["/surveys"]?.get?.responses as { "200"?: { headers?: Record<string, unknown> } })["200"]
+        ?.headers,
+    ).toMatchObject({
+      "RateLimit-Limit": expect.any(Object),
+      "RateLimit-Remaining": expect.any(Object),
+      "RateLimit-Reset": expect.any(Object),
+    });
+    const analytics = document.paths as Record<
+      string,
+      { get?: { responses: Record<string, unknown> }; post?: { responses: Record<string, unknown> } }
+    >;
+    expect(analytics["/surveys/{surveyId}/analytics/query"]?.post?.responses).toMatchObject({
+      "400": expect.any(Object),
+      "401": expect.any(Object),
+      "403": expect.any(Object),
+      "413": expect.any(Object),
+      "429": expect.any(Object),
+    });
   });
 });

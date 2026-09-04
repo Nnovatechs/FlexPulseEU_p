@@ -5,7 +5,7 @@ import {
 } from "@/features/surveys/use-cases";
 import type { PersistedSurvey } from "@/features/surveys/generator-types";
 import type { SurveyAnalyticsQueryInput } from "@/features/surveys/survey-analytics";
-import { decodeCursor, encodeCursor } from "./api-pagination";
+import { buildTimestampIdCursorFilter, decodeCursor, encodeCursor } from "./api-pagination";
 import { invalidRequest, notFound } from "./api-errors";
 import type {
   InteroperabilityProfileItem,
@@ -26,6 +26,12 @@ function isIsoDateString(value: unknown): value is string {
 
 function isUuidString(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
+function assertSurveyId(surveyId: string) {
+  if (!isUuidString(surveyId)) {
+    throw invalidRequest("The surveyId parameter must be a valid UUID.");
+  }
 }
 
 type SurveyRow = Pick<
@@ -159,37 +165,24 @@ async function countResponsesForSurveyIds(surveyIds: string[]) {
     return new Map<string, number>();
   }
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("survey_responses")
-    .select("survey_id")
-    .in("survey_id", surveyIds);
-
-  if (error) {
-    throw new Error(`Failed to count survey responses: ${error.message}`);
-  }
-
-  const counts = new Map<string, number>();
-  for (const row of data ?? []) {
-    const surveyId = row.survey_id as string | null;
-    if (!surveyId) {
-      continue;
-    }
-    counts.set(surveyId, (counts.get(surveyId) ?? 0) + 1);
-  }
-  return counts;
+  const entries = await Promise.all(
+    surveyIds.map(async (surveyId) => {
+      const { count, error } = await supabase
+        .from("survey_responses")
+        .select("id", { head: true, count: "exact" })
+        .eq("survey_id", surveyId);
+      if (error) {
+        throw new Error(`Failed to count survey responses: ${error.message}`);
+      }
+      return [surveyId, count ?? 0] as const;
+    }),
+  );
+  return new Map(entries);
 }
 
 async function countResponsesForSurvey(surveyId: string) {
-  const supabase = createSupabaseAdminClient();
-  const { count, error } = await supabase
-    .from("survey_responses")
-    .select("id", { head: true, count: "exact" })
-    .eq("survey_id", surveyId);
-
-  if (error) {
-    throw new Error(`Failed to count survey responses: ${error.message}`);
-  }
-  return count ?? 0;
+  const counts = await countResponsesForSurveyIds([surveyId]);
+  return counts.get(surveyId) ?? 0;
 }
 
 export async function listOwnedSurveysForApi(input: {
@@ -212,7 +205,12 @@ export async function listOwnedSurveysForApi(input: {
 
   if (cursor) {
     query = query.or(
-      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`,
+      buildTimestampIdCursorFilter({
+        timestampColumn: "created_at",
+        timestamp: cursor.createdAt,
+        idColumn: "id",
+        id: cursor.id,
+      }),
     );
   }
 
@@ -240,6 +238,7 @@ export async function listOwnedSurveysForApi(input: {
 }
 
 export async function getOwnedSurveyDetailForApi(ownerUserId: string, surveyId: string) {
+  assertSurveyId(surveyId);
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("surveys")
@@ -261,6 +260,7 @@ export async function getOwnedSurveyDetailForApi(ownerUserId: string, surveyId: 
 }
 
 async function assertOwnedSurvey(ownerUserId: string, surveyId: string) {
+  assertSurveyId(surveyId);
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("surveys")
@@ -311,7 +311,12 @@ export async function listOwnedSurveyResponsesForApi(input: {
 
   if (cursor) {
     query = query.or(
-      `responded_at.lt.${cursor.respondedAt},and(responded_at.eq.${cursor.respondedAt},id.lt.${cursor.responseId})`,
+      buildTimestampIdCursorFilter({
+        timestampColumn: "responded_at",
+        timestamp: cursor.respondedAt,
+        idColumn: "id",
+        id: cursor.responseId,
+      }),
     );
   }
 
@@ -356,7 +361,12 @@ export async function listOwnedSurveyProfilesForApi(input: {
 
   if (cursor) {
     query = query.or(
-      `processed_at.lt.${cursor.processedAt},and(processed_at.eq.${cursor.processedAt},response_id.lt.${cursor.responseId})`,
+      buildTimestampIdCursorFilter({
+        timestampColumn: "processed_at",
+        timestamp: cursor.processedAt,
+        idColumn: "response_id",
+        id: cursor.responseId,
+      }),
     );
   }
 

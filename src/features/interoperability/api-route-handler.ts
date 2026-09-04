@@ -2,7 +2,7 @@ import { authenticateApiRequest } from "./api-auth";
 import { ApiError, internalError } from "./api-errors";
 import { logApiRequest } from "./api-logging";
 import { createApiRequestContext, jsonError } from "./api-response";
-import type { ApiAuthContext, ApiRequestContext, ApiScope } from "./api-types";
+import { API_RATE_LIMIT_STANDARD, type ApiAuthContext, type ApiRequestContext, type ApiScope } from "./api-types";
 
 type HandleApiRouteInput<TParams> = {
   request: Request;
@@ -28,7 +28,7 @@ export async function handleApiRoute<TParams = Record<string, never>>(
       auth = await authenticateApiRequest({
         request: input.request,
         requiredScopes: input.requiredScopes,
-        limit: input.limit ?? 120,
+        limit: input.limit ?? API_RATE_LIMIT_STANDARD,
       });
     }
     const response = await input.handler({

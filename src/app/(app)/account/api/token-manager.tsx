@@ -6,7 +6,11 @@ import {
   type CreateApiTokenActionState,
   revokeApiTokenAction,
 } from "@/features/interoperability/api-token-actions";
+import { datetimeLocalToIso } from "@/features/interoperability/api-token-expiry";
 import type { InteroperabilityApiTokenSummary } from "@/features/interoperability/api-types";
+
+export const DATA_READ_SCOPE_WARNING =
+  "`data:read` exports respondent-level answers (including free text) and mapped profiles. Treat this as personal data under your DPA. Keep the token on your backend only.";
 
 type TokenManagerProps = {
   tokens: InteroperabilityApiTokenSummary[];
@@ -29,8 +33,15 @@ function formatDateTime(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "short",
     timeStyle: "medium",
-    timeZone: "UTC",
   }).format(parsed);
+}
+
+function readLocalExpiryIso(form: HTMLFormElement) {
+  const localInput = form.elements.namedItem("expiresAtLocal");
+  if (!(localInput instanceof HTMLInputElement) || !localInput.value) {
+    return "";
+  }
+  return datetimeLocalToIso(localInput.value);
 }
 
 export function TokenManager({ tokens }: TokenManagerProps) {
@@ -39,6 +50,7 @@ export function TokenManager({ tokens }: TokenManagerProps) {
     INITIAL_CREATE_API_TOKEN_STATE,
   );
   const [dismissedToken, setDismissedToken] = useState<string | null>(null);
+  const [includeDataRead, setIncludeDataRead] = useState(false);
   const revealedToken = state.token && state.token !== dismissedToken ? state.token : null;
 
   async function handleCopy() {
@@ -63,7 +75,17 @@ export function TokenManager({ tokens }: TokenManagerProps) {
 
         <div className="notice notice--warning">This token will only be shown once.</div>
 
-        <form action={formAction} className="stack-form">
+        <form
+          action={formAction}
+          className="stack-form"
+          onSubmit={(event) => {
+            const form = event.currentTarget;
+            const hidden = form.elements.namedItem("expiresAt");
+            if (hidden instanceof HTMLInputElement) {
+              hidden.value = readLocalExpiryIso(form);
+            }
+          }}
+        >
           <label className="field">
             <span>Token name</span>
             <input
@@ -81,24 +103,38 @@ export function TokenManager({ tokens }: TokenManagerProps) {
           </label>
 
           <label className="field">
-            <span>Expires at (optional)</span>
-            <input name="expiresAt" type="datetime-local" />
+            <span>Expires at (optional, your local time)</span>
+            <input name="expiresAtLocal" type="datetime-local" />
+            <input type="hidden" name="expiresAt" />
           </label>
 
           <fieldset className="field">
             <legend>Scopes</legend>
             <label className="checkbox-field">
               <input type="checkbox" name="scopes" value="surveys:read" defaultChecked />
-              <span>`surveys:read`</span>
+              <span>`surveys:read` — survey metadata and schema</span>
             </label>
             <label className="checkbox-field">
               <input type="checkbox" name="scopes" value="analytics:read" defaultChecked />
-              <span>`analytics:read`</span>
+              <span>`analytics:read` — aggregated analytics queries</span>
             </label>
             <label className="checkbox-field">
-              <input type="checkbox" name="scopes" value="data:read" />
-              <span>`data:read`</span>
+              <input
+                type="checkbox"
+                name="scopes"
+                value="data:read"
+                checked={includeDataRead}
+                onChange={(event) => setIncludeDataRead(event.currentTarget.checked)}
+              />
+              <span>`data:read` — respondent answers and mapped profiles</span>
             </label>
+            {includeDataRead ? (
+              <div className="notice notice--warning" role="status">
+                {DATA_READ_SCOPE_WARNING}
+              </div>
+            ) : (
+              <p className="muted">Off by default. Enable only if your backend needs raw exports.</p>
+            )}
           </fieldset>
 
           {state.message ? (

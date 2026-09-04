@@ -28,7 +28,7 @@ function isInternalJobRoute(pathname: string): boolean {
   return internalJobRoutes.has(pathname);
 }
 
-function isPublicApiRoute(pathname: string) {
+export function isPublicApiRoute(pathname: string) {
   return publicApiRoutes.has(pathname) || pathname.startsWith("/api/v1/surveys/");
 }
 

@@ -163,6 +163,34 @@ export async function revokeCurrentOwnerApiToken(tokenId: string) {
   revalidatePath(appRoutes.accountApi);
 }
 
+export async function lookupActiveApiToken(token: string) {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("interoperability_api_tokens")
+    .select("id, owner_user_id, scopes, expires_at, revoked_at")
+    .eq("token_hash", hashApiToken(token))
+    .is("revoked_at", null)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to validate API token: ${error.message}`);
+  }
+  if (!data) {
+    return null;
+  }
+
+  const expiresAt = data.expires_at as string | null;
+  if (expiresAt && Date.parse(expiresAt) <= Date.now()) {
+    return null;
+  }
+
+  return {
+    tokenId: data.id as string,
+    ownerUserId: data.owner_user_id as string,
+    scopes: data.scopes as ApiScope[],
+  };
+}
+
 export async function consumeApiTokenRateLimit(input: { token: string; limit: number }) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.rpc("consume_interoperability_token_rate_limit", {

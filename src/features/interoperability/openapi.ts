@@ -23,13 +23,76 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
     required: ["error"],
   };
 
+  const rateLimitHeaders = {
+    "RateLimit-Limit": {
+      schema: { type: "string" },
+      description: "Maximum requests allowed in the current 60-second window.",
+    },
+    "RateLimit-Remaining": {
+      schema: { type: "string" },
+      description: "Requests remaining in the current window.",
+    },
+    "RateLimit-Reset": {
+      schema: { type: "string", format: "date-time" },
+      description: "When the current window resets (UTC).",
+    },
+  };
+
+  const rateLimitExceededHeaders = {
+    ...rateLimitHeaders,
+    "Retry-After": {
+      schema: { type: "integer", minimum: 1 },
+      description: "Seconds to wait before retrying.",
+    },
+  };
+
+  const errorJson = {
+    content: { "application/json": { schema: commonError } },
+  };
+
+  const authErrors = {
+    "401": { description: "Invalid token", ...errorJson },
+    "403": { description: "Insufficient scope", ...errorJson },
+    "429": {
+      description: "Rate limit exceeded",
+      headers: rateLimitExceededHeaders,
+      ...errorJson,
+    },
+  };
+
+  const surveyNotFound = {
+    "404": { description: "Survey not found", ...errorJson },
+  };
+
+  const invalidRequest = {
+    "400": { description: "Invalid request", ...errorJson },
+  };
+
+  const recordTooLarge = {
+    "413": { description: "Record too large", ...errorJson },
+  };
+
+  const pageParams = [
+    { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
+    { name: "cursor", in: "query", schema: { type: "string" } },
+  ];
+
+  const surveyIdParam = {
+    name: "surveyId",
+    in: "path",
+    required: true,
+    schema: { type: "string", format: "uuid" },
+  };
+
+  const successHeaders = { headers: rateLimitHeaders };
+
   return {
     openapi: "3.1.0",
     info: {
       title: "FlexPulseEU Interoperability API",
       version: "v1",
       description:
-        "Read-only server-to-server API for owner-scoped surveys, responses, profiles and safe analytics queries.",
+        "Read-only server-to-server API for owner-scoped surveys, responses, profiles and safe analytics queries. All authenticated routes share one 120 requests/minute limit per token.",
     },
     servers: [{ url: `${baseUrl}/api/v1` }],
     components: {
@@ -39,6 +102,12 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
           scheme: "bearer",
           bearerFormat: "FlexPulse API Token",
         },
+      },
+      headers: {
+        RateLimitLimit: rateLimitHeaders["RateLimit-Limit"],
+        RateLimitRemaining: rateLimitHeaders["RateLimit-Remaining"],
+        RateLimitReset: rateLimitHeaders["RateLimit-Reset"],
+        RetryAfter: rateLimitExceededHeaders["Retry-After"],
       },
       schemas: {
         SuccessMeta: {
@@ -71,8 +140,8 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
           description: scopeLine([]),
           security: [{ bearerAuth: [] }],
           responses: {
-            "200": { description: "Service metadata" },
-            "401": { description: "Invalid token", content: { "application/json": { schema: commonError } } },
+            "200": { description: "Service metadata", ...successHeaders },
+            ...authErrors,
           },
         },
       },
@@ -88,16 +157,13 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
       "/surveys": {
         get: {
           summary: "List surveys for the token owner",
-          description: `${scopeLine(["surveys:read"])} Ordered by created_at desc, id desc. Limit max 100.`,
+          description: `${scopeLine(["surveys:read"])} Ordered by created_at desc, id desc. Limit max 100. Follow meta.next_cursor while meta.has_more is true to retrieve every page.`,
           security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
-            { name: "cursor", in: "query", schema: { type: "string" } },
-          ],
+          parameters: pageParams,
           responses: {
-            "200": { description: "Survey list" },
-            "401": { description: "Invalid token", content: { "application/json": { schema: commonError } } },
-            "403": { description: "Insufficient scope", content: { "application/json": { schema: commonError } } },
+            "200": { description: "Survey list", ...successHeaders },
+            ...invalidRequest,
+            ...authErrors,
           },
         },
       },
@@ -106,10 +172,12 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
           summary: "Get survey metadata and frozen contracts",
           description: scopeLine(["surveys:read"]),
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: "surveyId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [surveyIdParam],
           responses: {
-            "200": { description: "Survey detail" },
-            "404": { description: "Survey not found", content: { "application/json": { schema: commonError } } },
+            "200": { description: "Survey detail", ...successHeaders },
+            ...invalidRequest,
+            ...authErrors,
+            ...surveyNotFound,
           },
         },
       },
@@ -118,40 +186,42 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
           summary: "Get the analytics schema for a survey",
           description: scopeLine(["surveys:read"]),
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: "surveyId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [surveyIdParam],
           responses: {
-            "200": { description: "Survey analytics schema" },
+            "200": { description: "Survey analytics schema", ...successHeaders },
+            ...invalidRequest,
+            ...authErrors,
+            ...surveyNotFound,
           },
         },
       },
       "/surveys/{surveyId}/responses": {
         get: {
           summary: "List responses for a survey",
-          description: `${scopeLine(["data:read"])} Responses are paginated and payloads may be reduced to stay below the response size limit.`,
+          description: `${scopeLine(["data:read"])} Pages may be reduced to stay below the response size limit. Follow meta.next_cursor while meta.has_more is true. Includes every pipeline_status stored for the survey.`,
           security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: "surveyId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
-            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
-            { name: "cursor", in: "query", schema: { type: "string" } },
-          ],
+          parameters: [surveyIdParam, ...pageParams],
           responses: {
-            "200": { description: "Response page" },
-            "413": { description: "Record too large", content: { "application/json": { schema: commonError } } },
+            "200": { description: "Response page", ...successHeaders },
+            ...invalidRequest,
+            ...authErrors,
+            ...surveyNotFound,
+            ...recordTooLarge,
           },
         },
       },
       "/surveys/{surveyId}/profiles": {
         get: {
           summary: "List mapped profiles for a survey",
-          description: scopeLine(["data:read"]),
+          description: `${scopeLine(["data:read"])} Pages may be reduced to stay below the response size limit. Follow meta.next_cursor while meta.has_more is true.`,
           security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: "surveyId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
-            { name: "limit", in: "query", schema: { type: "integer", minimum: 1, maximum: 100 } },
-            { name: "cursor", in: "query", schema: { type: "string" } },
-          ],
+          parameters: [surveyIdParam, ...pageParams],
           responses: {
-            "200": { description: "Profile page" },
+            "200": { description: "Profile page", ...successHeaders },
+            ...invalidRequest,
+            ...authErrors,
+            ...surveyNotFound,
+            ...recordTooLarge,
           },
         },
       },
@@ -161,7 +231,7 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
           description:
             `${scopeLine(["analytics:read"])} No SQL or arbitrary expressions are allowed. Limits: 64KB body, 16 filters, 2 group_by, 12 metrics, 500 result groups.`,
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: "surveyId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+          parameters: [surveyIdParam],
           requestBody: {
             required: true,
             content: {
@@ -179,9 +249,11 @@ export function buildInteroperabilityOpenApiDocument(baseUrl: string): OpenApiDo
             },
           },
           responses: {
-            "200": { description: "Analytics query result" },
-            "400": { description: "Invalid request", content: { "application/json": { schema: commonError } } },
-            "429": { description: "Rate limit exceeded", content: { "application/json": { schema: commonError } } },
+            "200": { description: "Analytics query result", ...successHeaders },
+            ...invalidRequest,
+            ...authErrors,
+            ...surveyNotFound,
+            "413": { description: "Payload too large", ...errorJson },
           },
         },
       },

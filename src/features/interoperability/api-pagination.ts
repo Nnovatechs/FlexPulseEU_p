@@ -17,6 +17,21 @@ export function encodeCursor<T extends object>(value: T) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
 
+export function quotePostgrestFilterValue(value: string) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+export function buildTimestampIdCursorFilter(input: {
+  timestampColumn: string;
+  timestamp: string;
+  idColumn: string;
+  id: string;
+}) {
+  const timestamp = quotePostgrestFilterValue(input.timestamp);
+  const id = quotePostgrestFilterValue(input.id);
+  return `${input.timestampColumn}.lt.${timestamp},and(${input.timestampColumn}.eq.${timestamp},${input.idColumn}.lt.${id})`;
+}
+
 export function decodeCursor<T>(rawValue: string | null, guard: (value: unknown) => value is T): T | null {
   if (!rawValue) {
     return null;

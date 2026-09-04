@@ -1,14 +1,20 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { consumeApiTokenRateLimit } = vi.hoisted(() => ({
+const { consumeApiTokenRateLimit, lookupActiveApiToken } = vi.hoisted(() => ({
   consumeApiTokenRateLimit: vi.fn(),
+  lookupActiveApiToken: vi.fn(),
 }));
 
 vi.mock("@/features/interoperability/api-token-repository", () => ({
   consumeApiTokenRateLimit,
+  lookupActiveApiToken,
 }));
 
 describe("interoperability api auth", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("rejects missing authorization headers", async () => {
     const { authenticateApiRequest } = await import("@/features/interoperability/api-auth");
     await expect(
@@ -17,10 +23,12 @@ describe("interoperability api auth", () => {
         limit: 120,
       }),
     ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(lookupActiveApiToken).not.toHaveBeenCalled();
+    expect(consumeApiTokenRateLimit).not.toHaveBeenCalled();
   });
 
   it("rejects invalid tokens without revealing the reason", async () => {
-    consumeApiTokenRateLimit.mockResolvedValue(null);
+    lookupActiveApiToken.mockResolvedValue(null);
     const { authenticateApiRequest } = await import("@/features/interoperability/api-auth");
     await expect(
       authenticateApiRequest({
@@ -30,16 +38,14 @@ describe("interoperability api auth", () => {
         limit: 120,
       }),
     ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(consumeApiTokenRateLimit).not.toHaveBeenCalled();
   });
 
-  it("rejects tokens without the required scope", async () => {
-    consumeApiTokenRateLimit.mockResolvedValue({
-      token_id: "token-1",
-      owner_user_id: "owner-1",
+  it("rejects tokens without the required scope before consuming quota", async () => {
+    lookupActiveApiToken.mockResolvedValue({
+      tokenId: "token-1",
+      ownerUserId: "owner-1",
       scopes: ["surveys:read"],
-      allowed: true,
-      remaining: 119,
-      reset_at: new Date(Date.now() + 60_000).toISOString(),
     });
     const { authenticateApiRequest } = await import("@/features/interoperability/api-auth");
     await expect(
@@ -51,15 +57,21 @@ describe("interoperability api auth", () => {
         requiredScopes: ["analytics:read"],
       }),
     ).rejects.toMatchObject({ code: "insufficient_scope", status: 403 });
+    expect(consumeApiTokenRateLimit).not.toHaveBeenCalled();
   });
 
   it("returns rate limit metadata for valid tokens", async () => {
+    lookupActiveApiToken.mockResolvedValue({
+      tokenId: "token-1",
+      ownerUserId: "owner-1",
+      scopes: ["surveys:read", "analytics:read"],
+    });
     consumeApiTokenRateLimit.mockResolvedValue({
       token_id: "token-1",
       owner_user_id: "owner-1",
       scopes: ["surveys:read", "analytics:read"],
       allowed: true,
-      remaining: 29,
+      remaining: 119,
       reset_at: new Date(Date.now() + 60_000).toISOString(),
     });
     const { authenticateApiRequest } = await import("@/features/interoperability/api-auth");
@@ -68,7 +80,7 @@ describe("interoperability api auth", () => {
         request: new Request("http://localhost/api/v1/surveys/s1/analytics/query", {
           headers: { authorization: "Bearer fp_test_valid" },
         }),
-        limit: 30,
+        limit: 120,
         requiredScopes: ["analytics:read"],
       }),
     ).resolves.toMatchObject({
@@ -76,13 +88,19 @@ describe("interoperability api auth", () => {
       ownerUserId: "owner-1",
       scopes: ["surveys:read", "analytics:read"],
       rateLimit: {
-        limit: 30,
-        remaining: 29,
+        limit: 120,
+        remaining: 119,
       },
     });
+    expect(consumeApiTokenRateLimit).toHaveBeenCalled();
   });
 
   it("returns 429 when the token is over quota", async () => {
+    lookupActiveApiToken.mockResolvedValue({
+      tokenId: "token-1",
+      ownerUserId: "owner-1",
+      scopes: ["analytics:read"],
+    });
     consumeApiTokenRateLimit.mockResolvedValue({
       token_id: "token-1",
       owner_user_id: "owner-1",
@@ -97,7 +115,7 @@ describe("interoperability api auth", () => {
         request: new Request("http://localhost/api/v1/surveys/s1/analytics/query", {
           headers: { authorization: "Bearer fp_test_rate_limited" },
         }),
-        limit: 30,
+        limit: 120,
         requiredScopes: ["analytics:read"],
       }),
     ).rejects.toMatchObject({ code: "rate_limit_exceeded", status: 429 });

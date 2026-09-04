@@ -33,6 +33,15 @@ export default function ApiDocsPage() {
         </section>
 
         <section>
+          <h2>Token prefixes</h2>
+          <p>
+            Production deployments issue `fp_live_...` tokens. Local, preview and staging
+            deployments issue `fp_test_...` tokens. Both authenticate the same way; the prefix
+            only marks the environment that created the token.
+          </p>
+        </section>
+
+        <section>
           <h2>Scopes</h2>
           <ul>
             <li>`surveys:read` for survey metadata and analytics schema.</li>
@@ -43,13 +52,53 @@ export default function ApiDocsPage() {
 
         <section>
           <h2>Pagination and limits</h2>
+          <p>
+            List endpoints never dump an entire survey in one response. Follow `meta.next_cursor`
+            while `meta.has_more` is true until you have every row. A survey with 3,500
+            responses is about 35 pages at `limit=100`.
+          </p>
           <ul>
             <li>Default page size: 50.</li>
             <li>Maximum page size: 100.</li>
-            <li>Responses are kept below the runtime payload budget and may be reduced further.</li>
+            <li>
+              A page may contain fewer rows than `limit` so the JSON stays below the runtime
+              payload budget. `has_more` and `next_cursor` still cover the remaining rows.
+            </li>
             <li>Analytics query body limit: 64 KB.</li>
             <li>Analytics query limits: 16 filters, 2 group_by fields, 12 metrics, 500 groups.</li>
           </ul>
+        </section>
+
+        <section>
+          <h2>Rate limits</h2>
+          <p>
+            Every authenticated route shares one limit of 120 requests per minute per token.
+            Successful responses include `RateLimit-Limit`, `RateLimit-Remaining` and
+            `RateLimit-Reset`. A `429` response also includes `Retry-After` in seconds; wait
+            that long before retrying.
+          </p>
+        </section>
+
+        <section>
+          <h2>Responses and pipeline status</h2>
+          <p>
+            `GET /surveys/{"{surveyId}"}/responses` returns rows as stored, including
+            `pipeline_status` values such as `pending`, `enriching`, `ready` or `failed`.
+            `response_count` on survey list and detail is the collected total of those rows.
+            Analytics queries only use responses that have reached `ready`, so those counts can
+            differ until processing finishes.
+          </p>
+        </section>
+
+        <section>
+          <h2>Data protection</h2>
+          <p>
+            `data:read` exports full `answers` objects, including any free-text the participant
+            typed. Mapped profiles include aggregated location context. Raw location columns such
+            as postal code are not exported. This is participant microdata, not an anonymous
+            aggregate. Keep exported JSON in your own backend under your DPA, access control and
+            retention rules. Do not call this API from a browser.
+          </p>
         </section>
 
         <section>

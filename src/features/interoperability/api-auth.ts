@@ -1,5 +1,5 @@
 import { invalidToken, insufficientScope, rateLimitExceeded } from "./api-errors";
-import { consumeApiTokenRateLimit } from "./api-token-repository";
+import { consumeApiTokenRateLimit, lookupActiveApiToken } from "./api-token-repository";
 import type { ApiAuthContext, ApiScope } from "./api-types";
 
 const MAX_AUTHORIZATION_HEADER_LENGTH = 1024;
@@ -35,6 +35,17 @@ export async function authenticateApiRequest(input: {
   limit: number;
 }): Promise<ApiAuthContext> {
   const token = readBearerToken(input.request);
+  const peeked = await lookupActiveApiToken(token);
+
+  if (!peeked) {
+    throw invalidToken();
+  }
+
+  const requiredScopes = input.requiredScopes ?? [];
+  if (requiredScopes.some((scope) => !peeked.scopes.includes(scope))) {
+    throw insufficientScope();
+  }
+
   const consumed = await consumeApiTokenRateLimit({ token, limit: input.limit });
 
   if (!consumed) {
@@ -59,11 +70,6 @@ export async function authenticateApiRequest(input: {
     throw rateLimitExceeded(
       buildRateLimitHeaders(input.limit, consumed.remaining, consumed.reset_at, retryAfterSeconds),
     );
-  }
-
-  const requiredScopes = input.requiredScopes ?? [];
-  if (requiredScopes.some((scope) => !context.scopes.includes(scope))) {
-    throw insufficientScope();
   }
 
   return context;

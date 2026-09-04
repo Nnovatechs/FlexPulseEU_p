@@ -1,5 +1,5 @@
 import { API_MAX_QUERY_BYTES, API_RATE_LIMIT_ANALYTICS } from "@/features/interoperability/api-types";
-import { invalidRequest, payloadTooLarge } from "@/features/interoperability/api-errors";
+import { ApiError, invalidRequest, payloadTooLarge } from "@/features/interoperability/api-errors";
 import {
   assertAnalyticsQueryLimits,
   runOwnedSurveyAnalyticsQueryForApi,
@@ -13,6 +13,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 function toAnalyticsQueryValidationError(error: unknown) {
+  if (error instanceof ApiError) {
+    return error;
+  }
   const message = error instanceof Error ? error.message : "Invalid analytics query.";
   if (
     /Unknown .* field/i.test(message) ||
@@ -20,7 +23,9 @@ function toAnalyticsQueryValidationError(error: unknown) {
     /Analytics metric/i.test(message) ||
     /Duplicate analytics metric key/i.test(message) ||
     /cannot be used in group_by/i.test(message) ||
-    /is not allowed/i.test(message)
+    /is not allowed/i.test(message) ||
+    /invalid input syntax/i.test(message) ||
+    /must be a valid UUID/i.test(message)
   ) {
     return invalidRequest(message);
   }

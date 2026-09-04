@@ -9,7 +9,7 @@ export const API_MAX_QUERY_BYTES = 64 * 1024;
 export const API_DEFAULT_PAGE_LIMIT = 50;
 export const API_MAX_PAGE_LIMIT = 100;
 export const API_RATE_LIMIT_STANDARD = 120;
-export const API_RATE_LIMIT_ANALYTICS = 30;
+export const API_RATE_LIMIT_ANALYTICS = API_RATE_LIMIT_STANDARD;
 
 export const API_SCOPES = ["surveys:read", "data:read", "analytics:read"] as const;
 export type ApiScope = (typeof API_SCOPES)[number];

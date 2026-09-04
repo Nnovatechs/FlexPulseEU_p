@@ -9,6 +9,9 @@ import {
 import { datetimeLocalToIso } from "@/features/interoperability/api-token-expiry";
 import type { InteroperabilityApiTokenSummary } from "@/features/interoperability/api-types";
 
+export const DATA_READ_SCOPE_WARNING =
+  "`data:read` exports respondent-level answers (including free text) and mapped profiles. Treat this as personal data under your DPA. Keep the token on your backend only.";
+
 type TokenManagerProps = {
   tokens: InteroperabilityApiTokenSummary[];
 };
@@ -47,6 +50,7 @@ export function TokenManager({ tokens }: TokenManagerProps) {
     INITIAL_CREATE_API_TOKEN_STATE,
   );
   const [dismissedToken, setDismissedToken] = useState<string | null>(null);
+  const [includeDataRead, setIncludeDataRead] = useState(false);
   const revealedToken = state.token && state.token !== dismissedToken ? state.token : null;
 
   async function handleCopy() {
@@ -108,16 +112,29 @@ export function TokenManager({ tokens }: TokenManagerProps) {
             <legend>Scopes</legend>
             <label className="checkbox-field">
               <input type="checkbox" name="scopes" value="surveys:read" defaultChecked />
-              <span>`surveys:read`</span>
+              <span>`surveys:read` — survey metadata and schema</span>
             </label>
             <label className="checkbox-field">
               <input type="checkbox" name="scopes" value="analytics:read" defaultChecked />
-              <span>`analytics:read`</span>
+              <span>`analytics:read` — aggregated analytics queries</span>
             </label>
             <label className="checkbox-field">
-              <input type="checkbox" name="scopes" value="data:read" />
-              <span>`data:read`</span>
+              <input
+                type="checkbox"
+                name="scopes"
+                value="data:read"
+                checked={includeDataRead}
+                onChange={(event) => setIncludeDataRead(event.currentTarget.checked)}
+              />
+              <span>`data:read` — respondent answers and mapped profiles</span>
             </label>
+            {includeDataRead ? (
+              <div className="notice notice--warning" role="status">
+                {DATA_READ_SCOPE_WARNING}
+              </div>
+            ) : (
+              <p className="muted">Off by default. Enable only if your backend needs raw exports.</p>
+            )}
           </fieldset>
 
           {state.message ? (

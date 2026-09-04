@@ -1,4 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  insufficientScope,
+  invalidRequest,
+  invalidToken,
+  rateLimitExceeded,
+} from "@/features/interoperability/api-errors";
 
 const {
   authenticateApiRequest,
@@ -114,6 +120,12 @@ describe("interoperability api routes", () => {
       limit: 20,
       cursor: null,
     });
+    expect(authenticateApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requiredScopes: ["surveys:read"],
+        limit: 120,
+      }),
+    );
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       data: [expect.objectContaining({ id: "survey-1", response_count: 10 })],
@@ -185,6 +197,12 @@ describe("interoperability api routes", () => {
     expect(payload).not.toContain("postal_code_raw");
     expect(payload).not.toContain("survey_link_id");
     expect(payload).not.toContain("authorization");
+    expect(authenticateApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requiredScopes: ["data:read"],
+        limit: 120,
+      }),
+    );
   });
 
   it("returns profiles without answers_json", async () => {
@@ -235,6 +253,12 @@ describe("interoperability api routes", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: expect.objectContaining({ code: "invalid_request" }),
     });
+    expect(authenticateApiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requiredScopes: ["analytics:read"],
+        limit: 120,
+      }),
+    );
   });
 
   it("rejects analytics results above the external group limit", async () => {
@@ -259,6 +283,101 @@ describe("interoperability api routes", () => {
         }),
       }),
       { params: Promise.resolve({ surveyId: "survey-1" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.objectContaining({ code: "invalid_request" }),
+    });
+  });
+
+  it("returns 401 without calling survey loaders when the token is invalid", async () => {
+    authenticateApiRequest.mockRejectedValue(invalidToken());
+    const { GET } = await import("@/app/api/v1/surveys/route");
+    const response = await GET(
+      new Request("http://localhost/api/v1/surveys", {
+        headers: { authorization: "Bearer fp_test_invalid" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(listOwnedSurveysForApi).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.objectContaining({ code: "invalid_token" }),
+    });
+  });
+
+  it("returns 403 for missing scopes", async () => {
+    authenticateApiRequest.mockRejectedValue(insufficientScope());
+    const { GET: getResponses } = await import("@/app/api/v1/surveys/[surveyId]/responses/route");
+    const response = await getResponses(
+      new Request("http://localhost/api/v1/surveys/survey-1/responses", {
+        headers: { authorization: "Bearer fp_test_scope" },
+      }),
+      { params: Promise.resolve({ surveyId: "survey-1" }) },
+    );
+
+    expect(response.status).toBe(403);
+    expect(listOwnedSurveyResponsesForApi).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.objectContaining({ code: "insufficient_scope" }),
+    });
+  });
+
+  it("returns 429 with retry headers when the token is over quota", async () => {
+    authenticateApiRequest.mockRejectedValue(
+      rateLimitExceeded({
+        "RateLimit-Limit": "120",
+        "RateLimit-Remaining": "0",
+        "RateLimit-Reset": "2026-08-18T12:01:00.000Z",
+        "Retry-After": "30",
+      }),
+    );
+    const { GET } = await import("@/app/api/v1/surveys/route");
+    const response = await GET(
+      new Request("http://localhost/api/v1/surveys", {
+        headers: { authorization: "Bearer fp_test_limited" },
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(response.headers.get("RateLimit-Limit")).toBe("120");
+    expect(listOwnedSurveysForApi).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.objectContaining({ code: "rate_limit_exceeded" }),
+    });
+  });
+
+  it("attaches shared rate-limit headers on success", async () => {
+    listOwnedSurveysForApi.mockResolvedValue({
+      items: [],
+      hasMore: false,
+      nextCursor: null,
+    });
+    const { GET } = await import("@/app/api/v1/surveys/route");
+    const response = await GET(
+      new Request("http://localhost/api/v1/surveys", {
+        headers: { authorization: "Bearer fp_test_demo" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("RateLimit-Limit")).toBe("120");
+    expect(response.headers.get("RateLimit-Remaining")).toBe("119");
+    expect(response.headers.get("RateLimit-Reset")).toBe("2026-08-18T12:01:00.000Z");
+  });
+
+  it("returns 400 when a survey id is not a UUID", async () => {
+    getOwnedSurveyDetailForApi.mockRejectedValue(
+      invalidRequest("The surveyId parameter must be a valid UUID."),
+    );
+    const { GET } = await import("@/app/api/v1/surveys/[surveyId]/route");
+    const response = await GET(
+      new Request("http://localhost/api/v1/surveys/not-a-uuid", {
+        headers: { authorization: "Bearer fp_test_demo" },
+      }),
+      { params: Promise.resolve({ surveyId: "not-a-uuid" }) },
     );
 
     expect(response.status).toBe(400);

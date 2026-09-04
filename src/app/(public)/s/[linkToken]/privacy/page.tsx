@@ -1,5 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  DERIVED_PROCESSING_COPY,
+  EXTERNAL_PANEL_TOKENIZATION_COPY,
+  INTERNATIONAL_TRANSFERS_COPY,
+  SUPERVISORY_AUTHORITY_COPY,
+} from "@/features/privacy/notice-copy";
 import { getPublicSurveyLegalSnapshot } from "@/features/privacy/repository";
 import { buildLegacySurveyLegalSnapshot } from "@/features/privacy/types";
 import { getPublicSurveyRuntimeByLinkToken } from "@/features/surveys/use-cases";
@@ -86,14 +92,7 @@ export default async function SurveyPrivacyPage({
             Some surveys may request country and postal-code context for
             aggregated regional analysis.
           </p>
-          <p>
-            Some surveys may also be distributed through external recruitment
-            panels. When that happens, the survey link may receive pseudonymous
-            participant, study, or session identifiers from that panel.
-            FlexPulseEU transforms participant and session identifiers into
-            study-scoped cryptographic tokens and does not retain the original
-            participant or session identifiers.
-          </p>
+          <p>{EXTERNAL_PANEL_TOKENIZATION_COPY}</p>
         </section>
 
         <section>
@@ -104,6 +103,7 @@ export default async function SurveyPrivacyPage({
             controller. Individual answers are not used for unrelated
             advertising, cross-customer benchmarking, or product training.
           </p>
+          <p>{DERIVED_PROCESSING_COPY}</p>
         </section>
 
         <section>
@@ -123,6 +123,7 @@ export default async function SurveyPrivacyPage({
             database, bot-prevention, and regional enrichment providers may process
             the minimum information required to operate the survey.
           </p>
+          <p>{INTERNATIONAL_TRANSFERS_COPY}</p>
           <p>
             Read the{" "}
             <Link href={snapshot.platform.privacyUrl}>
@@ -140,6 +141,7 @@ export default async function SurveyPrivacyPage({
             access, deletion, restriction, objection, or withdrawal by
             contacting the controller.
           </p>
+          <p>{SUPERVISORY_AUTHORITY_COPY}</p>
           <p>
             After identifying context has been removed, the controller may no
             longer be able to identify an individual response without

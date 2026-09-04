@@ -178,6 +178,16 @@ Set `TERMS_REQUIRED=1` only after those steps. Enabling it earlier will block
 private workspace access until the acceptance table exists and the terms flow is
 operational.
 
+## Interoperability API rollout ordering
+
+Before deploying the application version that serves `/api/v1`, apply
+`20260818170000_add_interoperability_api_tokens.sql`. That migration creates
+`interoperability_api_tokens` and the `consume_interoperability_token_rate_limit`
+RPC. Deploying the app first will make every authenticated API request fail.
+
+Tokens created in production use the `fp_live_` prefix. Preview and local
+deployments issue `fp_test_` tokens.
+
 ## Future integrations
 
 Authentication, Supabase, and other external services should be added only after:

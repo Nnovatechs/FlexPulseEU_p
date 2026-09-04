@@ -92,7 +92,16 @@ function buildPublishedSurveyFixture() {
   };
 }
 
-function mockPublicSurveyRuntime(survey: ReturnType<typeof buildPublishedSurveyFixture>["survey"]) {
+function mockPublicSurveyRuntime(
+  survey: ReturnType<typeof buildPublishedSurveyFixture>["survey"],
+  linkOverrides?: Partial<{
+    id: string;
+    link_token: string;
+    audience_label: string;
+    audience_token: string;
+    is_active: boolean;
+  }>,
+) {
   getPublicSurveyLinkByToken.mockResolvedValue({
     id: "link-1",
     survey_id: "survey-1",
@@ -101,6 +110,7 @@ function mockPublicSurveyRuntime(survey: ReturnType<typeof buildPublishedSurveyF
     audience_token: "default",
     is_active: true,
     created_at: new Date().toISOString(),
+    ...linkOverrides,
   });
   getPublishedSurveyByIdPublic.mockResolvedValue(survey);
 }
@@ -166,6 +176,40 @@ describe("public survey submission action", () => {
       }),
     );
     expect(redirect).toHaveBeenCalledWith("/s/public-token/thank-you?lang=English");
+  });
+
+  it("loads an additional audience link for the same survey and stores its survey_link_id", async () => {
+    const { fixture, survey } = buildPublishedSurveyFixture();
+    mockPublicSurveyRuntime(survey, {
+      id: "link-2",
+      link_token: "audience-token",
+      audience_label: "Pilot cohort A",
+      audience_token: "aud_1",
+    });
+
+    const { submitPublicSurveyResponseAction } = await import(
+      "@/features/surveys/public-actions"
+    );
+
+    const formData = new FormData();
+    formData.set("linkToken", "audience-token");
+    formData.set("submittedLanguage", fixture.language);
+    formData.set("question:Q_TEST_01", "opt_2");
+    formData.set("legalConsentAccepted", "true");
+
+    await submitPublicSurveyResponseAction(formData);
+
+    expect(getPublishedSurveyByIdPublic).toHaveBeenCalledWith("survey-1");
+    expect(createSurveyResponseAndEnqueueJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surveyLink: expect.objectContaining({
+          id: "link-2",
+          audience_label: "Pilot cohort A",
+          audience_token: "aud_1",
+        }),
+      }),
+    );
+    expect(redirect).toHaveBeenCalledWith("/s/audience-token/thank-you?lang=English");
   });
 
   it("redirects to survey feedback when the module is enabled", async () => {

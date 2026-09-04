@@ -291,12 +291,16 @@ function mapperOutput(input: {
   };
 }
 
-function record(id: string, output: MapperOutput): SurveyAnalyticsRecord {
+function record(
+  id: string,
+  output: MapperOutput,
+  audience?: { token?: string; label?: string },
+): SurveyAnalyticsRecord {
   return {
     response_id: id,
     responded_at: "2026-01-01T00:00:00.000Z",
-    audience_token: "default",
-    audience_label: "Default",
+    audience_token: audience?.token ?? "default",
+    audience_label: audience?.label ?? "Default",
     mapper_output: output,
     location_levels: [
       {
@@ -647,6 +651,40 @@ describe("segment catalog", () => {
     ]);
     expect(emptyOptional.context.some((field) => field.field.includes("climate"))).toBe(false);
     expect(emptyOptional.geography).toEqual([]);
+  });
+
+  it("offers audience labels as context filter options", () => {
+    const survey = buildSurvey([trustConcept]);
+    const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 2 });
+    const catalog = buildSegmentCatalog({
+      survey,
+      schema,
+      rows: [
+        record("r1", mapperOutput({ trust: 4 }), {
+          token: "aud_a",
+          label: "Pilot cohort A",
+        }),
+        record("r2", mapperOutput({ trust: 3 }), {
+          token: "aud_b",
+          label: "Pilot cohort B",
+        }),
+      ],
+    });
+
+    const audienceField = catalog.context.find(
+      (field) => field.field === "response.audience_label",
+    );
+
+    expect(audienceField?.kind).toBe("choice");
+    if (audienceField?.kind !== "choice") {
+      throw new Error("Audience label field should be a choice context field.");
+    }
+    expect(audienceField.values).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: "Pilot cohort A" }),
+        expect.objectContaining({ value: "Pilot cohort B" }),
+      ]),
+    );
   });
 
   it("builds a different tree for a survey without modulators", () => {

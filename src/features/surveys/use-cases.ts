@@ -422,8 +422,22 @@ export async function getSurveyAnalyticsSchema(surveyId: string) {
   return schema;
 }
 
+export async function getSurveyAnalyticsSchemaForOwner(surveyId: string, ownerUserId: string) {
+  const { schema } = await loadSurveyAnalyticsContextForOwner(surveyId, ownerUserId);
+  return schema;
+}
+
 export async function runSurveyAnalytics(surveyId: string, query: SurveyAnalyticsQueryInput) {
   const context = await loadSurveyAnalyticsContext(surveyId);
+  return runSurveyAnalyticsFromContext(context, query);
+}
+
+export async function runSurveyAnalyticsForOwner(
+  surveyId: string,
+  ownerUserId: string,
+  query: SurveyAnalyticsQueryInput,
+) {
+  const context = await loadSurveyAnalyticsContextForOwner(surveyId, ownerUserId);
   return runSurveyAnalyticsFromContext(context, query);
 }
 
@@ -574,8 +588,12 @@ export async function generateSurveyInstrumentHealthData(surveyId: string) {
 
 const loadSurveyAnalyticsContext = cache(async (surveyId: string) => {
   const session = await requireCurrentSession();
+  return loadSurveyAnalyticsContextForOwner(surveyId, session.user.id);
+});
+
+async function loadSurveyAnalyticsContextForOwner(surveyId: string, ownerUserId: string) {
   // Do not wrap this snapshot in unstable_cache: ~1000 mapped rows exceed Next's 2MB data-cache limit.
-  const runtime = await loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, session.user.id);
+  const runtime = await loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, ownerUserId);
   const schema = buildSurveyAnalyticsSchema({
     survey: runtime.survey,
     readyResponseCount: runtime.rows.length,
@@ -587,7 +605,7 @@ const loadSurveyAnalyticsContext = cache(async (surveyId: string) => {
     ...runtime,
     schema,
   };
-});
+}
 
 function runSurveyAnalyticsFromContext(
   context: Awaited<ReturnType<typeof loadSurveyAnalyticsContext>>,

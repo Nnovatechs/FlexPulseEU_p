@@ -236,6 +236,6 @@ export async function seedAnalyticsSandboxForSession(session: UserSession) {
     surveyId,
     responseCount: responseRows.length,
     archetypeCount: dataset.archetypes.length,
-    analyticsUrl: appRoutes.surveyAnalytics(surveyId),
+    analyticsUrl: appRoutes.surveyAnalyticsV2(surveyId),
   };
 }

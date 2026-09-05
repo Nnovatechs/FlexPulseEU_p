@@ -86,7 +86,7 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
                 ) : null}
                 <SurveyDuplicateAction surveyId={survey.id} />
                 <PendingNavLink
-                  href={appRoutes.surveyAnalytics(survey.id)}
+                  href={appRoutes.surveyAnalyticsV2(survey.id)}
                   className="button button--ghost"
                 >
                   Analytics

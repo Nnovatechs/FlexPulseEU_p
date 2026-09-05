@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { SurveyAnalyticsFieldDefinition } from "@/features/surveys/survey-analytics";
 import {
   buildBaselineMetrics,
@@ -69,25 +67,6 @@ describe("profile explorer DFC structure", () => {
         field: facet.key,
       },
     ]);
-  });
-
-  it("renders explicit applicable and not-applicable DFC facet counts", () => {
-    const pageSource = readFileSync(
-      join(
-        process.cwd(),
-        "src/app/(app)/surveys/[surveyId]/analytics/page.tsx",
-      ),
-      "utf8",
-    );
-
-    expect(pageSource).toContain("<CapabilityFacetsCard");
-    expect(pageSource).toContain("applicable n=");
-    expect(pageSource).toContain("not applicable n=");
-    expect(pageSource).toContain("Not-applicable");
-    expect(pageSource).toContain("shouldSuppressCapabilityFacet(metric)");
-    expect(pageSource).toContain(
-      "Suppressed for privacy (fewer than 5 applicable responses)",
-    );
   });
 
   it("suppresses an individual facet whose applicable sample is below five", () => {

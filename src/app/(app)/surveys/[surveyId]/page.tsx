@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import { AudienceLinksCard } from "@/components/surveys/audience-links-card";
 import { PublicLinkProlificCard } from "@/components/surveys/public-link-prolific-card";
 import { QuestionList } from "@/components/surveys/question-list";
@@ -62,14 +63,14 @@ export default async function SurveyDetailPage({
         description="Overview of the survey configuration, lifecycle, and question set."
         actions={
           <div className="button-row">
-            <Link href={appRoutes.surveyAnalyticsV2(survey.id)} className="button button--ghost">
+            <PendingNavLink href={appRoutes.surveyAnalyticsV2(survey.id)} className="button button--ghost">
               Analytics
-            </Link>
+            </PendingNavLink>
             <SurveyDuplicateAction surveyId={survey.id} />
             {survey.status === "Draft" ? (
-              <Link href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
+              <PendingNavLink href={appRoutes.surveyEdit(survey.id)} className="button button--secondary">
                 Edit survey
-              </Link>
+              </PendingNavLink>
             ) : null}
             {survey.defaultPublicLinkUrl && survey.status !== "Archived" ? (
               <Link href={survey.defaultPublicLinkUrl} className="button button--primary">

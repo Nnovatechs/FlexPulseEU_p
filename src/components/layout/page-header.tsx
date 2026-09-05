@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { ReactNode } from "react";
+import { PendingNavLink } from "@/components/pending-nav-link";
 
 type BreadcrumbItem = {
   label: string;
@@ -28,7 +28,11 @@ export function PageHeader({
           <nav className="breadcrumb" aria-label="Breadcrumb">
             {breadcrumbs.map((item, index) => (
               <span key={`${item.label}-${index}`} className="breadcrumb__item">
-                {item.href ? <Link href={item.href}>{item.label}</Link> : <span>{item.label}</span>}
+                {item.href ? (
+                  <PendingNavLink href={item.href}>{item.label}</PendingNavLink>
+                ) : (
+                  <span>{item.label}</span>
+                )}
               </span>
             ))}
           </nav>

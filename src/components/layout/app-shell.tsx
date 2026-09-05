@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { ReactNode } from "react";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { UserMenu } from "@/components/layout/user-menu";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import { appRoutes } from "@/lib/config/routes";
 
 type AppShellProps = {
@@ -16,10 +16,10 @@ export function AppShell({ userName, userEmail, children }: AppShellProps) {
       <div className="app-shell__content">
         <header className="topbar">
           <div className="topbar__brand">
-            <Link href={appRoutes.dashboard} className="brand-mark" aria-label="FlexPulse-EU">
+            <PendingNavLink href={appRoutes.dashboard} className="brand-mark" aria-label="FlexPulse-EU">
               <BrandLogo size={40} priority />
               <span className="brand-mark__title">FlexPulse-EU</span>
-            </Link>
+            </PendingNavLink>
           </div>
           <div className="topbar__controls">
             <UserMenu userName={userName} userEmail={userEmail} />

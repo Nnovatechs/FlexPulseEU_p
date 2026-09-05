@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import { SurveyDuplicateAction } from "@/components/surveys/survey-duplicate-action";
 import { SurveyLifecycleAction } from "@/components/surveys/survey-lifecycle-action";
 import { Survey } from "@/features/surveys/types";
@@ -24,9 +24,9 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
         <div className="empty-state">
           <h3>No surveys yet</h3>
           <p>Create the first survey to start shaping the workspace.</p>
-          <Link href={appRoutes.surveyNew} className="button button--primary">
+          <PendingNavLink href={appRoutes.surveyNew} className="button button--primary">
             Create new survey
-          </Link>
+          </PendingNavLink>
         </div>
       </section>
     );
@@ -76,21 +76,21 @@ export function SurveyList({ surveys, title }: SurveyListProps) {
               </div>
 
               <div className="button-row">
-                <Link href={appRoutes.surveyDetail(survey.id)} className="button button--secondary">
+                <PendingNavLink href={appRoutes.surveyDetail(survey.id)} className="button button--secondary">
                   Open
-                </Link>
+                </PendingNavLink>
                 {survey.status === "Draft" ? (
-                  <Link href={appRoutes.surveyEdit(survey.id)} className="button button--ghost">
+                  <PendingNavLink href={appRoutes.surveyEdit(survey.id)} className="button button--ghost">
                     Edit
-                  </Link>
+                  </PendingNavLink>
                 ) : null}
                 <SurveyDuplicateAction surveyId={survey.id} />
-                <Link
+                <PendingNavLink
                   href={appRoutes.surveyAnalytics(survey.id)}
                   className="button button--ghost"
                 >
                   Analytics
-                </Link>
+                </PendingNavLink>
                 {survey.status === "Draft" || survey.status === "Published" ? (
                   <SurveyLifecycleAction
                     surveyId={survey.id}

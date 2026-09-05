@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import { FLEXPULSE_DER_ASSET_VALUES } from "@/features/ontology/flexpulse-behavioural-schema";
 import {
   classifySurveyAnalyticsEvidence,
@@ -2067,10 +2068,10 @@ export default async function SurveyAnalyticsPage({
         <header className="analytics-content__header">
           <nav className="breadcrumb breadcrumb--analytics" aria-label="Breadcrumb">
             <span className="breadcrumb__item">
-              <Link href={appRoutes.dashboard}>Surveys</Link>
+              <PendingNavLink href={appRoutes.dashboard}>Surveys</PendingNavLink>
             </span>
             <span className="breadcrumb__item">
-              <Link href={appRoutes.surveyDetail(survey.id)}>{survey.title}</Link>
+              <PendingNavLink href={appRoutes.surveyDetail(survey.id)}>{survey.title}</PendingNavLink>
             </span>
             <span className="breadcrumb__item">
               <span>Analytics</span>

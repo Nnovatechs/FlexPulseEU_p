@@ -7,6 +7,18 @@ export const supportedSurveyLanguages = [
 
 export type SupportedSurveyLanguage = (typeof supportedSurveyLanguages)[number];
 
+export const recommendedSurveyLanguages = [
+  "English",
+  "Spanish",
+  "French",
+] as const satisfies readonly SupportedSurveyLanguage[];
+
+export function isRecommendedSurveyLanguage(
+  language: string,
+): language is (typeof recommendedSurveyLanguages)[number] {
+  return (recommendedSurveyLanguages as readonly string[]).includes(language);
+}
+
 export function isSupportedSurveyLanguage(
   language: string,
 ): language is SupportedSurveyLanguage {

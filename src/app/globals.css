@@ -1858,10 +1858,84 @@ hr.divider {
 }
 
 .collapsible-section__title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: -0.02em;
   flex: 1;
+}
+
+.language-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.editor-recommended-badge,
+.editor-info-tip {
+  position: relative;
+}
+
+.editor-recommended-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(36, 84, 197, 0.14);
+  border-radius: 999px;
+  background: rgba(36, 84, 197, 0.06);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.editor-info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  padding: 0;
+  border: 1px solid rgba(36, 84, 197, 0.22);
+  border-radius: 999px;
+  background: rgba(36, 84, 197, 0.08);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.editor-recommended-badge[data-tooltip]:hover::after,
+.editor-recommended-badge[data-tooltip]:focus-visible::after,
+.editor-info-tip[data-tooltip]:hover::after,
+.editor-info-tip[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.45rem);
+  z-index: 20;
+  width: min(20rem, 72vw);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-solid, #fff);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: 0 12px 28px rgba(20, 39, 77, 0.12);
+  pointer-events: none;
+  white-space: normal;
 }
 
 .collapsible-section__meta {

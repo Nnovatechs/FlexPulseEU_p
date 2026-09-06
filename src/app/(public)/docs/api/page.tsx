@@ -114,7 +114,9 @@ export default function ApiDocsPage() {
           <h2>OpenAPI</h2>
           <p>
             The machine-readable contract is available at{" "}
-            <Link href="/api/v1/openapi">`/api/v1/openapi`</Link>.
+            <Link href={appRoutes.interoperabilityOpenApi}>
+              `{appRoutes.interoperabilityOpenApi}`
+            </Link>.
           </p>
         </section>
 

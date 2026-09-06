@@ -23,4 +23,5 @@ export const appRoutes = {
   surveyAnalyticsV2: (surveyId: string) => `/surveys/${surveyId}/analytics-v2`,
   instrumentHealthMethodology: "/docs/instrument-health",
   interoperabilityApiDocs: "/docs/api",
+  interoperabilityOpenApi: "/api/v1/openapi",
 } as const;

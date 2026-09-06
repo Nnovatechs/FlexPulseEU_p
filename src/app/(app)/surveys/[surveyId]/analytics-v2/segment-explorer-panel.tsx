@@ -33,7 +33,6 @@ import {
   isWholeSampleDefinition,
   removeConditionAt,
   resetSegmentDefinition,
-  saveNamedSegment,
   scoreControlMode,
   subscribeSegmentStorage,
   setApplicability,
@@ -378,8 +377,6 @@ export function SegmentExplorerPanel({
     () => getComparisonTraySnapshot(surveyId, catalog.measurementHash, schema),
     emptyComparisonTray,
   );
-  const [saveName, setSaveName] = useState("");
-  const [localNotice, setLocalNotice] = useState<string | null>(null);
   const [compareFeedback, setCompareFeedback] = useState<{
     tone: "ok" | "warn";
     label: string;
@@ -394,6 +391,7 @@ export function SegmentExplorerPanel({
   const [failedPreviewKey, setFailedPreviewKey] = useState<string | null>(null);
   const sampleRequestRef = useRef(0);
   const [postalMapPreview, setPostalMapPreview] = useState<PostalMapAnalysis | null>(null);
+  const [postalMapExpandedOpen, setPostalMapExpandedOpen] = useState(false);
   const postalMapRequestRef = useRef(0);
   const systems = useMemo(() => {
     const items: Array<{ key: SystemKey; label: string; fields: string[] }> = catalog.dimensions.map(
@@ -523,6 +521,21 @@ export function SegmentExplorerPanel({
   }, [active, postalAreaField, postalMapBaseline.key, surveyId]);
 
   useEffect(() => {
+    if (!postalMapExpandedOpen) {
+      return;
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPostalMapExpandedOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [postalMapExpandedOpen]);
+
+  useEffect(() => {
     if (compareFeedback == null) {
       return;
     }
@@ -602,12 +615,30 @@ export function SegmentExplorerPanel({
 
   const trayCount = comparisonTrayCount(tray);
   const comparisonFull = trayCount === 2;
+  const postalMapSharedProps = {
+    analysis: postalMapPreview,
+    selectedAreaKeys: postalAreaSelection,
+    availableAreaKeys: postalMapPreview?.areas.map((area) => area.areaKey) ?? [],
+    active,
+    onToggleArea: (areaKey: string, allAreaKeys: string[]) =>
+      onDefinitionChange(
+        toggleInValue(definition, POSTAL_AREA_KEY_FIELD, areaKey, {
+          allValues: allAreaKeys,
+        }),
+      ),
+    baselineNote:
+      "The map reflects the current non-geographic segment filters. Postal-area selections are highlighted but excluded from the heatmap baseline.",
+  };
+
+  if (!active && postalMapExpandedOpen) {
+    setPostalMapExpandedOpen(false);
+  }
 
   return (
     <div className="analytics-v2-segment">
-      {notice || localNotice || error ? (
+      {notice || error ? (
         <p className="analytics-v2-segment-notice" role="status">
-          {error ?? notice ?? localNotice}
+          {error ?? notice}
         </p>
       ) : null}
 
@@ -649,40 +680,13 @@ export function SegmentExplorerPanel({
               ) : null}
             </div>
             <div className="analytics-v2-seg-toolbar__bar">
-              <div className="analytics-v2-seg-saveblock">
-                <span className="analytics-v2-seg-saveblock__title">Save segment</span>
-                <div className="analytics-v2-seg-saveblock__row">
-                  <input
-                    type="text"
-                    placeholder="Segment name"
-                    value={saveName}
-                    onChange={(event) => setSaveName(event.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="button button--ghost"
-                    onClick={() => {
-                      const record = saveNamedSegment({
-                        surveyId,
-                        measurementHash: catalog.measurementHash,
-                        name: saveName,
-                        definition,
-                      });
-                      setSaveName("");
-                      setLocalNotice(`Saved “${record.name}”.`);
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    className="button button--ghost"
-                    onClick={() => onDefinitionChange(resetSegmentDefinition(definition))}
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
+              <button
+                type="button"
+                className="button button--ghost"
+                onClick={() => onDefinitionChange(resetSegmentDefinition(definition))}
+              >
+                Reset
+              </button>
             </div>
           </div>
 
@@ -1016,20 +1020,17 @@ export function SegmentExplorerPanel({
                           </button>
                         </div>
                       ) : null}
-                      <PostalAreaMap
-                        analysis={postalMapPreview}
-                        selectedAreaKeys={postalAreaSelection}
-                        availableAreaKeys={postalMapPreview?.areas.map((area) => area.areaKey) ?? []}
-                        active={active}
-                        onToggleArea={(areaKey, allAreaKeys) =>
-                          onDefinitionChange(
-                            toggleInValue(definition, POSTAL_AREA_KEY_FIELD, areaKey, {
-                              allValues: allAreaKeys,
-                            }),
-                          )
-                        }
-                        baselineNote="The map reflects the current non-geographic segment filters. Postal-area selections are highlighted but excluded from the heatmap baseline."
-                      />
+                      <div className="analytics-v2-postal-map-actions">
+                        <button
+                          type="button"
+                          className="button button--ghost"
+                          disabled={!postalMapPreview}
+                          onClick={() => setPostalMapExpandedOpen(true)}
+                        >
+                          Expand map
+                        </button>
+                      </div>
+                      {!postalMapExpandedOpen ? <PostalAreaMap {...postalMapSharedProps} /> : null}
                     </FilterRow>
                   ) : (
                     <FilterRow key={field.field} label={field.label}>
@@ -1216,6 +1217,30 @@ export function SegmentExplorerPanel({
           onExploreSubgroup={(field, band) => onDefinitionChange(toggleSemanticBand(definition, field, band))}
         />
       </div>
+      {postalMapExpandedOpen && postalMapPreview ? (
+        <div className="generate-overlay" role="dialog" aria-modal="true" aria-labelledby="postal-map-dialog-title">
+          <div className="generate-overlay__card analytics-v2-postal-map-dialog">
+            <div className="preview-tab__modal-header">
+              <p id="postal-map-dialog-title" className="generate-overlay__title">
+                Postal areas
+              </p>
+            </div>
+            <PostalAreaMap
+              {...postalMapSharedProps}
+              className="analytics-v2-postal-map--expanded"
+            />
+            <div className="preview-tab__modal-actions">
+              <button
+                type="button"
+                className="button button--secondary"
+                onClick={() => setPostalMapExpandedOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1218,26 +1218,30 @@ export function SegmentExplorerPanel({
         />
       </div>
       {postalMapExpandedOpen && postalMapPreview ? (
-        <div className="generate-overlay" role="dialog" aria-modal="true" aria-labelledby="postal-map-dialog-title">
+        <div
+          className="generate-overlay analytics-v2-postal-map-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="postal-map-dialog-title"
+        >
           <div className="generate-overlay__card analytics-v2-postal-map-dialog">
-            <div className="preview-tab__modal-header">
-              <p id="postal-map-dialog-title" className="generate-overlay__title">
+            <div className="analytics-v2-postal-map-dialog__header">
+              <p id="postal-map-dialog-title" className="analytics-v2-postal-map-dialog__title">
                 Postal areas
               </p>
+              <button
+                type="button"
+                className="analytics-v2-postal-map-dialog__close"
+                aria-label="Close"
+                onClick={() => setPostalMapExpandedOpen(false)}
+              >
+                ×
+              </button>
             </div>
             <PostalAreaMap
               {...postalMapSharedProps}
               className="analytics-v2-postal-map--expanded"
             />
-            <div className="preview-tab__modal-actions">
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={() => setPostalMapExpandedOpen(false)}
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       ) : null}

@@ -1,8 +1,15 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { PendingViewOverlay } from "@/components/pending-view-overlay";
+import {
+  getEditorTabPendingTitle,
+  shouldShowEditorTabOverlay,
+  type EditorTab,
+} from "@/lib/navigation/editor-tab-navigation";
 
-type Tab = "configuration" | "questions" | "review" | "preview";
+type Tab = EditorTab;
 
 type SurveyEditorTabsProps = {
   configurationTab: React.ReactNode;
@@ -24,6 +31,8 @@ export function SurveyEditorTabs({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [pendingTab, setPendingTab] = useState<Tab | null>(null);
+  const [, startTransition] = useTransition();
 
   const tabParam = searchParams.get("tab");
   const activeTab: Tab =
@@ -34,18 +43,32 @@ export function SurveyEditorTabs({
       ? (tabParam as Tab)
       : defaultTab;
 
+  if (pendingTab === activeTab) {
+    setPendingTab(null);
+  }
+
   function goToTab(tab: Tab) {
+    if (tab === activeTab) {
+      return;
+    }
     if (tab === "preview" && !previewUnlocked) {
       return;
     }
-    const next = new URLSearchParams(searchParams.toString());
-    next.set("tab", tab);
-    const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    setPendingTab(tab);
+    startTransition(() => {
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("tab", tab);
+      const qs = next.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    });
   }
 
   return (
     <div className="editor-tabs">
+      <PendingViewOverlay
+        pending={shouldShowEditorTabOverlay(activeTab, pendingTab)}
+        title={pendingTab ? getEditorTabPendingTitle(pendingTab) : ""}
+      />
       <nav className="editor-tabs__nav" role="tablist" aria-label="Survey editor sections">
         <button
           type="button"

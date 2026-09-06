@@ -482,6 +482,10 @@ export const flexpulsePrimaryProfileAxes = flexpulseBehaviouralSchemaV1.filter(
   (concept) => concept.concept_role === "primary_profile_axis",
 );
 
+export const flexpulsePrimaryProfileAxisKeys = flexpulsePrimaryProfileAxes.map(
+  (concept) => concept.concept_key,
+);
+
 export const flexpulseBehaviouralModulators = flexpulseBehaviouralSchemaV1.filter(
   (concept) => concept.concept_role === "behavioural_modulator",
 );

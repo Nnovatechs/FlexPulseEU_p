@@ -288,15 +288,16 @@ export default async function SurveyEditPage({
 
           <div className="collapsible-section__body">
             <p className="concept-picker__hint">
-              Select the behavioural concepts this survey should cover. The
-              generator and measurement plan both use this schema directly.
+              The seven core profile axes are always included in generation.
+              Optional concepts can still be added. Declared flexibility
+              capability keeps its household-assets dependency.
             </p>
             <ConceptPicker initialConceptKeys={savedConceptKeys} />
           </div>
         </details>
       </div>
 
-      <FormActions initialHasTargets={savedConceptKeys.length > 0} />
+      <FormActions initialHasTargets />
     </form>
   );
 

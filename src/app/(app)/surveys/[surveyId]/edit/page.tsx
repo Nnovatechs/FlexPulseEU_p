@@ -1,4 +1,6 @@
 import { notFound, redirect } from "next/navigation";
+import { editorOnboardingGuide } from "@/components/onboarding/guides";
+import { PageOnboardingGuide } from "@/components/onboarding/page-onboarding-guide";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
 import { FormActions } from "@/components/surveys/form-actions";
@@ -366,6 +368,7 @@ export default async function SurveyEditPage({
         ]}
         eyebrow="Survey editor"
         title={survey.name}
+        titleAside={<PageOnboardingGuide {...editorOnboardingGuide} />}
       />
 
       {createdMessage ? (

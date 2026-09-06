@@ -1,3 +1,5 @@
+import { workspaceOnboardingGuide } from "@/components/onboarding/guides";
+import { PageOnboardingGuide } from "@/components/onboarding/page-onboarding-guide";
 import { PageHeader } from "@/components/layout/page-header";
 import { PendingNavLink } from "@/components/pending-nav-link";
 import { SurveyList } from "@/components/surveys/survey-list";
@@ -15,6 +17,7 @@ export default async function SurveysPage() {
           { label: "Library" },
         ]}
         title="Survey library"
+        titleAside={<PageOnboardingGuide {...workspaceOnboardingGuide} />}
         description="Draft, published, and archived surveys in one place."
         actions={
           <PendingNavLink href={appRoutes.surveyNew} className="button button--primary">

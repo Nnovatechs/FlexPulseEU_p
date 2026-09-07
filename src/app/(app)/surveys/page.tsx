@@ -18,7 +18,7 @@ export default async function SurveysPage() {
         ]}
         title="Survey library"
         titleAside={<PageOnboardingGuide {...workspaceOnboardingGuide} />}
-        description="Draft, published, and archived surveys in one place."
+        description="Draft and published surveys. Archived surveys are removed from this list."
         actions={
           <PendingNavLink href={appRoutes.surveyNew} className="button button--primary">
             Create new survey

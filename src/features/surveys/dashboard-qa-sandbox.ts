@@ -30,7 +30,11 @@ export async function findDashboardQaSandboxForOwner(
     .from("surveys")
     .select("id, name, definition_json")
     .eq("created_by", ownerUserId)
-    .eq("name", DASHBOARD_QA_SURVEY_NAME);
+    .contains("definition_json", {
+      survey_meta: { internal_qa: { kind: DASHBOARD_QA_FIXTURE_KIND } },
+    })
+    .order("created_at", { ascending: true })
+    .limit(1);
 
   if (error) {
     throw new Error(`Failed to look up Dashboard QA sandbox: ${error.message}`);

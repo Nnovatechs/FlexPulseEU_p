@@ -8,7 +8,6 @@ import { QuestionList } from "@/components/surveys/question-list";
 import { SurveyDuplicateAction } from "@/components/surveys/survey-duplicate-action";
 import { getOwnedDefaultSurveyLink, listOwnedSurveyLinks } from "@/features/surveys/generator-repository";
 import { getOwnedProlificIntegrationSummary } from "@/features/surveys/integrations/repository";
-import { isDashboardQaSandboxSurvey } from "@/features/surveys/dashboard-qa/survey-fixture";
 import { InternalQaDataBanner } from "@/components/surveys/internal-qa-data-banner";
 import { getSurveyById } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
@@ -30,7 +29,7 @@ export default async function SurveyDetailPage({
     notFound();
   }
 
-  const isDashboardQa = isDashboardQaSandboxSurvey({ name: survey.internalName });
+  const isDashboardQa = survey.isDashboardQaSandbox;
   const defaultLink =
     survey.status === "Published" ? await getOwnedDefaultSurveyLink(survey.id) : null;
   const audienceLinks =

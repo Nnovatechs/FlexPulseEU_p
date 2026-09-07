@@ -6,6 +6,7 @@ import {
 import {
   DASHBOARD_QA_COUNTRIES,
   DASHBOARD_QA_COUNTRY_RESPONSE_COUNT,
+  DASHBOARD_QA_FIXTURE_KIND,
   DASHBOARD_QA_RESPONSE_COUNT,
   DASHBOARD_QA_SURVEY_NAME,
 } from "@/features/surveys/dashboard-qa/constants";
@@ -43,6 +44,16 @@ describe("dashboard QA synthetic dataset", () => {
     expect(isDashboardQaSandboxSurvey(dataset.survey)).toBe(true);
     expect(dataset.records).toHaveLength(DASHBOARD_QA_RESPONSE_COUNT);
     expect(DASHBOARD_QA_ARCHETYPE_KEYS).toHaveLength(10);
+  });
+
+  it("identifies the sandbox by fixture kind, not display name", () => {
+    expect(isDashboardQaSandboxSurvey({ name: DASHBOARD_QA_SURVEY_NAME })).toBe(false);
+    expect(
+      isDashboardQaSandboxSurvey({
+        name: "A real instrument",
+        definition_json: { survey_meta: { internal_qa: { kind: DASHBOARD_QA_FIXTURE_KIND } } },
+      }),
+    ).toBe(true);
   });
 
   it("keeps a balanced IE / ES / FR split", () => {

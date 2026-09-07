@@ -416,8 +416,5 @@ export function isDashboardQaSandboxSurvey(survey: {
   name?: string | null;
   definition_json?: { survey_meta?: { internal_qa?: { kind?: string } } };
 }) {
-  return (
-    survey.name === DASHBOARD_QA_SURVEY_NAME ||
-    survey.definition_json?.survey_meta?.internal_qa?.kind === DASHBOARD_QA_FIXTURE_KIND
-  );
+  return survey.definition_json?.survey_meta?.internal_qa?.kind === DASHBOARD_QA_FIXTURE_KIND;
 }

@@ -8,6 +8,7 @@ import {
   listOwnedSurveyLinksForSurveyIds,
   listOwnedSurveys,
 } from "./generator-repository";
+import { isDashboardQaSandboxSurvey } from "./dashboard-qa/survey-fixture";
 import { PersistedSurvey, PersistedSurveyLink, SurveyQuestionDefinition } from "./generator-types";
 import {
   buildSurveyAnalyticsSchema,
@@ -149,6 +150,7 @@ function buildSurveyProjection(
     questionCount: questions.length,
     mappingCount: survey.mapping_contract_json.mappings.length,
     defaultPublicLinkUrl,
+    isDashboardQaSandbox: isDashboardQaSandboxSurvey(survey),
     questions,
   };
 }

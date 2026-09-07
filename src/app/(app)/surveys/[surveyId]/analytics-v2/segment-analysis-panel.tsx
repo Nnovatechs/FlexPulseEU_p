@@ -19,7 +19,6 @@ import {
   type SegmentDefinition,
   type SegmentFacetSignal,
   type SegmentGeographyRow,
-  type SegmentHouseholdCategoricalSnapshot,
   type SegmentHouseholdConditionsBlock,
   type SegmentInternalVariation,
   type SegmentScoreDifferentiator,

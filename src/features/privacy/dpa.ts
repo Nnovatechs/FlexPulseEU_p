@@ -55,13 +55,22 @@ export function getDpaConfig(): DpaConfig {
   };
 }
 
+export function getMissingDpaConfigFields(config: DpaConfig) {
+  const missing: string[] = [];
+  if (!config.processorName.trim()) {
+    missing.push("processor name");
+  }
+  if (!config.processorAddress.trim()) {
+    missing.push("processor registered address");
+  }
+  if (!config.processorPrivacyEmail.trim()) {
+    missing.push("processor privacy email");
+  }
+  return missing;
+}
+
 export function isDpaConfigComplete(config: DpaConfig) {
-  return Boolean(
-    config.version &&
-      config.processorName &&
-      config.processorAddress &&
-      config.processorPrivacyEmail,
-  );
+  return Boolean(config.version.trim()) && getMissingDpaConfigFields(config).length === 0;
 }
 
 function buildDocumentPayload(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDpaDocument,
+  getMissingDpaConfigFields,
   isDpaConfigComplete,
   type DpaConfig,
 } from "@/features/privacy/dpa";
@@ -34,6 +35,9 @@ describe("DPA document", () => {
     expect(
       isDpaConfigComplete({ ...config, processorAddress: "" }),
     ).toBe(false);
+    expect(getMissingDpaConfigFields({ ...config, processorAddress: "  " })).toEqual([
+      "processor registered address",
+    ]);
   });
 
   it("generates a versioned document from Controller and Processor details", () => {

@@ -1870,10 +1870,90 @@ hr.divider {
 }
 
 .collapsible-section__title {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: -0.02em;
   flex: 1;
+}
+
+.language-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.editor-recommended-badge,
+.editor-info-tip {
+  position: relative;
+}
+
+.editor-recommended-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 0.55rem;
+  border: 1px solid rgba(36, 84, 197, 0.14);
+  border-radius: 999px;
+  background: rgba(36, 84, 197, 0.06);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.editor-info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  padding: 0;
+  border: 1px solid rgba(36, 84, 197, 0.22);
+  border-radius: 999px;
+  background: rgba(36, 84, 197, 0.08);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+details.collapsible-section:not([open]) .editor-info-tip[data-tooltip]::after,
+details.collapsible-section:not([open]) .editor-info-tip[data-tooltip]:hover::after,
+details.collapsible-section:not([open]) .editor-info-tip[data-tooltip]:focus-visible::after {
+  content: none;
+}
+
+.editor-recommended-badge[data-tooltip]:hover::after,
+.editor-recommended-badge[data-tooltip]:focus-visible::after,
+details.collapsible-section[open] .editor-info-tip[data-tooltip]:hover::after,
+details.collapsible-section[open] .editor-info-tip[data-tooltip]:focus-visible::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.45rem);
+  z-index: 20;
+  width: min(20rem, 72vw);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-solid, #fff);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: 0 12px 28px rgba(20, 39, 77, 0.12);
+  pointer-events: none;
+  white-space: normal;
 }
 
 .collapsible-section__meta {
@@ -8610,6 +8690,76 @@ body:has(.analytics-shell) {
   border: 1px solid var(--an-border);
   border-radius: 4px;
   background: color-mix(in srgb, var(--an-surface-alt) 66%, transparent);
+}
+
+.analytics-v2-postal-map-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.analytics-v2-postal-map-overlay {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.generate-overlay__card.analytics-v2-postal-map-dialog {
+  width: min(96vw, 1100px);
+  min-width: min(96vw, 1100px);
+  max-height: min(92vh, 900px);
+  align-items: stretch;
+  text-align: left;
+  padding: 1.1rem 1.25rem 1.25rem;
+  gap: 0.85rem;
+  overflow: auto;
+  background: var(--an-surface);
+  border: 1px solid var(--an-border);
+  color: var(--an-text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+.analytics-v2-postal-map-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.analytics-v2-postal-map-dialog__title {
+  margin: 0;
+  color: var(--an-text-strong);
+  font-size: 1.02rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.analytics-v2-postal-map-dialog__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--an-border);
+  border-radius: 4px;
+  background: var(--an-surface-alt);
+  color: var(--an-text-strong);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.analytics-v2-postal-map-dialog__close:hover,
+.analytics-v2-postal-map-dialog__close:focus-visible {
+  background: var(--an-surface-hover);
+  border-color: var(--an-border-mid);
+  color: var(--an-accent);
+}
+
+.analytics-v2-postal-map--expanded .analytics-v2-postal-map__svg {
+  min-height: 22rem;
+}
+
+.analytics-v2-postal-map-overlay .analytics-v2-postal-map__tooltip {
+  z-index: 9010;
 }
 
 .analytics-v2-postal-map__area {

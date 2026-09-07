@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
 import { TokenManager } from "./token-manager";
 import { listCurrentOwnerApiTokens } from "@/features/interoperability/api-token-repository";
@@ -39,6 +40,32 @@ export default async function AccountApiPage({ searchParams }: AccountApiPagePro
           {errorMessage}
         </div>
       ) : null}
+
+      <section className="surface-card stack-form">
+        <div>
+          <p className="legal-eyebrow">Documentation</p>
+          <p className="muted">
+            Read the integration guide or inspect the versioned OpenAPI contract
+            before creating a server-to-server integration.
+          </p>
+        </div>
+        <div className="button-row">
+          <Link
+            href={appRoutes.interoperabilityApiDocs}
+            className="button button--secondary"
+          >
+            View API documentation
+          </Link>
+          <a
+            href={appRoutes.interoperabilityOpenApi}
+            className="button button--ghost"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            OpenAPI 3.1 specification ↗
+          </a>
+        </div>
+      </section>
 
       <TokenManager tokens={tokens} />
     </div>

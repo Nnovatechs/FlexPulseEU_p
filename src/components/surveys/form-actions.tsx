@@ -74,7 +74,7 @@ function FormActionsInner({ initialHasTargets }: FormActionsInnerProps) {
           title={
             hasTargets
               ? "Save settings and generate survey questions"
-              : "Select at least one concept to generate"
+              : "Core profile axes are required before generating"
           }
         >
           Save and generate
@@ -93,7 +93,7 @@ function FormActionsInner({ initialHasTargets }: FormActionsInnerProps) {
 
       {!hasTargets && (
         <span className="form-actions__hint muted">
-          Select concepts to enable generation
+          Core profile axes are always included. Optional concepts can still be added.
         </span>
       )}
     </div>

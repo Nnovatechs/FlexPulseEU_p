@@ -3,6 +3,7 @@ import { editorOnboardingGuide } from "@/components/onboarding/guides";
 import { PageOnboardingGuide } from "@/components/onboarding/page-onboarding-guide";
 import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
+import { EditorInfoTip } from "@/components/surveys/editor-info-tip";
 import { FormActions } from "@/components/surveys/form-actions";
 import { PreviewTab } from "@/components/surveys/preview-tab";
 import { QuestionsOverview } from "@/components/surveys/questions-overview";
@@ -15,7 +16,10 @@ import {
   buildQuestionIntentLookup,
   getSurveyIntegrityState,
 } from "@/features/surveys/expert-review";
-import { surveyLanguageOptions } from "@/features/surveys/language-options";
+import {
+  isRecommendedSurveyLanguage,
+  surveyLanguageOptions,
+} from "@/features/surveys/language-options";
 import { getOwnedSurveyById } from "@/features/surveys/generator-repository";
 import { normalizeSurveyResponseContextConfig } from "@/features/surveys/generator-types";
 import { appRoutes } from "@/lib/config/routes";
@@ -126,7 +130,73 @@ export default async function SurveyEditPage({
 
         <details className="collapsible-section">
           <summary className="collapsible-section__header">
-            <span className="collapsible-section__title">Survey context</span>
+            <span className="collapsible-section__title">Survey languages</span>
+            <span className="collapsible-section__chevron" aria-hidden>
+              ›
+            </span>
+          </summary>
+
+          <div className="collapsible-section__body">
+            <label className="field">
+              <span>Primary language</span>
+              <select
+                name="defaultLanguage"
+                defaultValue={survey.default_language}
+                required
+              >
+                {surveyLanguageOptions.map((language) => (
+                  <option key={language}>{language}</option>
+                ))}
+              </select>
+              <p className="muted">
+                English, Spanish and French are the recommended primary
+                languages for the current deployment.
+              </p>
+            </label>
+
+            <div className="field">
+              <span>Supported languages</span>
+              <div className="chip-grid">
+                {surveyLanguageOptions.map((language) => (
+                  <div key={language} className="language-chip-row">
+                    <label className="choice-chip">
+                      <input
+                        type="checkbox"
+                        name="supportedLanguages"
+                        value={language}
+                        defaultChecked={survey.supported_languages.includes(
+                          language,
+                        )}
+                      />
+                      <span>{language}</span>
+                    </label>
+                    {isRecommendedSurveyLanguage(language) ? (
+                      <span
+                        className="editor-recommended-badge"
+                        tabIndex={0}
+                        role="note"
+                        aria-label="Recommended for the current FlexPulse-EU deployment. These languages have completed linguistic review and have been fielded in real participant data."
+                        data-tooltip="Recommended for the current FlexPulse-EU deployment. These languages have completed linguistic review and have been fielded in real participant data."
+                      >
+                        Recommended
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details className="collapsible-section">
+          <summary className="collapsible-section__header">
+            <span className="collapsible-section__title">
+              Survey context
+              <EditorInfoTip
+                label="Geographic coverage details"
+                tooltip="Country-level context is available broadly. Postal-prefix analytics and interactive postal-area maps are currently supported for Spain, France and Ireland. Full-postal enrichment is attempted where the submitted postal code can be resolved; coverage and quality are reported in analytics."
+              />
+            </span>
             <span className="collapsible-section__chevron" aria-hidden>
               ›
             </span>
@@ -203,49 +273,6 @@ export default async function SurveyEditPage({
 
         <details className="collapsible-section">
           <summary className="collapsible-section__header">
-            <span className="collapsible-section__title">Survey languages</span>
-            <span className="collapsible-section__chevron" aria-hidden>
-              ›
-            </span>
-          </summary>
-
-          <div className="collapsible-section__body">
-            <label className="field">
-              <span>Primary language</span>
-              <select
-                name="defaultLanguage"
-                defaultValue={survey.default_language}
-                required
-              >
-                {surveyLanguageOptions.map((language) => (
-                  <option key={language}>{language}</option>
-                ))}
-              </select>
-            </label>
-
-            <div className="field">
-              <span>Supported languages</span>
-              <div className="chip-grid">
-                {surveyLanguageOptions.map((language) => (
-                  <label key={language} className="choice-chip">
-                    <input
-                      type="checkbox"
-                      name="supportedLanguages"
-                      value={language}
-                      defaultChecked={survey.supported_languages.includes(
-                        language,
-                      )}
-                    />
-                    <span>{language}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-        </details>
-
-        <details className="collapsible-section">
-          <summary className="collapsible-section__header">
             <span className="collapsible-section__title">
               Behavioural schema concepts
             </span>
@@ -263,15 +290,16 @@ export default async function SurveyEditPage({
 
           <div className="collapsible-section__body">
             <p className="concept-picker__hint">
-              Select the behavioural concepts this survey should cover. The
-              generator and measurement plan both use this schema directly.
+              The seven core profile axes are always included in generation.
+              Optional concepts can still be added. Declared flexibility
+              capability keeps its household-assets dependency.
             </p>
             <ConceptPicker initialConceptKeys={savedConceptKeys} />
           </div>
         </details>
       </div>
 
-      <FormActions initialHasTargets={savedConceptKeys.length > 0} />
+      <FormActions initialHasTargets />
     </form>
   );
 

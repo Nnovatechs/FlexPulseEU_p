@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  flexpulsePrimaryProfileAxisKeys,
   flexpulseSurveyDesignConceptsByDimension,
   type FlexpulseDimension,
 } from "@/features/ontology/flexpulse-behavioural-schema";
@@ -53,6 +54,21 @@ export function isDfcInventoryLocked(selectedConceptKeys: Iterable<string>) {
   );
 }
 
+export function isPrimaryProfileAxis(conceptKey: string) {
+  return flexpulsePrimaryProfileAxisKeys.includes(conceptKey);
+}
+
+export function resolveInitialConceptSelection(
+  initialConceptKeys: Iterable<string> = [],
+) {
+  return new Set(
+    ensureDeclaredFlexibilityCapabilityDependencies([
+      ...flexpulsePrimaryProfileAxisKeys,
+      ...initialConceptKeys,
+    ]),
+  );
+}
+
 /**
  * Applies one concept toggle while preserving the DFC inventory dependency.
  */
@@ -64,6 +80,9 @@ export function toggleConceptSelection(
   const inventoryLocked = isDfcInventoryLocked(next);
 
   if (next.has(target)) {
+    if (isPrimaryProfileAxis(target)) {
+      return next;
+    }
     if (target === DFC_INVENTORY_CONCEPT_KEY && inventoryLocked) {
       return next;
     }
@@ -86,9 +105,10 @@ export function clearDimensionSelection(
   dimensionConceptKeys: Iterable<string>,
 ) {
   const dimensionKeys = new Set(dimensionConceptKeys);
-  const preservedKeys = isDfcInventoryLocked(selectedConceptKeys)
-    ? new Set([DFC_INVENTORY_CONCEPT_KEY])
-    : new Set<string>();
+  const preservedKeys = new Set(flexpulsePrimaryProfileAxisKeys);
+  if (isDfcInventoryLocked(selectedConceptKeys)) {
+    preservedKeys.add(DFC_INVENTORY_CONCEPT_KEY);
+  }
 
   return new Set(
     [...selectedConceptKeys].filter(
@@ -100,7 +120,7 @@ export function clearDimensionSelection(
 
 export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
   const [selected, setSelected] = useState<Set<string>>(
-    new Set(ensureDeclaredFlexibilityCapabilityDependencies(initialConceptKeys)),
+    resolveInitialConceptSelection(initialConceptKeys),
   );
   const [expanded, setExpanded] = useState<Set<FlexpulseDimension>>(
     new Set(conceptsByDimension.map(({ dimension }) => dimension)),
@@ -201,9 +221,11 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
                     {concepts.map((concept) => {
                       const conceptKey = concept.concept_key;
                       const isChecked = selected.has(conceptKey);
+                      const isPrimaryLocked = isPrimaryProfileAxis(conceptKey);
                       const isLocked =
-                        conceptKey === DFC_INVENTORY_CONCEPT_KEY &&
-                        isDfcInventoryLocked(selected);
+                        isPrimaryLocked ||
+                        (conceptKey === DFC_INVENTORY_CONCEPT_KEY &&
+                          isDfcInventoryLocked(selected));
 
                       return (
                         <label
@@ -220,7 +242,11 @@ export function ConceptPicker({ initialConceptKeys = [] }: ConceptPickerProps) {
                           />
                           <span className="concept-item__attribute">
                             {concept.label}
-                            {isLocked ? " (required by DFC)" : ""}
+                            {isPrimaryLocked
+                              ? " (required core axis)"
+                              : isLocked
+                                ? " (required by DFC)"
+                                : ""}
                           </span>
                           <span className="concept-item__type">
                             {CONCEPT_ROLE_LABELS[concept.concept_role]}

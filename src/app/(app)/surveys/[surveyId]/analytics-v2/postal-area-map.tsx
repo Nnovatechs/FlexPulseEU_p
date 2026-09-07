@@ -38,6 +38,7 @@ type PostalAreaMapProps = {
   title?: string;
   description?: string;
   baselineNote?: string | null;
+  className?: string;
 };
 
 const CountryPostalMap = memo(function CountryPostalMap({
@@ -142,6 +143,7 @@ export function PostalAreaMap({
   title = "Respondent distribution by postal area",
   description = "Colour intensity represents the number of mapped responses in the current segment definition.",
   baselineNote = null,
+  className,
 }: PostalAreaMapProps) {
   const countryCodes = useMemo(
     () =>
@@ -205,7 +207,7 @@ export function PostalAreaMap({
     .filter((entry): entry is { countryCode: CountryCode; map: CountryMapData } => Boolean(entry.map));
 
   return (
-    <div className="analytics-v2-postal-map">
+    <div className={["analytics-v2-postal-map", className].filter(Boolean).join(" ")}>
       <div className="analytics-v2-postal-map__summary">
         <p>
           <strong>{title}</strong>

@@ -16,7 +16,7 @@ import {
   PRIVACY_PROFILE_INCOMPLETE_ERROR,
 } from "@/features/privacy/types";
 import { deriveSchemaTargetsFromBehaviouralConceptKeys } from "@/features/ontology/flexpulse-behavioural-schema";
-import { ensureDeclaredFlexibilityCapabilityDependencies } from "./declared-flexibility-capability-module";
+import { resolveGenerateBehaviouralConceptKeys } from "./generate-concept-keys";
 import { runContentValidation, computeContentHash } from "./content-validator";
 import {
   applyExpertReviewChanges,
@@ -342,16 +342,6 @@ export async function updateSurveySettingsAction(formData: FormData) {
     .getAll("supportedLanguages")
     .map((value) => String(value).trim())
     .filter(Boolean);
-  const behaviouralConceptKeys = ensureDeclaredFlexibilityCapabilityDependencies(
-    formData
-      .getAll("behaviouralConceptKeys")
-      .map((value) => String(value).trim())
-      .filter(Boolean),
-  );
-  const schemaTargets =
-    behaviouralConceptKeys.length > 0
-      ? deriveSchemaTargetsFromBehaviouralConceptKeys(behaviouralConceptKeys)
-      : [];
   const surveyContextMode = String(formData.get("surveyContextMode") ?? "none").trim();
   const responseContext = normalizeSurveyResponseContextConfig({
     collect_country_code:
@@ -395,6 +385,15 @@ export async function updateSurveySettingsAction(formData: FormData) {
   nextDefinition.translations[defaultLanguage].survey_description = surveyDescription;
 
   if (intent === "generate") {
+    const behaviouralConceptKeys = resolveGenerateBehaviouralConceptKeys(
+      formData
+        .getAll("behaviouralConceptKeys")
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    );
+    const schemaTargets = deriveSchemaTargetsFromBehaviouralConceptKeys(
+      behaviouralConceptKeys,
+    );
     nextDefinition.survey_meta.behavioural_concept_keys = behaviouralConceptKeys;
     nextDefinition.survey_meta.ontology_targets = schemaTargets;
 

@@ -137,4 +137,23 @@ describe("privacy actions", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/account/privacy/dpa");
     expect(redirect).toHaveBeenCalledWith("/account/privacy/dpa?accepted=1");
   });
+
+  it("stays on Privacy Settings when DPA signing details cannot be saved", async () => {
+    getCurrentOwnerLegalProfile.mockResolvedValue(profile);
+    saveCurrentOwnerDpaSigningDetails.mockRejectedValue(
+      new Error('null value in column "controller_name" violates not-null constraint'),
+    );
+    const formData = new FormData();
+    formData.set("controllerAddress", "New Registered Address");
+    formData.set("representativeName", "New Representative");
+    formData.set("representativeTitle", "Legal Signatory");
+
+    const { saveDpaSigningDetailsAction } = await import(
+      "@/features/privacy/actions"
+    );
+    await saveDpaSigningDetailsAction(formData);
+
+    expect(redirect).toHaveBeenCalledWith("/account/privacy?error=dpa-save-failed");
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
 });

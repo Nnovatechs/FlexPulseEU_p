@@ -152,15 +152,12 @@ export async function saveCurrentOwnerDpaSigningDetails(
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("owner_legal_profiles")
-    .upsert(
-      {
-        user_id: session.user.id,
-        controller_address: input.controllerAddress,
-        representative_name: input.representativeName,
-        representative_title: input.representativeTitle,
-      },
-      { onConflict: "user_id" },
-    )
+    .update({
+      controller_address: input.controllerAddress,
+      representative_name: input.representativeName,
+      representative_title: input.representativeTitle,
+    })
+    .eq("user_id", session.user.id)
     .select("*")
     .single();
 

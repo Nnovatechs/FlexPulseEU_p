@@ -5,6 +5,7 @@ import {
   buildSegmentAnalysis,
   buildSegmentAnalysisExport,
   buildSegmentCatalog,
+  buildSegmentComparison,
   buildSegmentExplorerSummary,
   canRunSegmentAnalysis,
   canExportSegmentAnalysis,
@@ -210,11 +211,67 @@ const thermalConcept = concept({
   question_intents: [],
 });
 
+const winterConcept = concept({
+  concept_key: "winter_comfort_setpoint_c",
+  evidence_source: "survey_questions",
+  measurement_type: "numeric_direct",
+  output_type: "number",
+  aggregation_rule: "identity",
+  threshold_profile: "none",
+  minimum_answer_count: 1,
+  question_keys: ["Q_WINTER_01"],
+  required_question_keys: ["Q_WINTER_01"],
+  question_intents: [],
+});
+
+const summerConcept = concept({
+  concept_key: "summer_comfort_setpoint_c",
+  evidence_source: "survey_questions",
+  measurement_type: "numeric_direct",
+  output_type: "number",
+  aggregation_rule: "identity",
+  threshold_profile: "none",
+  minimum_answer_count: 1,
+  question_keys: ["Q_SUMMER_01"],
+  required_question_keys: ["Q_SUMMER_01"],
+  question_intents: [],
+});
+
+const tariffConcept = concept({
+  concept_key: "preferred_tariff_model",
+  evidence_source: "survey_questions",
+  measurement_type: "single_choice_enum",
+  output_type: "enum",
+  aggregation_rule: "identity",
+  threshold_profile: "none",
+  minimum_answer_count: 1,
+  question_keys: ["Q_TARIFF_01"],
+  required_question_keys: ["Q_TARIFF_01"],
+  question_intents: [],
+});
+
+const interestedConcept = concept({
+  concept_key: "interested_der_assets",
+  evidence_source: "survey_questions",
+  measurement_type: "multi_choice_tag_set",
+  output_type: "string[]",
+  aggregation_rule: "set_union",
+  threshold_profile: "asset_inventory",
+  minimum_answer_count: 1,
+  question_keys: ["Q_INTEREST_01"],
+  required_question_keys: ["Q_INTEREST_01"],
+  question_intents: [],
+});
+
 function mapperOutput(input: {
   trust?: number;
   override?: number;
   savings?: number;
   assets?: string[];
+  interested?: string[];
+  winter?: number;
+  summer?: number;
+  tariff?: string;
   dfc?: number | null;
   ev?: number | null;
   thermal?: number;
@@ -249,6 +306,10 @@ function mapperOutput(input: {
       ...(input.savings != null ? { savings_motivation: { value: input.savings, tag: "medium" } } : {}),
       ...(input.thermal != null ? { thermal_comfort_norms: { value: input.thermal, tag: "medium" } } : {}),
       ...(input.assets ? { owned_der_assets: { value: input.assets } } : {}),
+      ...(input.interested ? { interested_der_assets: { value: input.interested } } : {}),
+      ...(input.winter != null ? { winter_comfort_setpoint_c: { value: input.winter } } : {}),
+      ...(input.summer != null ? { summer_comfort_setpoint_c: { value: input.summer } } : {}),
+      ...(input.tariff ? { preferred_tariff_model: { value: input.tariff } } : {}),
       ...(input.dfc !== undefined
         ? {
             declared_flexibility_capability: {
@@ -1321,6 +1382,7 @@ describe("segment analysis result", () => {
       definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
     });
     expect(result.supportingFactors).toEqual([]);
+    expect(result.householdConditions).toBeNull();
     expect(result.conditionalModules).toBeNull();
     expect(result.assets).toEqual([]);
     expect(result.facets.length).toBeGreaterThan(0);
@@ -1712,6 +1774,140 @@ describe("segment analysis corrections", () => {
     expect(file.body).not.toMatch(/response_id|answers_json|mapper_output|prolific/i);
     expect(canExportSegmentAnalysis("ready", false, analysis)).toBe(true);
     expect(canExportSegmentAnalysis("ready", true, analysis)).toBe(false);
+  });
+});
+
+describe("household applicability factors", () => {
+  const survey = buildSurvey([
+    trustConcept,
+    thermalConcept,
+    savingsConcept,
+    assetsConcept,
+    interestedConcept,
+    winterConcept,
+    summerConcept,
+    tariffConcept,
+    dfcConcept,
+  ]);
+  const schema = buildSurveyAnalyticsSchema({ survey, readyResponseCount: 6 });
+  const expected = { surveyId: survey.id, measurementHash: survey.measurement_hash ?? null };
+  const rows = [
+    record("a1", mapperOutput({ trust: 5, thermal: 5, savings: 2, assets: ["ev"], interested: ["heat_pump"], winter: 17, summer: 27, tariff: "same_price", dfc: 4, ev: 4 })),
+    record("a2", mapperOutput({ trust: 5, thermal: 5, savings: 2, assets: ["ev"], interested: ["heat_pump"], winter: 16, summer: 26, tariff: "same_price", dfc: 4, ev: 4 })),
+    record("a3", mapperOutput({ trust: 4, thermal: 4, savings: 3, assets: ["ev"], interested: ["heat_pump"], winter: 18, summer: 26, tariff: "same_price", dfc: 4, ev: 4 })),
+    record("b1", mapperOutput({ trust: 2, thermal: 2, savings: 5, assets: ["heat_pump"], interested: ["ev", "battery_storage"], winter: 21, summer: 24, tariff: "dynamic_price", dfc: 2, ev: 2 })),
+    record("b2", mapperOutput({ trust: 2, thermal: 2, savings: 5, assets: ["heat_pump"], interested: ["ev"], winter: 20, summer: 23, tariff: "dynamic_price", dfc: 2, ev: 2 })),
+    record("b3", mapperOutput({ trust: 1, thermal: 2, savings: 5, assets: ["heat_pump"], interested: ["ev"], winter: 22, tariff: "shift_rewards", dfc: 2, ev: 2 })),
+  ];
+
+  it("selects owned assets explicitly and nests the remaining household conditions", () => {
+    const catalog = buildSegmentCatalog({ survey, schema, rows });
+    expect(catalog.assets?.field).toBe("profile.owned_der_assets.value");
+    expect(catalog.assets?.values.map((value) => value.value)).toEqual(["ev", "heat_pump"]);
+    const thermal = catalog.dimensions.find((dimension) => dimension.dimension === "thermal_comfort_norms");
+    const tariff = catalog.dimensions.find((dimension) => dimension.dimension === "tariff_preferences");
+    const der = catalog.dimensions.find((dimension) => dimension.dimension === "der_engagement");
+    expect(thermal?.householdConditions.map((item) => item.conceptKey)).toEqual([
+      "winter_comfort_setpoint_c",
+      "summer_comfort_setpoint_c",
+    ]);
+    expect(tariff?.householdConditions.map((item) => item.conceptKey)).toEqual(["preferred_tariff_model"]);
+    expect(der?.householdConditions.map((item) => item.conceptKey)).toEqual(["interested_der_assets"]);
+    expect(catalog.dimensions.flatMap((dimension) => dimension.householdConditions).some((item) => item.conceptKey === "owned_der_assets")).toBe(false);
+  });
+
+  it("rejects semantic bands on setpoints and invalidates stale measurement hashes", () => {
+    expect(
+      validationIssue(
+        validateSegmentDefinition(
+          definition([{ kind: "semantic_band", field: "profile.winter_comfort_setpoint_c.value", band: "low" }]),
+          schema,
+          expected,
+        ),
+      ),
+    ).toBe("invalid_condition");
+    expect(
+      validateSegmentDefinition(
+        definition([{ kind: "numeric_range", field: "profile.winter_comfort_setpoint_c.value", min: 16, max: 18 }]),
+        schema,
+        expected,
+      ).ok,
+    ).toBe(true);
+    expect(
+      validationIssue(
+        validateSegmentDefinition(
+          {
+            ...definition([{ kind: "numeric_range", field: "profile.winter_comfort_setpoint_c.value", min: 16, max: 18 }]),
+            measurementHash: "stale-hash",
+          },
+          schema,
+          expected,
+        ),
+      ),
+    ).toBe("measurement_hash_mismatch");
+  });
+
+  it("filters numeric, enum and membership household conditions without changing DFC applicability", () => {
+    const winter = definition([{ kind: "numeric_range", field: "profile.winter_comfort_setpoint_c.value", min: 16, max: 18 }]);
+    const tariff = definition([{ kind: "in", field: "profile.preferred_tariff_model.value", values: ["dynamic_price"] }]);
+    const interested = definition([{ kind: "contains", field: "profile.interested_der_assets.value", value: "ev" }]);
+    expect(applySurveyAnalyticsFilters({ schema, rows, filters: compileSegmentDefinition(winter) }).map((row) => row.response_id)).toEqual([
+      "a1",
+      "a2",
+      "a3",
+    ]);
+    expect(applySurveyAnalyticsFilters({ schema, rows, filters: compileSegmentDefinition(tariff) }).map((row) => row.response_id)).toEqual([
+      "b1",
+      "b2",
+    ]);
+    expect(applySurveyAnalyticsFilters({ schema, rows, filters: compileSegmentDefinition(interested) }).map((row) => row.response_id)).toEqual([
+      "b1",
+      "b2",
+      "b3",
+    ]);
+
+    const highTrust = buildSegmentAnalysis({
+      schema,
+      rows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(highTrust.assets.every((asset) => asset.field === "profile.owned_der_assets.value")).toBe(true);
+    expect(highTrust.assets.some((asset) => asset.value === "battery_storage")).toBe(false);
+    expect(highTrust.conditionalModules?.modules[0]?.applicableN).toBe(highTrust.sample.selectedN);
+    expect(highTrust.householdConditions?.numerics.map((item) => item.conceptKey)).toEqual([
+      "winter_comfort_setpoint_c",
+      "summer_comfort_setpoint_c",
+    ]);
+    const winterRow = highTrust.householdConditions?.numerics.find((item) => item.conceptKey === "winter_comfort_setpoint_c");
+    expect(winterRow?.applicableN).toBe(3);
+    expect(winterRow?.missingN).toBe(0);
+    expect(winterRow?.median).toBe(17);
+    const summerRow = highTrust.householdConditions?.numerics.find((item) => item.conceptKey === "summer_comfort_setpoint_c");
+    expect(summerRow?.missingN).toBeGreaterThanOrEqual(0);
+    expect(highTrust.householdConditions?.categories.some((item) => item.conceptKey === "interested_der_assets")).toBe(true);
+  });
+
+  it("keeps interested assets out of comparison Assets and omits empty household sections", () => {
+    const highTrust = definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]);
+    const lowTrust = definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "low" }]);
+    const comparison = buildSegmentComparison({ schema, rows, definitionA: highTrust, definitionB: lowTrust });
+    expect(comparison.compositionDifferences.every((row) => !row.field.includes("interested_der_assets"))).toBe(true);
+    expect(comparison.compositionDifferences.filter((row) => row.family === "asset").every((row) => row.field.includes("owned_der_assets"))).toBe(true);
+    expect(comparison.householdConditions?.categories.some((item) => item.conceptKey === "interested_der_assets")).toBe(true);
+    expect(comparison.householdConditions?.numerics.some((item) => item.conceptKey === "winter_comfort_setpoint_c")).toBe(true);
+
+    const leanSurvey = buildSurvey([trustConcept]);
+    const leanSchema = buildSurveyAnalyticsSchema({ survey: leanSurvey, readyResponseCount: 2 });
+    const leanRows = [record("x", mapperOutput({ trust: 5 })), record("y", mapperOutput({ trust: 1 }))];
+    const leanCatalog = buildSegmentCatalog({ survey: leanSurvey, schema: leanSchema, rows: leanRows });
+    expect(leanCatalog.dimensions.every((dimension) => dimension.householdConditions.length === 0)).toBe(true);
+    const leanAnalysis = buildSegmentAnalysis({
+      schema: leanSchema,
+      rows: leanRows,
+      definition: definition([{ kind: "semantic_band", field: "profile.trust_in_automation.value", band: "high" }]),
+    });
+    expect(leanAnalysis.householdConditions).toBeNull();
+    expect(buildSegmentComparison({ schema: leanSchema, rows: leanRows, definitionA: highTrust, definitionB: lowTrust }).householdConditions).toBeNull();
   });
 });
 

@@ -122,12 +122,38 @@ export type SegmentCatalogConditionalModule = {
   bandLabels: Record<SegmentBandKey, string>;
 };
 
+export type SegmentCatalogHouseholdCondition =
+  | {
+      kind: "numeric_range";
+      conceptKey: string;
+      field: string;
+      label: string;
+      unit: string;
+      scaleMin: number;
+      scaleMax: number;
+    }
+  | {
+      kind: "choice";
+      conceptKey: string;
+      field: string;
+      label: string;
+      values: Array<{ value: string; label: string }>;
+    }
+  | {
+      kind: "membership";
+      conceptKey: string;
+      field: string;
+      label: string;
+      values: Array<{ value: string; label: string }>;
+    };
+
 export type SegmentCatalogDimension = {
   dimension: string;
   label: string;
   overall: SegmentCatalogScoreField | null;
   facets: SegmentCatalogFacetField[];
   supportingFactors: SegmentCatalogSupportingFactor[];
+  householdConditions: SegmentCatalogHouseholdCondition[];
   conditionalModules: SegmentCatalogConditionalModule[];
 };
 
@@ -324,6 +350,53 @@ export type SegmentConditionalSummary = {
   }>;
 };
 
+export type SegmentHouseholdNumericSnapshot = {
+  kind: "numeric";
+  conceptKey: string;
+  field: string;
+  label: string;
+  unit: string;
+  applicableN: number;
+  missingN: number;
+  median: number;
+  q1: number;
+  q3: number;
+  wholeSurveyMedian: number | null;
+  outsideMedian: number | null;
+  outsideApplicableN: number;
+  outsideMissingN: number;
+};
+
+export type SegmentHouseholdCategoryShare = {
+  value: string;
+  label: string;
+  segmentCount: number | null;
+  segmentShare: number | null;
+  outsideCount: number | null;
+  outsideShare: number | null;
+  deltaPercentagePoints: number | null;
+  disclosure: "visible" | "suppressed";
+};
+
+export type SegmentHouseholdCategoricalSnapshot = {
+  kind: "categorical" | "membership";
+  conceptKey: string;
+  field: string;
+  label: string;
+  applicableN: number;
+  missingN: number;
+  outsideApplicableN: number;
+  outsideMissingN: number;
+  comparisonAvailable: boolean;
+  values: SegmentHouseholdCategoryShare[];
+};
+
+export type SegmentHouseholdConditionsBlock = {
+  label: string;
+  numerics: SegmentHouseholdNumericSnapshot[];
+  categories: SegmentHouseholdCategoricalSnapshot[];
+};
+
 export type SegmentAssetPenetration = {
   field: string;
   value: string;
@@ -417,6 +490,7 @@ export type SegmentAnalysisResult = {
   };
   facets: SegmentFacetSignal[];
   supportingFactors: SegmentSupportingFactorAxis[];
+  householdConditions: SegmentHouseholdConditionsBlock | null;
   conditionalModules: SegmentConditionalSummary | null;
   assets: SegmentAssetPenetration[];
   internalVariation: SegmentInternalVariation[];

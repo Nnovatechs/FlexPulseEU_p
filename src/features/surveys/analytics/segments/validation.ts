@@ -1,4 +1,5 @@
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
+import { allowsSemanticBandFilter } from "./household-conditions";
 import { normalizeSegmentDefinition } from "./normalize";
 import {
   MAX_SEGMENT_CONDITIONS,
@@ -153,7 +154,19 @@ export function validateSegmentDefinition(
       return fail("unknown_field", `Unknown analytics field "${condition.field}".`);
     }
 
-    if (condition.kind === "semantic_band" || condition.kind === "numeric_range") {
+    if (condition.kind === "semantic_band") {
+      if (!allowsSemanticBandFilter(field)) {
+        return fail(
+          "invalid_condition",
+          `Semantic bands are not allowed for "${condition.field}". Use a numeric range for factual household settings.`,
+        );
+      }
+      if (field.value_type !== "number") {
+        return fail("invalid_condition", `Field "${condition.field}" does not accept a numeric score filter.`);
+      }
+    }
+
+    if (condition.kind === "numeric_range") {
       if (field.value_type !== "number") {
         return fail("invalid_condition", `Field "${condition.field}" does not accept a numeric score filter.`);
       }

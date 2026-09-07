@@ -597,9 +597,21 @@ textarea {
 }
 
 .section-header h1 {
-  margin: 0 0 0.45rem;
+  margin: 0;
   font-size: clamp(1.85rem, 3.3vw, 2.65rem);
   line-height: 1.02;
+}
+
+.section-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 0 0.45rem;
+  min-width: 0;
+}
+
+.section-header__title-row h1 {
+  min-width: 0;
 }
 
 .section-header__actions {
@@ -2389,6 +2401,235 @@ details[open] > .collapsible-section__header .collapsible-section__chevron {
   .pending-view-overlay__card {
     width: min(100%, 18.5rem);
     padding: 1.25rem 1.1rem;
+  }
+}
+
+.page-onboarding-guide__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid rgba(36, 84, 197, 0.22);
+  border-radius: 999px;
+  background: rgba(36, 84, 197, 0.08);
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.page-onboarding-guide__trigger:hover,
+.page-onboarding-guide__trigger:focus-visible {
+  background: rgba(36, 84, 197, 0.14);
+  outline: none;
+}
+
+.page-onboarding-guide__trigger--analytics {
+  border-color: var(--an-border-mid);
+  background: var(--an-accent-soft);
+  color: var(--an-accent);
+}
+
+.page-onboarding-guide__trigger--analytics:hover,
+.page-onboarding-guide__trigger--analytics:focus-visible {
+  background: var(--an-surface-hover);
+  border-color: var(--an-accent);
+  color: var(--an-text-strong);
+}
+
+.page-onboarding-guide__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, var(--foreground) 32%, transparent);
+  cursor: default;
+}
+
+.page-onboarding-guide__overlay--analytics {
+  --an-surface: #161616;
+  --an-surface-alt: #1f1f1f;
+  --an-surface-hover: #282828;
+  --an-border: #2b2b2b;
+  --an-border-mid: #383838;
+  --an-text: #dcdcdc;
+  --an-text-strong: #f8f8f8;
+  --an-muted-strong: #bcbcbc;
+  --an-accent: #5b9cf6;
+  --an-accent-soft: rgba(91, 156, 246, 0.1);
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.page-onboarding-guide__card {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: min(82vh, 40rem);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 64px rgba(20, 39, 77, 0.14);
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__card {
+  background: var(--an-surface);
+  border-color: var(--an-border);
+  color: var(--an-text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+.page-onboarding-guide__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 0;
+}
+
+.page-onboarding-guide__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__title {
+  color: var(--an-text-strong);
+}
+
+.page-onboarding-guide__icon-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__icon-close {
+  border-color: var(--an-border);
+  background: var(--an-surface-alt);
+  color: var(--an-text-strong);
+}
+
+.page-onboarding-guide__icon-close:hover,
+.page-onboarding-guide__icon-close:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__icon-close:hover,
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__icon-close:focus-visible {
+  background: var(--an-surface-hover);
+  border-color: var(--an-border-mid);
+  color: var(--an-accent);
+}
+
+.page-onboarding-guide__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  overflow: auto;
+}
+
+.page-onboarding-guide__intro,
+.page-onboarding-guide__section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__intro,
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__section p {
+  color: var(--an-muted-strong);
+}
+
+.page-onboarding-guide__section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__section h3 {
+  color: var(--an-text-strong);
+}
+
+.page-onboarding-guide__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.page-onboarding-guide__close {
+  min-height: 2.25rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__close {
+  border-color: var(--an-border);
+  background: var(--an-surface-alt);
+  color: var(--an-text-strong);
+}
+
+.page-onboarding-guide__close:hover,
+.page-onboarding-guide__close:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__close:hover,
+.page-onboarding-guide__overlay--analytics .page-onboarding-guide__close:focus-visible {
+  background: var(--an-surface-hover);
+  border-color: var(--an-border-mid);
+  color: var(--an-accent);
+}
+
+.analytics-v2-workbench__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.analytics-v2-workbench__title-row h1 {
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .page-onboarding-guide__overlay {
+    padding: 0.85rem;
+    align-items: flex-end;
+  }
+
+  .page-onboarding-guide__card {
+    max-height: min(88vh, 40rem);
   }
 }
 

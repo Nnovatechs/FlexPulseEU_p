@@ -8,6 +8,7 @@ import {
   listOwnedSurveyLinksForSurveyIds,
   listOwnedSurveys,
 } from "./generator-repository";
+import { isDashboardQaSandboxSurvey } from "./dashboard-qa/survey-fixture";
 import { PersistedSurvey, PersistedSurveyLink, SurveyQuestionDefinition } from "./generator-types";
 import {
   buildSurveyAnalyticsSchema,
@@ -149,6 +150,7 @@ function buildSurveyProjection(
     questionCount: questions.length,
     mappingCount: survey.mapping_contract_json.mappings.length,
     defaultPublicLinkUrl,
+    isDashboardQaSandbox: isDashboardQaSandboxSurvey(survey),
     questions,
   };
 }
@@ -285,10 +287,11 @@ async function loadOwnedDashboardResponseStats(surveyIds: string[]) {
 
   let questionsAnswered = 0;
   for (const row of rows) {
-    questionsAnswered += countAnsweredQuestions(row.answers_json);
-    if (surveyIdSet.has(row.survey_id)) {
-      counts.set(row.survey_id, (counts.get(row.survey_id) ?? 0) + 1);
+    if (!surveyIdSet.has(row.survey_id)) {
+      continue;
     }
+    questionsAnswered += countAnsweredQuestions(row.answers_json);
+    counts.set(row.survey_id, (counts.get(row.survey_id) ?? 0) + 1);
   }
 
   return { counts, questionsAnswered };
@@ -399,12 +402,20 @@ function countAnsweredQuestions(answersJson: unknown) {
 }
 
 async function countOwnedAnsweredQuestions() {
-  const rows = await loadOwnedResponseMetricRows();
-
-  return rows.reduce(
-    (accumulator, row) => accumulator + countAnsweredQuestions(row.answers_json),
-    0,
+  const [allSurveys, rows] = await Promise.all([
+    listOwnedSurveys(),
+    loadOwnedResponseMetricRows(),
+  ]);
+  const countedSurveyIds = new Set(
+    allSurveys.filter((survey) => survey.status !== "archived").map((survey) => survey.id),
   );
+
+  return rows.reduce((accumulator, row) => {
+    if (!row.survey_id || !countedSurveyIds.has(row.survey_id)) {
+      return accumulator;
+    }
+    return accumulator + countAnsweredQuestions(row.answers_json);
+  }, 0);
 }
 
 export async function getDashboardMetrics() {
@@ -586,11 +597,6 @@ export async function generateSurveyInstrumentHealthData(surveyId: string) {
   return buildInstrumentHealthData(source);
 }
 
-const loadSurveyAnalyticsContext = cache(async (surveyId: string) => {
-  const session = await requireCurrentSession();
-  return loadSurveyAnalyticsContextForOwner(surveyId, session.user.id);
-});
-
 async function loadSurveyAnalyticsContextForOwner(surveyId: string, ownerUserId: string) {
   // Do not wrap this snapshot in unstable_cache: ~1000 mapped rows exceed Next's 2MB data-cache limit.
   const runtime = await loadOwnedSurveyAnalyticsRuntimeSnapshot(surveyId, ownerUserId);
@@ -606,6 +612,11 @@ async function loadSurveyAnalyticsContextForOwner(surveyId: string, ownerUserId:
     schema,
   };
 }
+
+const loadSurveyAnalyticsContext = cache(async (surveyId: string) => {
+  const session = await requireCurrentSession();
+  return loadSurveyAnalyticsContextForOwner(surveyId, session.user.id);
+});
 
 function runSurveyAnalyticsFromContext(
   context: Awaited<ReturnType<typeof loadSurveyAnalyticsContext>>,

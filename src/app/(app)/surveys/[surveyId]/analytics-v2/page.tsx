@@ -1,6 +1,8 @@
-import Link from "next/link";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import { getSegmentExplorerBootstrap, getSurveyAnalyticsOverviewData } from "@/features/surveys/use-cases";
 import { appRoutes } from "@/lib/config/routes";
+import { isDashboardQaSandboxSurvey } from "@/features/surveys/dashboard-qa/survey-fixture";
+import { InternalQaDataBanner } from "@/components/surveys/internal-qa-data-banner";
 import { AnalyticsV2Workbench } from "./analytics-v2-workbench";
 
 type SurveyAnalyticsV2PageProps = {
@@ -26,10 +28,10 @@ export default async function SurveyAnalyticsV2Page({
         <header className="analytics-content__header analytics-content__header--v2">
           <nav className="breadcrumb breadcrumb--analytics" aria-label="Breadcrumb">
             <span className="breadcrumb__item">
-              <Link href={appRoutes.dashboard}>Surveys</Link>
+              <PendingNavLink href={appRoutes.dashboard}>Surveys</PendingNavLink>
             </span>
             <span className="breadcrumb__item">
-              <Link href={appRoutes.surveyDetail(survey.id)}>{survey.name}</Link>
+              <PendingNavLink href={appRoutes.surveyDetail(survey.id)}>{survey.name}</PendingNavLink>
             </span>
             <span className="breadcrumb__item">
               <span>Analytics 2</span>
@@ -38,6 +40,7 @@ export default async function SurveyAnalyticsV2Page({
         </header>
 
         <div className="analytics-sections-body analytics-sections-body--v2">
+          {isDashboardQaSandboxSurvey(survey) ? <InternalQaDataBanner /> : null}
           <AnalyticsV2Workbench
             surveyId={survey.id}
             surveyTitle={survey.name}

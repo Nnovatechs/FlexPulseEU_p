@@ -1,11 +1,19 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   canAccessAnalyticsSandbox,
   seedAnalyticsSandboxForSession,
 } from "@/features/surveys/analytics-sandbox";
+import { findDashboardQaSandboxForOwner } from "@/features/surveys/dashboard-qa-sandbox";
+import { DASHBOARD_QA_BANNER } from "@/features/surveys/dashboard-qa/constants";
 import { requireCurrentSession } from "@/lib/auth/session";
 import { appRoutes } from "@/lib/config/routes";
+import {
+  createDashboardQaSandboxAction,
+  resetDashboardQaSandboxAction,
+} from "./dashboard-qa-actions";
+import { DashboardQaSandboxForm } from "./dashboard-qa-sandbox-form";
 
 async function seedAnalyticsSandboxAction() {
   "use server";
@@ -19,6 +27,7 @@ async function seedAnalyticsSandboxAction() {
 export default async function AnalyticsSandboxPage() {
   const session = await requireCurrentSession();
   const canSeed = canAccessAnalyticsSandbox(session);
+  const dashboardQa = canSeed ? await findDashboardQaSandboxForOwner(session.user.id) : null;
 
   return (
     <div className="page-stack">
@@ -29,11 +38,11 @@ export default async function AnalyticsSandboxPage() {
         ]}
         eyebrow="Internal sandbox"
         title="Analytics sandbox dataset"
-        description="Generate a private synthetic mapper/profiling dataset in your account, then inspect it through the normal survey analytics page."
+        description="Generate private synthetic datasets in your account. Mapper profiling stays on legacy analytics; Dashboard QA opens Analytics V2."
       />
 
       <section className="surface-card">
-        <h2>Generate synthetic analytics survey</h2>
+        <h2>Mapper / profiling sandbox</h2>
         {canSeed ? (
           <>
             <p>
@@ -63,6 +72,39 @@ export default async function AnalyticsSandboxPage() {
               variables.
             </p>
           </>
+        )}
+      </section>
+
+      <section className="surface-card">
+        <h2>Dashboard QA Sandbox V2</h2>
+        <p>
+          Internal synthetic QA data for Analytics V2. This dataset is not participant fieldwork
+          and is excluded from real workspace metrics.
+        </p>
+        <p className="evidence-warning">{DASHBOARD_QA_BANNER}</p>
+        {canSeed ? (
+          dashboardQa ? (
+            <div className="button-row">
+              <Link href={dashboardQa.analyticsUrl} className="button button--primary">
+                Open Dashboard QA sandbox
+              </Link>
+              <DashboardQaSandboxForm
+                action={resetDashboardQaSandboxAction}
+                idleLabel="Reset synthetic data"
+                pendingLabel="Resetting…"
+              />
+            </div>
+          ) : (
+            <DashboardQaSandboxForm
+              action={createDashboardQaSandboxAction}
+              idleLabel="Create Dashboard QA sandbox"
+              pendingLabel="Creating…"
+            />
+          )
+        ) : (
+          <p>
+            Dashboard QA sandbox actions use the same sandbox access rules as mapper profiling.
+          </p>
         )}
       </section>
     </div>

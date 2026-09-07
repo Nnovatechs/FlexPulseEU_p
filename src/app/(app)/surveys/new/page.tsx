@@ -1,7 +1,12 @@
-import Link from "next/link";
 import { createSurveyDraftAction } from "@/features/surveys/actions";
 import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingNavLink } from "@/components/pending-nav-link";
+import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
+import { creatingSurveyCopy } from "@/lib/navigation/pending-navigation";
 import { appRoutes } from "@/lib/config/routes";
 
 type NewSurveyPageProps = {
@@ -53,13 +58,17 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
             </label>
 
             <div className="button-row">
-              <button type="submit" className="button button--primary">
+              <PendingSubmitButton className="button button--primary">
                 Create survey
-              </button>
-              <Link href={appRoutes.surveys} className="button button--ghost">
+              </PendingSubmitButton>
+              <PendingNavLink href={appRoutes.surveys} className="button button--ghost">
                 Cancel
-              </Link>
+              </PendingNavLink>
             </div>
+            <FormPendingOverlay
+              title={creatingSurveyCopy.title}
+              description={creatingSurveyCopy.description}
+            />
           </form>
         </article>
       </section>

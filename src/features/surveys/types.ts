@@ -28,5 +28,6 @@ export type Survey = {
   questionCount: number;
   mappingCount: number;
   defaultPublicLinkUrl?: string | null;
+  isDashboardQaSandbox: boolean;
   questions: SurveyQuestion[];
 };

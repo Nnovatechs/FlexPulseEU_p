@@ -11,6 +11,14 @@ import {
 import { computeCliffsDelta } from "./cliffs-delta";
 import { compileSegmentDefinition } from "./compiler";
 import {
+  HOUSEHOLD_CONDITIONS_SECTION_LABEL,
+  getHouseholdConditionPresentation,
+  getHouseholdConditionValueLabel,
+  isOwnedDerAssetsConcept,
+  isOwnedDerAssetsField,
+  listHouseholdConditionPresentations,
+} from "./household-conditions";
+import {
   getAssetValueLabel,
   getBandLabel,
   getChoiceValueLabel,
@@ -43,6 +51,10 @@ import type {
   SegmentDefinition,
   SegmentFacetSignal,
   SegmentGeographyRow,
+  SegmentHouseholdCategoricalSnapshot,
+  SegmentHouseholdCategoryShare,
+  SegmentHouseholdConditionsBlock,
+  SegmentHouseholdNumericSnapshot,
   SegmentInternalVariation,
   SegmentScoreDifferentiator,
   SegmentScoreSnapshot,
@@ -202,6 +214,14 @@ function buildScoreDifferentiators(
 }
 
 function categoryValueLabel(field: SurveyAnalyticsFieldDefinition, value: string) {
+  if (isOwnedDerAssetsField(field) || field.concept_key === "interested_der_assets") {
+    return field.concept_key
+      ? getHouseholdConditionValueLabel(field.concept_key, value)
+      : getAssetValueLabel(value);
+  }
+  if (field.concept_key === "preferred_tariff_model") {
+    return getHouseholdConditionValueLabel(field.concept_key, value);
+  }
   if (field.concept_key === "owned_der_assets" || field.key.includes("owned_der_assets")) {
     return getAssetValueLabel(value);
   }
@@ -560,8 +580,181 @@ function buildConditionalSummary(
 
 function assetField(schema: SurveyAnalyticsSchema) {
   return schema.fields.find(
-    (field) => field.concept_role === "applicability_factor" && field.value_type === "string[]",
+    (field) =>
+      isOwnedDerAssetsConcept(field.concept_key) &&
+      field.value_type === "string[]" &&
+      field.key.endsWith(".value"),
   );
+}
+
+function missingCount(rowCount: number, applicableN: number) {
+  return Math.max(rowCount - applicableN, 0);
+}
+
+function buildHouseholdNumericSnapshot(
+  field: SurveyAnalyticsFieldDefinition,
+  selected: SurveyAnalyticsRecord[],
+  analysed: SurveyAnalyticsRecord[],
+  outside: SurveyAnalyticsRecord[],
+  compare: boolean,
+  context: SegmentLabelContext,
+): SegmentHouseholdNumericSnapshot | null {
+  const conceptKey = field.concept_key as string;
+  const presentation = getHouseholdConditionPresentation(conceptKey);
+  const selectedValues = numericFieldValues(selected, field.key);
+  if (selectedValues.length === 0 && numericFieldValues(analysed, field.key).length === 0) {
+    return null;
+  }
+  if (selectedValues.length === 0) {
+    return null;
+  }
+
+  const outsideValues = numericFieldValues(outside, field.key);
+  return {
+    kind: "numeric",
+    conceptKey,
+    field: field.key,
+    label: getConceptLabel(conceptKey, context),
+    unit: presentation?.unit ?? "",
+    applicableN: selectedValues.length,
+    missingN: missingCount(selected.length, selectedValues.length),
+    median: computeLinearQuantile(selectedValues, 0.5) ?? selectedValues[0],
+    q1: computeLinearQuantile(selectedValues, 0.25) ?? selectedValues[0],
+    q3: computeLinearQuantile(selectedValues, 0.75) ?? selectedValues[selectedValues.length - 1],
+    wholeSurveyMedian: computeLinearQuantile(numericFieldValues(analysed, field.key), 0.5),
+    outsideMedian: compare ? computeLinearQuantile(outsideValues, 0.5) : null,
+    outsideApplicableN: compare ? outsideValues.length : 0,
+    outsideMissingN: compare ? missingCount(outside.length, outsideValues.length) : 0,
+  };
+}
+
+function buildHouseholdCategorySnapshot(
+  field: SurveyAnalyticsFieldDefinition,
+  kind: "categorical" | "membership",
+  selected: SurveyAnalyticsRecord[],
+  outside: SurveyAnalyticsRecord[],
+  compare: boolean,
+  context: SegmentLabelContext,
+): SegmentHouseholdCategoricalSnapshot | null {
+  const conceptKey = field.concept_key as string;
+  const segment = collectCategoryValues(selected, field);
+  const other = compare
+    ? collectCategoryValues(outside, field)
+    : { counts: new Map<string, number>(), applicableN: 0 };
+  if (segment.applicableN === 0 && other.applicableN === 0) {
+    return null;
+  }
+
+  const values = new Set([...segment.counts.keys(), ...other.counts.keys()]);
+  const raw = Array.from(values).map((value) => ({
+    value,
+    segmentCount: segment.counts.get(value) ?? 0,
+    outsideCount: other.counts.get(value) ?? 0,
+  }));
+  const suppressedSegment = discloseExclusiveCounts(
+    raw.map((item) => ({ key: item.value, count: item.segmentCount })),
+    selected.length,
+  );
+  const suppressedOutside = compare
+    ? discloseExclusiveCounts(
+        raw.map((item) => ({ key: item.value, count: item.outsideCount })),
+        outside.length,
+      )
+    : new Set<string>();
+
+  const shares: SegmentHouseholdCategoryShare[] = raw
+    .map((item) => {
+      const hideSegment = suppressedSegment.has(item.value);
+      const hideOutside = compare && suppressedOutside.has(item.value);
+      const segmentShare = segment.applicableN === 0 ? 0 : item.segmentCount / segment.applicableN;
+      const outsideShare = other.applicableN === 0 ? 0 : item.outsideCount / other.applicableN;
+      const suppressed = hideSegment || hideOutside;
+      return {
+        value: item.value,
+        label: getHouseholdConditionValueLabel(conceptKey, item.value),
+        segmentCount: hideSegment ? null : item.segmentCount,
+        segmentShare: hideSegment ? null : segmentShare,
+        outsideCount: hideOutside || !compare ? null : item.outsideCount,
+        outsideShare: hideOutside || !compare ? null : outsideShare,
+        deltaPercentagePoints: compare && !suppressed ? (segmentShare - outsideShare) * 100 : null,
+        disclosure: suppressed ? ("suppressed" as const) : ("visible" as const),
+      };
+    })
+    .sort((left, right) => {
+      const leftDelta = Math.abs(left.deltaPercentagePoints ?? 0);
+      const rightDelta = Math.abs(right.deltaPercentagePoints ?? 0);
+      if (rightDelta !== leftDelta) {
+        return rightDelta - leftDelta;
+      }
+      return (right.segmentShare ?? 0) - (left.segmentShare ?? 0) || left.value.localeCompare(right.value);
+    });
+
+  return {
+    kind,
+    conceptKey,
+    field: field.key,
+    label: getConceptLabel(conceptKey, context),
+    applicableN: segment.applicableN,
+    missingN: missingCount(selected.length, segment.applicableN),
+    outsideApplicableN: other.applicableN,
+    outsideMissingN: compare ? missingCount(outside.length, other.applicableN) : 0,
+    comparisonAvailable: compare,
+    values: shares,
+  };
+}
+
+function buildHouseholdConditions(
+  schema: SurveyAnalyticsSchema,
+  selected: SurveyAnalyticsRecord[],
+  analysed: SurveyAnalyticsRecord[],
+  outside: SurveyAnalyticsRecord[],
+  context: SegmentLabelContext,
+  compare: boolean,
+): SegmentHouseholdConditionsBlock | null {
+  const numerics: SegmentHouseholdNumericSnapshot[] = [];
+  const categories: SegmentHouseholdCategoricalSnapshot[] = [];
+
+  for (const presentation of listHouseholdConditionPresentations()) {
+    const field = schema.fields.find(
+      (candidate) =>
+        candidate.concept_key === presentation.conceptKey &&
+        !candidate.facet &&
+        candidate.key.endsWith(".value"),
+    );
+    if (!field) {
+      continue;
+    }
+
+    if (presentation.control === "numeric_range") {
+      const snapshot = buildHouseholdNumericSnapshot(field, selected, analysed, outside, compare, context);
+      if (snapshot) {
+        numerics.push(snapshot);
+      }
+      continue;
+    }
+
+    const snapshot = buildHouseholdCategorySnapshot(
+      field,
+      presentation.control === "membership" ? "membership" : "categorical",
+      selected,
+      outside,
+      compare,
+      context,
+    );
+    if (snapshot) {
+      categories.push(snapshot);
+    }
+  }
+
+  if (numerics.length === 0 && categories.length === 0) {
+    return null;
+  }
+
+  return {
+    label: HOUSEHOLD_CONDITIONS_SECTION_LABEL,
+    numerics,
+    categories,
+  };
 }
 
 function buildAssetPenetration(
@@ -1020,6 +1213,14 @@ export function buildSegmentAnalysis(input: {
     context,
     compare,
   );
+  const householdConditions = buildHouseholdConditions(
+    input.schema,
+    selected,
+    input.rows,
+    outside,
+    context,
+    compare,
+  );
   const scores =
     differentiatorReason == null
       ? buildScoreDifferentiators(axisFields, selected, outside, input.definition, context)
@@ -1051,6 +1252,7 @@ export function buildSegmentAnalysis(input: {
     },
     facets,
     supportingFactors,
+    householdConditions,
     conditionalModules: buildConditionalSummary(input.schema, selected, outside, context, compare),
     assets,
     internalVariation,

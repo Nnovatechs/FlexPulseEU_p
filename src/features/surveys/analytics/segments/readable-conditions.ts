@@ -7,6 +7,7 @@ import {
   getFieldLabel,
   type SegmentLabelContext,
 } from "./labels";
+import { getHouseholdConditionValueLabel, isHouseholdConditionField, isOwnedDerAssetsField } from "./household-conditions";
 import type { SegmentCondition, SegmentDefinition } from "./types";
 
 export function segmentLabelContext(schema: SurveyAnalyticsSchema): SegmentLabelContext {
@@ -20,8 +21,10 @@ export function segmentLabelContext(schema: SurveyAnalyticsSchema): SegmentLabel
 function conditionValueLabel(condition: SegmentCondition, context: SegmentLabelContext) {
   const field = context.fields.find((candidate) => candidate.key === condition.field);
   const raw = "value" in condition ? String(condition.value) : "";
-  if (field?.concept_key === "owned_der_assets" || condition.field.includes("owned_der_assets")) {
-    return getAssetValueLabel(raw);
+  if (field?.concept_key && (isOwnedDerAssetsField(field) || isHouseholdConditionField(field))) {
+    return isOwnedDerAssetsField(field)
+      ? getAssetValueLabel(raw)
+      : getHouseholdConditionValueLabel(field.concept_key, raw);
   }
   return getChoiceValueLabel(raw);
 }

@@ -32,6 +32,8 @@ const errorMessages: Record<string, string> = {
   "dpa-missing-fields": "Complete all required DPA signing fields before saving.",
   "dpa-fields-required":
     "Complete and save the controller and authorised representative details before reviewing the DPA.",
+  "dpa-save-failed":
+    "The DPA signing details could not be saved. Try again, or contact the platform operator if this continues.",
 };
 
 export default async function PrivacySettingsPage({

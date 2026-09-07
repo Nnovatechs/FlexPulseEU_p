@@ -1,5 +1,7 @@
-import Link from "next/link";
+import { workspaceOnboardingGuide } from "@/components/onboarding/guides";
+import { PageOnboardingGuide } from "@/components/onboarding/page-onboarding-guide";
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import { MetricGrid } from "@/components/surveys/metric-grid";
 import { SurveyList } from "@/components/surveys/survey-list";
 import { getDashboardData } from "@/features/surveys/use-cases";
@@ -13,11 +15,12 @@ export default async function DashboardPage() {
       <PageHeader
         breadcrumbs={[{ label: "Workspace" }]}
         title="Surveys"
+        titleAside={<PageOnboardingGuide {...workspaceOnboardingGuide} />}
         description="Created surveys, lifecycle status, and current draft inventory."
         actions={
-          <Link href={appRoutes.surveyNew} className="button button--primary">
+          <PendingNavLink href={appRoutes.surveyNew} className="button button--primary">
             Create new survey
-          </Link>
+          </PendingNavLink>
         }
       />
 

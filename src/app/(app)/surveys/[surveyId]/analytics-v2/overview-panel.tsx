@@ -45,23 +45,43 @@ function formatScore(value: number) {
   return value.toFixed(2);
 }
 
+const EN_SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function formatOverviewDay(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${day} ${EN_SHORT_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
 function formatDateRange(data: SurveyOverviewData["context"]["dateRange"]) {
   if (!data?.startAt || !data.endAt) {
     return { value: "No dates yet", caption: "No response dates yet" };
   }
 
-  const formatter = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-
-  const start = formatter.format(new Date(data.startAt));
-  const end = formatter.format(new Date(data.endAt));
   const caption =
     data.scope === "collected" ? "All collected responses" : "Analysed responses only";
 
-  return { value: `${start} – ${end}`, caption };
+  return {
+    value: `${formatOverviewDay(data.startAt)} – ${formatOverviewDay(data.endAt)}`,
+    caption,
+  };
 }
 
 function countrySummary(countries: SurveyOverviewData["context"]["countries"]) {

@@ -19,6 +19,7 @@ import {
   type SegmentDefinition,
   type SegmentFacetSignal,
   type SegmentGeographyRow,
+  type SegmentHouseholdConditionsBlock,
   type SegmentInternalVariation,
   type SegmentScoreDifferentiator,
   type SegmentSemanticInsight,
@@ -47,6 +48,8 @@ const FACETS_TIP =
   "Measured sub-parts of a primary axis. A single-item signal is descriptive, not a validated subscale. Facets do not change the aggregated construct score.";
 const SUPPORTING_TIP =
   "Independent supporting scores from this survey’s schema, grouped by dimension. They do not change the primary-axis medians.";
+const HOUSEHOLD_TIP =
+  "Factual household conditions and stated settings measured in this survey. They are not profile scores. Percentages and medians use the applicable n; missing answers are shown separately. Differences are descriptive, not favourable or unfavourable.";
 const DFC_TIP =
   "Conditional capability modules present in this survey. Applicability is module-specific. Overall is a summary; the module breakdown is the operational reading.";
 const ASSETS_TIP =
@@ -384,6 +387,87 @@ function SupportingFactors({ items }: { items: SegmentSupportingFactorAxis[] }) 
                 .join(" · ")}
             </small>
           ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatCelsius(value: number | null | undefined, unit: string) {
+  if (value == null || !Number.isFinite(value)) {
+    return "n/a";
+  }
+  return `${value.toFixed(0)}${unit ? ` ${unit}` : ""}`;
+}
+
+function HouseholdConditions({ block }: { block: SegmentHouseholdConditionsBlock }) {
+  return (
+    <div className="analytics-v2-seg-analysis-block">
+      <h4>
+        {block.label}
+        <InfoTip text={HOUSEHOLD_TIP} />
+      </h4>
+      {block.numerics.map((item) => (
+        <div key={item.field} className="analytics-v2-seg-stack">
+          <strong>{item.label}</strong>
+          <p>
+            Selected segment median: {formatCelsius(item.median, item.unit)}
+            {item.outsideMedian == null
+              ? null
+              : `; outside segment median: ${formatCelsius(item.outsideMedian, item.unit)}`}
+          </p>
+          <small>
+            Q1–Q3 {formatCelsius(item.q1, item.unit)}–{formatCelsius(item.q3, item.unit)} · applicable n=
+            {formatCount(item.applicableN)} · missing/no answer={formatCount(item.missingN)}
+            {item.wholeSurveyMedian == null
+              ? ""
+              : ` · whole-survey median ${formatCelsius(item.wholeSurveyMedian, item.unit)}`}
+          </small>
+        </div>
+      ))}
+      {block.categories.map((item) => (
+        <div key={item.field} className="analytics-v2-seg-stack">
+          <strong>{item.label}</strong>
+          <small>
+            applicable n={formatCount(item.applicableN)} · missing/no answer={formatCount(item.missingN)}
+            {item.comparisonAvailable
+              ? ` · outside applicable n=${formatCount(item.outsideApplicableN)} · outside missing/no answer=${formatCount(item.outsideMissingN)}`
+              : ""}
+          </small>
+          <div className="analytics-v2-seg-cat-list">
+            {item.values.map((entry) => (
+              <div key={entry.value} className="analytics-v2-seg-cat-row">
+                <strong>{entry.label}</strong>
+                {entry.disclosure === "suppressed" ? (
+                  <small>Suppressed for privacy</small>
+                ) : (
+                  <>
+                    <div className="analytics-v2-seg-cat-bars">
+                      <span
+                        className={hasTraceShare(entry.segmentShare) ? "is-trace" : undefined}
+                        style={{ width: `${percentageBarWidth(entry.segmentShare)}%` }}
+                      />
+                      {item.comparisonAvailable ? (
+                        <em
+                          className={hasTraceShare(entry.outsideShare) ? "is-trace" : undefined}
+                          style={{ width: `${percentageBarWidth(entry.outsideShare)}%` }}
+                        />
+                      ) : null}
+                    </div>
+                    <small>
+                      {item.comparisonAvailable
+                        ? `${formatPercent(entry.segmentShare)} vs ${formatPercent(entry.outsideShare)}${
+                            entry.deltaPercentagePoints == null
+                              ? ""
+                              : ` · ${entry.deltaPercentagePoints >= 0 ? "more common in this segment" : "more common outside"} (${Math.abs(entry.deltaPercentagePoints).toFixed(1)} pp)`
+                          }`
+                        : `${formatPercent(entry.segmentShare)} · descriptive only`}
+                    </small>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -1007,6 +1091,7 @@ export function SegmentAnalysisPanel({
 
               <FacetSignals items={result.facets} />
               <SupportingFactors items={result.supportingFactors} />
+              {result.householdConditions ? <HouseholdConditions block={result.householdConditions} /> : null}
               <InternalVariation
                 items={result.internalVariation}
                 draftDefinition={draftDefinition}

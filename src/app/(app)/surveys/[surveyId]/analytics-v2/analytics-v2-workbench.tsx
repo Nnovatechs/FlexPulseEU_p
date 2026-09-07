@@ -23,6 +23,8 @@ import {
   type SegmentCatalog,
   type SegmentDefinition,
 } from "@/features/surveys/analytics/segments";
+import { analyticsOnboardingGuide } from "@/components/onboarding/guides";
+import { PageOnboardingGuide } from "@/components/onboarding/page-onboarding-guide";
 import type { SurveyAnalyticsSchema } from "@/features/surveys/survey-analytics";
 import { OverviewPanel } from "./overview-panel";
 import { InstrumentHealthPanel } from "./instrument-health-panel";
@@ -190,7 +192,10 @@ export function AnalyticsV2Workbench({
       <header className="analytics-v2-workbench__header">
         <div className="analytics-v2-workbench__title-block">
           <p className="analytics-content__eyebrow">Analytics dashboard</p>
-          <h1>{surveyTitle}</h1>
+          <div className="analytics-v2-workbench__title-row">
+            <h1>{surveyTitle}</h1>
+            <PageOnboardingGuide {...analyticsOnboardingGuide} theme="analytics" />
+          </div>
         </div>
 
         <nav className="analytics-v2-tabbar" aria-label="Analytics 2 sections">

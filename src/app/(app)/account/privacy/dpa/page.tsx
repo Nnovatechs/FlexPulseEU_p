@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
 import { acceptDpaAction } from "@/features/privacy/actions";
 import {
   buildDpaDocument,
@@ -187,10 +191,14 @@ export default async function DpaPage({ searchParams }: DpaPageProps) {
                   <span>{DPA_ACCEPTANCE_STATEMENT}</span>
                 </label>
                 <div>
-                  <button type="submit" className="button button--primary">
+                  <PendingSubmitButton className="button button--primary">
                     Accept DPA
-                  </button>
+                  </PendingSubmitButton>
                 </div>
+                <FormPendingOverlay
+                  title="Signing DPA"
+                  description="Recording your acceptance…"
+                />
               </form>
             )}
           </section>

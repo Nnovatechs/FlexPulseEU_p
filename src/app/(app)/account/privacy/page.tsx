@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingNavLink } from "@/components/pending-nav-link";
 import {
   FormPendingOverlay,
   PendingSubmitButton,
@@ -174,12 +174,14 @@ export default async function PrivacySettingsPage({
               description="Updating participant privacy settings…"
             />
             {participantProfileReady ? (
-              <Link
+              <PendingNavLink
                 href={appRoutes.privacySettingsPreview}
                 className="button button--ghost privacy-settings__preview"
+                title="Opening privacy notice"
+                description="Loading the participant-facing preview…"
               >
                 Preview participant privacy notice
-              </Link>
+              </PendingNavLink>
             ) : (
               <span
                 className="privacy-settings__preview-wrap"
@@ -293,12 +295,14 @@ export default async function PrivacySettingsPage({
             ) : null}
 
             {participantProfileReady && dpaFieldsReady && dpaConfigReady ? (
-              <Link
+              <PendingNavLink
                 href={appRoutes.dpa}
                 className="button button--ghost privacy-settings__preview"
+                title="Opening DPA"
+                description="Loading the agreement for review…"
               >
                 Preview &amp; Sign DPA
-              </Link>
+              </PendingNavLink>
             ) : (
               <span
                 className="privacy-settings__preview-wrap"

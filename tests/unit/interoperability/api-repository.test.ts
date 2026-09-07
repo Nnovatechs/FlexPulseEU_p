@@ -96,6 +96,7 @@ describe("interoperability api repository", () => {
     const processedAt = "2026-08-19T10:15:30.456+00:00";
     const surveyListQuery = {
       eq: vi.fn(() => surveyListQuery),
+      neq: vi.fn(() => surveyListQuery),
       order: vi.fn(() => surveyListQuery),
       limit: vi.fn(() => surveyListQuery),
       or: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -154,6 +155,7 @@ describe("interoperability api repository", () => {
     const createdAt = "2026-08-19T09:00:00.123+00:00";
     const surveyQuery = {
       eq: vi.fn(() => surveyQuery),
+      neq: vi.fn(() => surveyQuery),
       order: vi.fn(() => surveyQuery),
       limit: vi.fn().mockResolvedValue({
         data: [

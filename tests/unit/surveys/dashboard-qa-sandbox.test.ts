@@ -134,7 +134,7 @@ describe("dashboard QA synthetic dataset", () => {
     expect(limited.every((record) => {
       const owned = record.mapperOutput.profile.owned_der_assets?.value;
       const interested = record.mapperOutput.profile.interested_der_assets?.value;
-      return Array.isArray(owned) && owned.length === 0 && Array.isArray(interested) && interested.includes("ev");
+      return Array.isArray(owned) && owned.length === 0 && Array.isArray(interested) && interested.some((item) => item === "ev");
     })).toBe(true);
   });
 });

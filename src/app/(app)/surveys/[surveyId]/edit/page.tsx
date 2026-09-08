@@ -78,6 +78,8 @@ export default async function SurveyEditPage({
     resolvedSearchParams.error === "missing-ontology-targets";
   const generationFailedError =
     resolvedSearchParams.error === "generation-failed";
+  const unsupportedLanguageError =
+    resolvedSearchParams.error === "unsupported-language";
   const responseContext = normalizeSurveyResponseContextConfig(
     survey.definition_json.survey_meta.response_context,
   );
@@ -145,7 +147,9 @@ export default async function SurveyEditPage({
                 required
               >
                 {surveyLanguageOptions.map((language) => (
-                  <option key={language}>{language}</option>
+                  <option key={language} value={language}>
+                    {language}
+                  </option>
                 ))}
               </select>
               <p className="muted">
@@ -433,6 +437,13 @@ export default async function SurveyEditPage({
       {missingFieldsError ? (
         <div className="notice notice--error" role="alert">
           Survey name and primary language are required.
+        </div>
+      ) : null}
+
+      {unsupportedLanguageError ? (
+        <div className="notice notice--error" role="alert">
+          The submitted language selection is not supported. Reload the page and
+          select a language again.
         </div>
       ) : null}
 

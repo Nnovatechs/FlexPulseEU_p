@@ -12,7 +12,7 @@ type AppShellProps = {
 
 export function AppShell({ userName, userEmail, children }: AppShellProps) {
   return (
-    <div className="app-shell">
+    <div className="app-shell notranslate" translate="no">
       <div className="app-shell__content">
         <header className="topbar">
           <div className="topbar__brand">

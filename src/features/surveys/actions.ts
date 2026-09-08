@@ -50,6 +50,7 @@ import type {
 import { normalizeSurveyResponseContextConfig } from "./generator-types";
 import { prepareThermalComfortFacetRepair } from "./measurement-plan-repairs";
 import { withSurveyTimingOperation, timeSurveyStep } from "./local-timing";
+import { getInvalidSurveyLanguages, isSupportedSurveyLanguage } from "./languages";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -316,6 +317,10 @@ export async function createSurveyDraftAction(formData: FormData) {
     redirect(`${appRoutes.surveyNew}?error=missing-fields`);
   }
 
+  if (!isSupportedSurveyLanguage(defaultLanguage)) {
+    redirect(`${appRoutes.surveyNew}?error=unsupported-language`);
+  }
+
   const survey = await createSurveyDraft({
     name,
     default_language: defaultLanguage,
@@ -359,6 +364,13 @@ export async function updateSurveySettingsAction(formData: FormData) {
 
   if (!surveyId || !name || !defaultLanguage) {
     redirect(buildEditErrorRedirect(surveyId, "missing-fields"));
+  }
+
+  if (
+    !isSupportedSurveyLanguage(defaultLanguage) ||
+    getInvalidSurveyLanguages(supportedLanguages).length > 0
+  ) {
+    redirect(buildEditErrorRedirect(surveyId, "unsupported-language"));
   }
 
   const existing = await getOwnedSurveyById(surveyId);

@@ -187,4 +187,32 @@ describe("survey settings generate enforcement", () => {
     expect(generateSurveyDraftProposal).not.toHaveBeenCalled();
     expect(updateSurveyDraft).not.toHaveBeenCalled();
   });
+
+  it("rejects Español before generate or persistence", async () => {
+    const { updateSurveySettingsAction } = await import("@/features/surveys/actions");
+
+    await expect(
+      updateSurveySettingsAction(
+        buildSettingsFormData({ intent: "generate", defaultLanguage: "Español" }),
+      ),
+    ).rejects.toThrow(/unsupported-language/);
+
+    expect(getOwnedSurveyById).not.toHaveBeenCalled();
+    expect(generateSurveyDraftProposal).not.toHaveBeenCalled();
+    expect(updateSurveyDraft).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid supportedLanguages entry before save", async () => {
+    const formData = buildSettingsFormData({ intent: "save", defaultLanguage: "Spanish" });
+    formData.append("supportedLanguages", "Français");
+
+    const { updateSurveySettingsAction } = await import("@/features/surveys/actions");
+
+    await expect(updateSurveySettingsAction(formData)).rejects.toThrow(/unsupported-language/);
+
+    expect(getOwnedSurveyById).not.toHaveBeenCalled();
+    expect(generateSurveyDraftProposal).not.toHaveBeenCalled();
+    expect(updateSurveyDraft).not.toHaveBeenCalled();
+  });
 });
+

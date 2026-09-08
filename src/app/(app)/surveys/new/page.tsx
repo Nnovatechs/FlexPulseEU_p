@@ -15,7 +15,9 @@ type NewSurveyPageProps = {
 
 export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps) {
   const params = (await searchParams) ?? {};
-  const hasError = params.error === "missing-fields";
+  const error = params.error;
+  const hasMissingFieldsError = error === "missing-fields";
+  const hasUnsupportedLanguageError = error === "unsupported-language";
 
   return (
     <div className="page-stack">
@@ -31,9 +33,15 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
 
       <section className="content-grid content-grid--narrow">
         <article className="surface-card">
-          {hasError ? (
+          {hasMissingFieldsError ? (
             <p className="notice notice--error">
               Survey name and default language are required.
+            </p>
+          ) : null}
+          {hasUnsupportedLanguageError ? (
+            <p className="notice notice--error">
+              The submitted language selection is not supported. Reload the page
+              and select a language again.
             </p>
           ) : null}
 
@@ -52,7 +60,9 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
               <span>Primary language</span>
               <select name="defaultLanguage" defaultValue="English" required>
                 {surveyLanguageOptions.map((language) => (
-                  <option key={language}>{language}</option>
+                  <option key={language} value={language}>
+                    {language}
+                  </option>
                 ))}
               </select>
             </label>

@@ -1,6 +1,6 @@
 import { createSurveyDraftAction } from "@/features/surveys/actions";
-import { surveyLanguageOptions } from "@/features/surveys/language-options";
 import { PageHeader } from "@/components/layout/page-header";
+import { SurveyLanguageSelect } from "@/components/surveys/survey-language-select";
 import { PendingNavLink } from "@/components/pending-nav-link";
 import {
   FormPendingOverlay,
@@ -58,13 +58,7 @@ export default async function NewSurveyPage({ searchParams }: NewSurveyPageProps
 
             <label className="field">
               <span>Primary language</span>
-              <select name="defaultLanguage" defaultValue="English" required>
-                {surveyLanguageOptions.map((language) => (
-                  <option key={language} value={language}>
-                    {language}
-                  </option>
-                ))}
-              </select>
+              <SurveyLanguageSelect defaultValue="English" />
             </label>
 
             <div className="button-row">

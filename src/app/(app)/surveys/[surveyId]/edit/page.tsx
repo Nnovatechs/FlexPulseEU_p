@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ConceptPicker } from "@/components/surveys/concept-picker";
 import { EditorInfoTip } from "@/components/surveys/editor-info-tip";
 import { FormActions } from "@/components/surveys/form-actions";
+import { SurveyLanguageSelect } from "@/components/surveys/survey-language-select";
 import { PreviewTab } from "@/components/surveys/preview-tab";
 import { QuestionsOverview } from "@/components/surveys/questions-overview";
 import { ReviewTab } from "@/components/surveys/review-tab";
@@ -78,6 +79,8 @@ export default async function SurveyEditPage({
     resolvedSearchParams.error === "missing-ontology-targets";
   const generationFailedError =
     resolvedSearchParams.error === "generation-failed";
+  const unsupportedLanguageError =
+    resolvedSearchParams.error === "unsupported-language";
   const responseContext = normalizeSurveyResponseContextConfig(
     survey.definition_json.survey_meta.response_context,
   );
@@ -139,15 +142,7 @@ export default async function SurveyEditPage({
           <div className="collapsible-section__body">
             <label className="field">
               <span>Primary language</span>
-              <select
-                name="defaultLanguage"
-                defaultValue={survey.default_language}
-                required
-              >
-                {surveyLanguageOptions.map((language) => (
-                  <option key={language}>{language}</option>
-                ))}
-              </select>
+              <SurveyLanguageSelect defaultValue={survey.default_language} />
               <p className="muted">
                 English, Spanish and French are the recommended primary
                 languages for the current deployment.
@@ -433,6 +428,13 @@ export default async function SurveyEditPage({
       {missingFieldsError ? (
         <div className="notice notice--error" role="alert">
           Survey name and primary language are required.
+        </div>
+      ) : null}
+
+      {unsupportedLanguageError ? (
+        <div className="notice notice--error" role="alert">
+          The submitted language selection is not supported. Reload the page and
+          select a language again.
         </div>
       ) : null}
 

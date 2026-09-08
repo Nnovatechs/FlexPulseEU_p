@@ -1,10 +1,18 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingNavLink } from "@/components/pending-nav-link";
+import {
+  FormPendingOverlay,
+  PendingSubmitButton,
+} from "@/components/pending-view-overlay";
 import {
   saveDpaSigningDetailsAction,
   saveParticipantPrivacySettingsAction,
 } from "@/features/privacy/actions";
-import { getDpaConfig, isDpaConfigComplete } from "@/features/privacy/dpa";
+import {
+  getDpaConfig,
+  getMissingDpaConfigFields,
+  isDpaConfigComplete,
+} from "@/features/privacy/dpa";
 import {
   getCurrentDpaAcceptance,
   hasPreviousDpaAcceptance,
@@ -44,6 +52,7 @@ export default async function PrivacySettingsPage({
   const participantProfileReady = isOwnerLegalProfileComplete(profile);
   const dpaConfig = getDpaConfig();
   const dpaConfigReady = isDpaConfigComplete(dpaConfig);
+  const missingDpaConfigFields = getMissingDpaConfigFields(dpaConfig);
   const dpaFieldsReady = isOwnerDpaProfileComplete(profile);
   const dpaAcceptance =
     dpaFieldsReady && dpaConfigReady && profile
@@ -157,19 +166,22 @@ export default async function PrivacySettingsPage({
           </label>
 
           <div className="privacy-settings__actions">
-            <button
-              type="submit"
-              className="button button--primary privacy-settings__save"
-            >
+            <PendingSubmitButton className="button button--primary privacy-settings__save">
               Save participant privacy details
-            </button>
+            </PendingSubmitButton>
+            <FormPendingOverlay
+              title="Saving privacy details"
+              description="Updating participant privacy settings…"
+            />
             {participantProfileReady ? (
-              <Link
+              <PendingNavLink
                 href={appRoutes.privacySettingsPreview}
                 className="button button--ghost privacy-settings__preview"
+                title="Opening privacy notice"
+                description="Loading the participant-facing preview…"
               >
                 Preview participant privacy notice
-              </Link>
+              </PendingNavLink>
             ) : (
               <span
                 className="privacy-settings__preview-wrap"
@@ -212,6 +224,14 @@ export default async function PrivacySettingsPage({
           </div>
         ) : null}
 
+        {!dpaConfigReady ? (
+          <div className="notice notice--warning" role="status">
+            Preview &amp; Sign is blocked by missing hosted processor
+            configuration ({missingDpaConfigFields.join(", ")}). This is
+            platform setup, not the controller form below.
+          </div>
+        ) : null}
+
         <form action={saveDpaSigningDetailsAction} className="stack-form">
           <label className="field">
             <span>Controller registered address</span>
@@ -246,12 +266,9 @@ export default async function PrivacySettingsPage({
 
           <div className="privacy-settings__actions">
             {participantProfileReady ? (
-              <button
-                type="submit"
-                className="button button--primary privacy-settings__save"
-              >
+              <PendingSubmitButton className="button button--primary privacy-settings__save">
                 Save DPA signing details
-              </button>
+              </PendingSubmitButton>
             ) : (
               <span
                 className="privacy-settings__preview-wrap"
@@ -278,12 +295,14 @@ export default async function PrivacySettingsPage({
             ) : null}
 
             {participantProfileReady && dpaFieldsReady && dpaConfigReady ? (
-              <Link
+              <PendingNavLink
                 href={appRoutes.dpa}
                 className="button button--ghost privacy-settings__preview"
+                title="Opening DPA"
+                description="Loading the agreement for review…"
               >
                 Preview &amp; Sign DPA
-              </Link>
+              </PendingNavLink>
             ) : (
               <span
                 className="privacy-settings__preview-wrap"
@@ -304,6 +323,10 @@ export default async function PrivacySettingsPage({
                 </button>
               </span>
             )}
+            <FormPendingOverlay
+              title="Saving DPA signing details"
+              description="Updating the controller signing details…"
+            />
           </div>
         </form>
       </section>

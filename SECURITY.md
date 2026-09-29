@@ -2,10 +2,7 @@
 
 ## Scope
 
-This repository is prepared for public review of the FlexPulse-EU D2 Stage 2
-technical prototype. It contains application code, migrations, tests, and
-validation fixtures, but it must not contain hosted secrets, production datasets,
-or private operational notes.
+This repository contains the project-specific open-source implementation delivered for FlexPulse-EU Stage 3, building on the Stage 2 foundation. It includes application code, migrations, tests and validation fixtures. Hosted secrets, production respondent datasets and private operational notes remain outside the public repository.
 
 Security expectations:
 

@@ -2,7 +2,7 @@
   "name": "flexpulseeu",
   "version": "0.1.0",
   "private": true,
-  "description": "FlexPulse-EU D2 Stage 2 prototype for survey generation, semantic mapping, profiling, and analytics.",
+  "description": "FlexPulse-EU: survey-based behavioural intelligence for residential energy flexibility, with multilingual survey generation, deterministic mapping, analytics and interoperability.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
